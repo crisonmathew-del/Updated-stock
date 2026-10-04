@@ -1,0 +1,44 @@
+@import "tailwindcss";
+
+/*
+ * Placeholder tokens for the Phase 0 scaffold. The real palette, type scale and grade/lifecycle
+ * colours are proposed in the Phase 5 design plan and replace these.
+ */
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  --muted: #6b6b6b;
+  --border: #e4e4e4;
+  --ok: #1a7f5a;
+  --fail: #b42318;
+}
+
+.dark {
+  --background: #0f1115;
+  --foreground: #e6e6e6;
+  --muted: #8a8f98;
+  --border: #23262d;
+  --ok: #4cc38a;
+  --fail: #f97066;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-ok: var(--ok);
+  --color-fail: var(--fail);
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
