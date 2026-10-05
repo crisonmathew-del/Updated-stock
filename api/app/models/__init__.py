@@ -1,6 +1,13 @@
 """ORM models. Importing this package registers every table on `Base.metadata` (Alembic relies
 on that for autogenerate)."""
 
+from app.models.analytics import (
+    GroupRankDaily,
+    IndicatorDaily,
+    IndustryGroup,
+    MarketBreadthDaily,
+    MarketRegimeDaily,
+)
 from app.models.market_data import CorporateAction, DailyBar, SharesOutstanding
 from app.models.ops import DataQualityIssue, JobRun
 from app.models.setting import Setting
@@ -11,7 +18,12 @@ __all__ = [
     "CorporateAction",
     "DailyBar",
     "DataQualityIssue",
+    "GroupRankDaily",
+    "IndicatorDaily",
+    "IndustryGroup",
     "JobRun",
+    "MarketBreadthDaily",
+    "MarketRegimeDaily",
     "Setting",
     "SharesOutstanding",
     "Ticker",

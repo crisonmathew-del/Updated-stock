@@ -63,6 +63,12 @@ async def data_quality(_: dict[str, Any], trigger: Trigger = "api") -> dict[str,
     return await jobs.data_quality_job(trigger)
 
 
+async def analytics(
+    _: dict[str, Any], trigger: Trigger = "api", force_full: bool = False
+) -> dict[str, Any]:
+    return await jobs.analytics_job(trigger, force_full=force_full)
+
+
 async def startup(ctx: dict[str, Any]) -> None:
     settings = get_settings()
     configure_logging(settings.log_level, settings.log_format)
@@ -81,6 +87,7 @@ class WorkerSettings:
         _task(backfill, 8 * HOUR),
         _task(eod_update, 8 * HOUR),
         _task(data_quality, HOUR),
+        _task(analytics, 4 * HOUR),
     ]
     cron_jobs: ClassVar[list[Any]] = [
         cron(heartbeat, second={0, 10, 20, 30, 40, 50}, run_at_startup=False, timeout=5)

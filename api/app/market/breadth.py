@@ -25,11 +25,14 @@ COUNT_COLUMNS = (
 
 def breadth_counts(ind: pl.DataFrame) -> pl.DataFrame:
     """Counts per date for a chunk of stocks. `ind` (sorted by ticker, date) needs close, high,
-    low, sma50, sma200, high_52w, low_52w, history_sessions; the first row of each ticker only
-    provides the prior close."""
+    low, sma50, sma200, high_52w, low_52w, history_sessions, and optionally prev_close
+    (otherwise derived from the previous row, so a ticker's first row has none)."""
     c = pl.col
     full_year = c("history_sessions") >= SESSIONS_PER_YEAR
-    df = ind.with_columns(per_ticker(c("close").shift(1)).alias("_prev_close"))
+    if "prev_close" in ind.columns:
+        df = ind.with_columns(c("prev_close").alias("_prev_close"))
+    else:
+        df = ind.with_columns(per_ticker(c("close").shift(1)).alias("_prev_close"))
     return df.group_by(DATE).agg(
         pl.len().alias("members"),
         c("sma50").is_not_null().sum().alias("with_50"),

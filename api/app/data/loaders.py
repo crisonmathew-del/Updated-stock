@@ -30,6 +30,24 @@ def _read(query: str) -> pl.DataFrame:
     return pl.read_database_uri(query, _connectorx_uri(), engine="connectorx")
 
 
+async def read_frame(query: str) -> pl.DataFrame:
+    """Run a read-only query (no parameters: inline only trusted ints/dates) into Polars."""
+    return await asyncio.to_thread(_read, query)
+
+
+def _append(table: str, frame: pl.DataFrame) -> None:
+    frame.write_database(
+        table, connection=_connectorx_uri(), engine="adbc", if_table_exists="append"
+    )
+
+
+async def append_frame(table: str, frame: pl.DataFrame) -> None:
+    """Bulk-append via ADBC (binary COPY from Arrow) on its own connection. Column types must
+    match the table exactly (Int32 → integer, Int16 → smallint, Float64 → double precision)."""
+    if not frame.is_empty():
+        await asyncio.to_thread(_append, table, frame)
+
+
 async def load_bars(
     start: date, end: date, ticker_ids: Sequence[int] | None = None
 ) -> pl.DataFrame:

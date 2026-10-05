@@ -24,6 +24,7 @@ from app.providers.base import (
     ProviderNotConfiguredError,
     ReferenceProvider,
 )
+from app.scanner.eod_scan import run_analytics
 from app.settings import store
 
 INGEST_LOCK = "ingest"
@@ -135,6 +136,9 @@ async def eod_update_job(
             quality: dict[str, object] = {}
             await run_quality_checks(session, target, stats=quality)
             run.stats["quality"] = quality
+            analytics: dict[str, object] = {}
+            await run_analytics(session, settings, through=target, stats=analytics)
+            run.stats["analytics"] = analytics
         await prices.aclose()
         return run.stats
 
@@ -143,4 +147,23 @@ async def data_quality_job(trigger: Trigger, *, session_date: date | None = None
     async with track_job("data_quality", trigger) as run, job_lock(get_redis(), QUALITY_LOCK):
         async with get_sessionmaker()() as session:
             await run_quality_checks(session, session_date or latest_session(), stats=run.stats)
+        return run.stats
+
+
+async def analytics_job(
+    trigger: Trigger, *, through: date | None = None, force_full: bool = False
+) -> dict[str, Any]:
+    """Indicators, RS, groups, breadth and regime without fetching new prices. `force_full`
+    recomputes all history (needed after changing stage or Trend Template settings)."""
+    redis = get_redis()
+    async with track_job("analytics", trigger) as run, job_lock(redis, INGEST_LOCK):
+        async with get_sessionmaker()() as session:
+            settings = await store.load(session)
+            await run_analytics(
+                session,
+                settings,
+                through=through or latest_session(),
+                force_full=force_full,
+                stats=run.stats,
+            )
         return run.stats

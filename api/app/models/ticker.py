@@ -1,7 +1,18 @@
 from datetime import date, datetime
 from enum import StrEnum
 
-from sqlalchemy import Boolean, Date, DateTime, Float, Index, String, Text, func, text
+from sqlalchemy import (
+    Boolean,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    String,
+    Text,
+    func,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -44,7 +55,10 @@ class Ticker(Base):
     sic_code: Mapped[str | None] = mapped_column(String(4))
     sic_description: Mapped[str | None] = mapped_column(String(255))
     sector: Mapped[str | None] = mapped_column(String(64))
-    industry: Mapped[str | None] = mapped_column(String(128))
+    industry: Mapped[str | None] = mapped_column(String(160))
+    industry_group_id: Mapped[int | None] = mapped_column(
+        ForeignKey("industry_groups.id", ondelete="SET NULL")
+    )
     reference_refreshed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     # Latest values, refreshed by the EOD update (history lives in daily_bars/shares_outstanding).
@@ -63,6 +77,9 @@ class Ticker(Base):
     backfilled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     bars_start: Mapped[date | None] = mapped_column(Date)
     bars_end: Mapped[date | None] = mapped_column(Date)
+    # Set whenever a ticker's bars are (re)written by a backfill; the analytics pipeline then
+    # recomputes its full indicator history and clears the flag.
+    indicators_stale: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

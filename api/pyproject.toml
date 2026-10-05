@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Breakout stock scanning and recommendation platform: API, workers, scheduler and streamer"
 requires-python = ">=3.12"
 dependencies = [
+    "adbc-driver-postgresql>=1.12.0",
     "alembic>=1.20.0",
     "apscheduler>=3.11.3",
     "argon2-cffi>=25.1.0",

@@ -250,6 +250,15 @@ async def start_eod_update(redis: RedisClient) -> Enqueued:
     return await _enqueue(redis, "eod_update")
 
 
+class AnalyticsRequest(BaseModel):
+    full: bool = False
+
+
+@router.post("/analytics", response_model=Enqueued, status_code=status.HTTP_202_ACCEPTED)
+async def start_analytics(body: AnalyticsRequest, redis: RedisClient) -> Enqueued:
+    return await _enqueue(redis, "analytics", body.full)
+
+
 @router.post("/data-quality", response_model=Enqueued, status_code=status.HTTP_202_ACCEPTED)
 async def start_data_quality(redis: RedisClient) -> Enqueued:
     return await _enqueue(redis, "data_quality", ingest=False)

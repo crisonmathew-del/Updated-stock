@@ -7,6 +7,7 @@ universe      Rebuild the universe from the exchange directories (+ SEC referenc
 backfill      Load daily history for tickers that don't have it yet (resumable)
 eod-update    Fetch the latest session's bars, then run the data-quality checks
 data-quality  Run the data-quality checks only
+scan          Recompute analytics (indicators, RS, groups, breadth, regime); --full for all history
 """
 
 import argparse
@@ -113,6 +114,11 @@ async def cmd_data_quality(_: argparse.Namespace) -> int:
     return await _run_job(jobs.data_quality_job("cli"))
 
 
+async def cmd_scan(args: argparse.Namespace) -> int:
+    through = date.fromisoformat(args.date) if args.date else None
+    return await _run_job(jobs.analytics_job("cli", through=through, force_full=args.full))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m app.cli",
@@ -150,6 +156,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("data-quality", help="Run the data-quality checks")
     p.set_defaults(handler=cmd_data_quality)
+
+    p = sub.add_parser("scan", help="Recompute analytics from stored prices")
+    p.add_argument("--date", help="Through this session YYYY-MM-DD (default: the latest)")
+    p.add_argument("--full", action="store_true", help="Recompute all history")
+    p.set_defaults(handler=cmd_scan)
     return parser
 
 

@@ -21,7 +21,8 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.core.config import Settings, get_settings
-from app.core.db import Base, get_sessionmaker
+from app.core.db import Base, get_engine, get_sessionmaker
+from app.core.queue import close_queue
 from app.core.redis import get_redis
 from app.core.security import create_user
 from app.main import app as fastapi_app
@@ -44,6 +45,15 @@ def _point_at_test_infrastructure() -> None:
 
 
 _point_at_test_infrastructure()
+
+
+@pytest.fixture(scope="session", autouse=True)
+async def _close_connections() -> AsyncIterator[None]:
+    """Close pooled connections before the event loop shuts down."""
+    yield
+    await close_queue()
+    await get_redis().aclose()
+    await get_engine().dispose()
 
 
 @pytest.fixture(scope="session")

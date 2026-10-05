@@ -80,8 +80,8 @@ eod-update: ## Fetch the latest session's bars and run quality checks. Option: d
 data-quality: ## Run the data-quality checks
 	$(RUN_API) python -m app.cli data-quality
 
-scan-now: ## Run the end-of-day scan immediately (Phase 4)
-	@echo "scan-now: not implemented yet; arrives in Phase 4 (EOD scan pipeline)."
+scan-now: ## Recompute analytics from stored prices. Options: full=1 date=YYYY-MM-DD
+	$(RUN_API) python -m app.cli scan $(if $(full),--full) $(if $(date),--date $(date))
 
 shell-api: ## Open a shell in the api container
 	$(COMPOSE) exec api bash

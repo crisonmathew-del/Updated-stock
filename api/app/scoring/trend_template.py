@@ -25,13 +25,15 @@ CHECKS: tuple[tuple[str, str], ...] = (
 )
 
 
-def add_trend_template(df: pl.DataFrame, settings: AppSettings) -> pl.DataFrame:
-    """Adds sma200_ago, tt_<check> booleans, tt_passed (count) and tt_pass (all eight).
-    `df` must be sorted by ticker and date and contain the history needed for sma200_ago."""
+def add_sma200_ago(df: pl.DataFrame, lookback: int) -> pl.DataFrame:
+    """The 200-day SMA `lookback` sessions earlier (needs that much history in `df`)."""
+    return df.with_columns(per_ticker(pl.col("sma200").shift(lookback)).alias("sma200_ago"))
+
+
+def evaluate_trend_template(df: pl.DataFrame, settings: AppSettings) -> pl.DataFrame:
+    """Row-wise checks; needs close, sma50/150/200, sma200_ago, low_52w, high_52w, rs_rating.
+    Adds tt_<check> booleans, tt_passed (count) and tt_pass (all eight)."""
     c = pl.col
-    df = df.with_columns(
-        per_ticker(c("sma200").shift(settings.ma200_uptrend_lookback_days)).alias("sma200_ago")
-    )
     conditions = {
         "above_150_200": (c("close") > c("sma150")) & (c("close") > c("sma200")),
         "150_above_200": c("sma150") > c("sma200"),
@@ -49,6 +51,13 @@ def add_trend_template(df: pl.DataFrame, settings: AppSettings) -> pl.DataFrame:
     return df.with_columns(
         pl.sum_horizontal(f.cast(pl.Int8) for f in flags).alias("tt_passed"),
         pl.all_horizontal(flags).alias("tt_pass"),
+    )
+
+
+def add_trend_template(df: pl.DataFrame, settings: AppSettings) -> pl.DataFrame:
+    """Both steps on a frame sorted by ticker and date with enough history."""
+    return evaluate_trend_template(
+        add_sma200_ago(df, settings.ma200_uptrend_lookback_days), settings
     )
 
 

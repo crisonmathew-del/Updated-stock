@@ -35,7 +35,13 @@ TIMESCALE_SCHEMAS = {
 def include_name(name: str | None, type_: str, _parent_names: object) -> bool:
     if type_ == "schema":
         return name not in TIMESCALE_SCHEMAS
-    return True
+    # Bulk-load staging tables are created by hand in migrations and have no ORM model, and
+    # TimescaleDB adds a "<table>_date_idx" index to every hypertable.
+    if name is None:
+        return True
+    if type_ == "table" and name.startswith("staging_"):
+        return False
+    return not (type_ == "index" and name.endswith("_date_idx"))
 
 
 def run_migrations_offline() -> None:

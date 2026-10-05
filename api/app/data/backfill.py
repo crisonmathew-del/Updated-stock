@@ -94,6 +94,7 @@ def _apply_outcome(
         ticker.bars_start = first if ticker.bars_start is None else min(first, ticker.bars_start)
         ticker.bars_end = last if ticker.bars_end is None else max(last, ticker.bars_end)
         ticker.backfilled_at = now
+        ticker.indicators_stale = True  # history (re)written: analytics must recompute it
         if first > start + LISTING_GRACE and ticker.listed_date is None:
             ticker.listed_date = first
         return BackfillStatus.DONE
