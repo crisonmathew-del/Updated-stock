@@ -5,7 +5,7 @@ import { useState } from "react";
 import { api, type SetupDetail } from "@/lib/api";
 import { formatNumber, formatPrice } from "@/lib/format";
 import { size, sizingSettings } from "@/lib/sizing";
-import { Section, StatusMark } from "./section";
+import { Section, StatusMark } from "@/components/ui/section";
 
 export function ScoreCard({ setup }: { setup: SetupDetail }) {
   return (

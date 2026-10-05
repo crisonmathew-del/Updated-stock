@@ -208,6 +208,19 @@ export type Regime = {
   }[];
 };
 
+export type BreadthDay = {
+  date: string;
+  members: number;
+  pct_above_50: number | null;
+  pct_above_200: number | null;
+  new_highs: number;
+  new_lows: number;
+  net_new_highs: number;
+  advancers: number;
+  decliners: number;
+  ad_line: number;
+};
+
 export type GroupRow = {
   group_id: number;
   rank: number;
@@ -505,6 +518,7 @@ export type SignalEntry = {
   grade: string | null;
   context: Record<string, unknown>;
   outcome: SignalOutcome | null;
+  setup_state: SetupState | null;
 };
 
 export type SetupDetail = SetupRow & {

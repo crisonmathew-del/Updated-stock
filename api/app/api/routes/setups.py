@@ -110,6 +110,7 @@ class SignalOut(BaseModel):
     grade: str | None
     context: dict[str, Any]
     outcome: OutcomeOut | None
+    setup_state: str | None  # the setup's stage now (the signal itself never changes)
 
 
 class SetupDetail(SetupRow):
@@ -194,7 +195,12 @@ def _in_r(
     return round((price * (1 + ret / 100) - entry) / (entry - stop), 2)
 
 
-def _signal(signal: Signal, ticker: Ticker | None, outcome: SignalOutcome | None) -> SignalOut:
+def _signal(
+    signal: Signal,
+    ticker: Ticker | None,
+    outcome: SignalOutcome | None,
+    setup_state: str | None = None,
+) -> SignalOut:
     measured = None
     if outcome is not None:
         returns = {str(n): getattr(outcome, f"ret_{n}") for n in HORIZONS}
@@ -231,12 +237,14 @@ def _signal(signal: Signal, ticker: Ticker | None, outcome: SignalOutcome | None
         grade=signal.grade,
         context=signal.context,
         outcome=measured,
+        setup_state=setup_state,
     )
 
 
-def _signal_query() -> Select[Signal, Ticker, SignalOutcome]:
+def _signal_query() -> Select[Signal, Ticker, SignalOutcome, str]:
     return (
-        select(Signal, Ticker, SignalOutcome)
+        select(Signal, Ticker, SignalOutcome, Setup.state)
+        .outerjoin(Setup, Setup.id == Signal.setup_id)
         .outerjoin(Ticker, Ticker.id == Signal.ticker_id)
         .outerjoin(SignalOutcome, SignalOutcome.signal_id == Signal.id)
     )
@@ -285,7 +293,7 @@ async def _detail(db: DbSession, setup: Setup, ticker: Ticker) -> SetupDetail:
 @router.get("/setups", response_model=SetupList)
 async def list_setups(
     db: DbSession,
-    state: str | None = None,
+    state: str | None = Query(None, description="One state, or several separated by commas"),
     grade: str | None = Query(None, description="A+, A, B, C; or 'top' for A and A+"),
     kind: str | None = None,
     active: bool = True,
@@ -296,7 +304,7 @@ async def list_setups(
     query = select(Setup, Ticker).join(Ticker, Ticker.id == Setup.ticker_id)
     query = query.where(Setup.active.is_(active))
     if state:
-        query = query.where(Setup.state == state)
+        query = query.where(Setup.state.in_([s.strip() for s in state.split(",") if s.strip()]))
     if grade == "top":
         query = query.where(Setup.grade.in_(("A+", "A")))
     elif grade:

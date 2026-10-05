@@ -15,7 +15,7 @@ import {
   TrendTemplatePanel,
 } from "./panels";
 import { PlanCard, ScoreCard } from "./score-plan";
-import { Section } from "./section";
+import { Section } from "@/components/ui/section";
 import { StockHeader } from "./stock-header";
 
 export function summaryQuery(symbol: string) {

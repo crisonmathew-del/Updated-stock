@@ -43,6 +43,9 @@ async def test_setups_list_detail_and_stock_lookup(
     assert body["counts"]["breakout"] >= 1
     only = (await signed_in.get("/api/setups", params={"state": "breakout"})).json()
     assert {s["state"] for s in only["items"]} == {"breakout"}
+    several = (await signed_in.get("/api/setups", params={"state": "basing,breakout"})).json()
+    assert {s["state"] for s in several["items"]} <= {"basing", "breakout"}
+    assert several["total"] == body["counts"].get("basing", 0) + body["counts"]["breakout"]
 
     detail = (await signed_in.get(f"/api/setups/{spot['id']}")).json()
     assert len(detail["components"]) == 6
@@ -83,6 +86,7 @@ async def test_signal_log_with_outcomes(db: AsyncSession, signed_in: httpx.Async
     # 88.71, (94.00 - 92.56) / 3.85 = 0.37.
     breakout = next(s for s in body["items"] if s["type"] == "breakout")
     assert breakout["outcome"]["returns_r"]["1"] == 0.37
+    assert breakout["setup_state"] == "breakout"  # the setup's stage now
     filtered = (await signed_in.get("/api/signals", params={"type": "breakout"})).json()
     assert {s["type"] for s in filtered["items"]} == {"breakout"}
 

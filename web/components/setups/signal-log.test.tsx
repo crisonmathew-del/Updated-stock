@@ -28,6 +28,7 @@ const LIST: SignalList = {
       score: 84.2,
       grade: "A",
       context: {},
+      setup_state: "breakout",
       outcome: {
         sessions_observed: 1,
         returns: { "1": 1.35, "5": null, "10": null, "20": null, "60": null },
@@ -57,6 +58,7 @@ const LIST: SignalList = {
       grade: null,
       context: {},
       outcome: null,
+      setup_state: null,
     },
   ],
 };

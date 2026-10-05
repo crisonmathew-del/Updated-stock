@@ -16,7 +16,7 @@ import {
 import { formatCompact, formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useListStore } from "@/stores/list";
-import { Section, StatusMark } from "./section";
+import { Section, StatusMark } from "@/components/ui/section";
 
 export function TrendTemplatePanel({ summary }: { summary: StockSummary }) {
   return (

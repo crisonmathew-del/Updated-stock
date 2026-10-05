@@ -1,21 +1,25 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-/** A stock-page panel: a quiet card with a small heading and optional right-hand note. */
+/** A panel (stock page, dashboard): a quiet card with a small heading and optional right-hand note. */
 export function Section({
   title,
   note,
   children,
   className,
+  anchor,
 }: {
   title: string;
   note?: ReactNode;
   children: ReactNode;
   className?: string;
+  /** An id for links to this panel (e.g. "/#market"). */
+  anchor?: string;
 }) {
   const id = `section-${title.toLowerCase().replace(/\W+/g, "-")}`;
   return (
     <section
+      id={anchor}
       aria-labelledby={id}
       className={cn(
         "flex flex-col gap-3 rounded-lg border border-border bg-surface p-4",
