@@ -8,11 +8,12 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import RequestResponseEndpoint
 
 from app import __version__
-from app.api.routes import auth, health
+from app.api.routes import admin, auth, health
 from app.api.routes import settings as settings_routes
 from app.core.config import get_settings
 from app.core.db import get_engine
 from app.core.logging import configure_logging, get_logger
+from app.core.queue import close_queue
 from app.core.redis import get_redis
 
 log = get_logger(__name__)
@@ -37,6 +38,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     log.info("api.startup", env=settings.app_env, version=__version__)
     yield
+    await close_queue()
     await get_redis().aclose()
     await get_engine().dispose()
     log.info("api.shutdown")
@@ -61,6 +63,7 @@ def create_app() -> FastAPI:
     api.include_router(health.router)
     api.include_router(auth.router)
     api.include_router(settings_routes.router)
+    api.include_router(admin.router)
     app.include_router(api)
     return app
 
