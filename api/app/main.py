@@ -6,9 +6,22 @@ from contextlib import asynccontextmanager
 from fastapi import APIRouter, FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import RequestResponseEndpoint
+from starlette.middleware.gzip import GZipMiddleware
 
 from app import __version__
-from app.api.routes import admin, auth, health, market, patterns, setups, stocks
+from app.api.routes import (
+    admin,
+    auth,
+    health,
+    market,
+    patterns,
+    screener,
+    search,
+    setups,
+    stock_chart,
+    stocks,
+    watchlists,
+)
 from app.api.routes import settings as settings_routes
 from app.core.config import get_settings
 from app.core.db import get_engine
@@ -58,6 +71,8 @@ def create_app() -> FastAPI:
     )
 
     app.middleware("http")(require_csrf_header)
+    # The screener snapshot is ~1-2 MB of JSON for 6,000 stocks; compressed it's a fraction.
+    app.add_middleware(GZipMiddleware, minimum_size=2048)
 
     api = APIRouter(prefix="/api")
     api.include_router(health.router)
@@ -68,6 +83,10 @@ def create_app() -> FastAPI:
     api.include_router(stocks.router)
     api.include_router(patterns.router)
     api.include_router(setups.router)
+    api.include_router(search.router)
+    api.include_router(stock_chart.router)
+    api.include_router(screener.router)
+    api.include_router(watchlists.router)
     app.include_router(api)
     return app
 

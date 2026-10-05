@@ -6,7 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 
 from app.api.deps import DbSession, current_user
 from app.groups.classification import SECTOR_ETFS
@@ -254,4 +254,44 @@ async def _sector_rotation(db: DbSession) -> list[SectorRow]:
             return_3m=roc,
         )
         for tid, (rank, raw, roc) in sorted(now.items(), key=lambda kv: kv[1][0])
+    ]
+
+
+# --- Index quotes for the top bar (Phase 5) ---------------------------------------------------
+
+QUOTE_SYMBOLS = ("SPY", "QQQ", "IWM")
+
+
+class QuoteOut(BaseModel):
+    symbol: str
+    date: date | None
+    close: float | None
+    change_pct: float | None
+
+
+@router.get("/market/quotes", response_model=list[QuoteOut])
+async def market_quotes(db: DbSession) -> list[QuoteOut]:
+    """The latest close and % change of SPY, QQQ and IWM (end of day until Phase 6)."""
+    rows = await db.execute(
+        text(
+            "SELECT t.symbol, lb.date, lb.close, lb.prev_close FROM tickers t "
+            "LEFT JOIN LATERAL (SELECT b.date, b.close, lag(b.close) OVER (ORDER BY b.date) "
+            "AS prev_close FROM (SELECT date, close FROM daily_bars x WHERE x.ticker_id = t.id "
+            "ORDER BY x.date DESC LIMIT 2) b ORDER BY b.date DESC LIMIT 1) lb ON true "
+            "WHERE t.symbol = ANY(:symbols) AND t.is_benchmark"
+        ),
+        {"symbols": list(QUOTE_SYMBOLS)},
+    )
+    found = {
+        symbol: QuoteOut(
+            symbol=symbol,
+            date=day,
+            close=close,
+            change_pct=round((close / prev - 1) * 100, 2) if close and prev else None,
+        )
+        for symbol, day, close, prev in rows.all()
+    }
+    return [
+        found.get(s, QuoteOut(symbol=s, date=None, close=None, change_pct=None))
+        for s in QUOTE_SYMBOLS
     ]

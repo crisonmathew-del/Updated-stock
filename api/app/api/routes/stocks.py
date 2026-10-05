@@ -1,27 +1,33 @@
 """Per-stock analytics: latest indicators, Trend Template checklist and history."""
 
+import datetime as dt
 from datetime import date, datetime
 from typing import Any
 
 import polars as pl
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
-from app.api.deps import DbSession, current_user
+from app.api.deps import AuthUser, DbSession, current_user
 from app.api.routes.patterns import PatternOut, pattern_query, to_out
+from app.core.calendar import sessions_between
 from app.data.loaders import read_frame
 from app.fundamentals.grade import YEAR_AGO, StatementRow, as_known, find_period, growth
 from app.fundamentals.scan import load_grade_inputs
 from app.indicators.compute import INDICATOR_COLUMNS
 from app.models import (
     EarningsEvent,
+    FundamentalGrade,
     GroupRankDaily,
     IndicatorDaily,
     IndustryGroup,
     InsiderTransaction,
     Pattern,
+    StockNote,
     Ticker,
+    Watchlist,
+    WatchlistItem,
 )
 from app.scoring.trend_template import add_trend_template, explain_trend_template
 from app.settings import store
@@ -62,6 +68,16 @@ class StockSummary(BaseModel):
     market_cap: float | None
     date: date | None
     close: float | None
+    prev_close: float | None
+    change: float | None
+    change_pct: float | None
+    volume: float | None
+    volume_ratio: float | None  # the session's volume ÷ the 50-day average
+    high_52w: float | None
+    low_52w: float | None
+    next_earnings: dt.date | None  # reported calendar or estimated from last year
+    sessions_to_earnings: int | None
+    fundamentals_grade: str | None
     stage: int | None
     stage_label: str | None
     rs_rating: int | None
@@ -137,6 +153,22 @@ async def stock_summary(db: DbSession, symbol: str, on: date | None = None) -> S
             )
 
     stage = row["stage"] if row else None
+    close = row["close"] if row else None
+    prev_close = float(frame["close"][-2]) if frame.height >= 2 else None
+    change = None if close is None or prev_close is None else close - prev_close
+    as_of = row["date"] if row else None
+    upcoming = await db.scalar(
+        select(func.min(EarningsEvent.report_date)).where(
+            EarningsEvent.ticker_id == ticker.id,
+            EarningsEvent.report_date > (as_of or date.today()),
+        )
+    )
+    grade = await db.scalar(
+        select(FundamentalGrade.grade)
+        .where(FundamentalGrade.ticker_id == ticker.id)
+        .order_by(FundamentalGrade.date.desc())
+        .limit(1)
+    )
     return StockSummary(
         symbol=ticker.symbol,
         name=ticker.name,
@@ -145,8 +177,22 @@ async def stock_summary(db: DbSession, symbol: str, on: date | None = None) -> S
         sector=ticker.sector,
         industry=ticker.industry,
         market_cap=ticker.market_cap,
-        date=row["date"] if row else None,
-        close=row["close"] if row else None,
+        date=as_of,
+        close=close,
+        prev_close=prev_close,
+        change=None if change is None else round(change, 4),
+        change_pct=None
+        if change is None or not prev_close
+        else round(change / prev_close * 100, 2),
+        volume=row["volume"] if row else None,
+        volume_ratio=row["volume_ratio"] if row else None,
+        high_52w=row["high_52w"] if row else None,
+        low_52w=row["low_52w"] if row else None,
+        next_earnings=upcoming,
+        sessions_to_earnings=(
+            len(sessions_between(as_of, upcoming)) - 1 if upcoming and as_of else None
+        ),
+        fundamentals_grade=grade,
         stage=stage,
         stage_label=STAGE_LABELS.get(stage) if stage else None,
         rs_rating=row["rs_rating"] if row else None,
@@ -355,3 +401,123 @@ async def stock_patterns(
         )
     ).all()
     return [to_out(*row) for row in rows]
+
+
+# --- Peers, notes, watchlist membership (Phase 5) --------------------------------------------
+
+
+class PeerOut(BaseModel):
+    symbol: str
+    name: str
+    close: float | None
+    change_pct: float | None
+    rs_rating: int | None
+    stage: int | None
+    grade: str | None
+    score: float | None
+    state: str | None
+    is_self: bool
+
+
+@router.get("/{symbol}/peers", response_model=list[PeerOut])
+async def stock_peers(
+    db: DbSession, symbol: str, limit: int = Query(12, ge=1, le=50)
+) -> list[PeerOut]:
+    """Stocks in the same industry group on the latest session, strongest first (setup score,
+    then RS Rating). Includes the stock itself so its place in the group shows."""
+    ticker = await _ticker(db, symbol)
+    if ticker.industry_group_id is None:
+        return []
+    latest = await db.scalar(select(func.max(IndicatorDaily.date)))
+    if latest is None:
+        return []
+    frame = await read_frame(
+        "SELECT t.id, t.symbol, t.name, b.close, p.close AS prev_close, i.rs_rating, i.stage, "
+        "s.grade, s.score, s.state FROM tickers t "
+        "JOIN indicators_daily i ON i.ticker_id = t.id "
+        f"AND i.date = '{latest.isoformat()}' "
+        "JOIN daily_bars b ON b.ticker_id = t.id AND b.date = i.date "
+        "LEFT JOIN LATERAL (SELECT close FROM daily_bars x WHERE x.ticker_id = t.id "
+        "AND x.date < i.date ORDER BY x.date DESC LIMIT 1) p ON true "
+        "LEFT JOIN setups s ON s.ticker_id = t.id AND s.active "
+        f"WHERE t.active AND NOT t.is_benchmark AND t.industry_group_id = "
+        f"{int(ticker.industry_group_id)} "
+        "ORDER BY s.score DESC NULLS LAST, i.rs_rating DESC NULLS LAST, t.symbol "
+        f"LIMIT {int(limit)}"
+    )
+    out = []
+    for r in frame.iter_rows(named=True):
+        prev = r["prev_close"]
+        out.append(
+            PeerOut(
+                symbol=r["symbol"],
+                name=r["name"],
+                close=r["close"],
+                change_pct=round((r["close"] / prev - 1) * 100, 2) if prev else None,
+                rs_rating=r["rs_rating"],
+                stage=r["stage"],
+                grade=r["grade"],
+                score=r["score"],
+                state=r["state"],
+                is_self=r["id"] == ticker.id,
+            )
+        )
+    return out
+
+
+class NoteOut(BaseModel):
+    body: str
+    updated_at: datetime | None
+
+
+class NoteIn(BaseModel):
+    body: str = Field(max_length=20_000)
+
+
+@router.get("/{symbol}/note", response_model=NoteOut)
+async def get_note(db: DbSession, user: AuthUser, symbol: str) -> NoteOut:
+    ticker = await _ticker(db, symbol)
+    note = await db.get(StockNote, (user.id, ticker.id))
+    return NoteOut(body=note.body if note else "", updated_at=note.updated_at if note else None)
+
+
+@router.put("/{symbol}/note", response_model=NoteOut)
+async def put_note(db: DbSession, user: AuthUser, symbol: str, payload: NoteIn) -> NoteOut:
+    """Save the note (an empty body deletes it)."""
+    ticker = await _ticker(db, symbol)
+    note = await db.get(StockNote, (user.id, ticker.id))
+    if not payload.body.strip():
+        if note is not None:
+            await db.delete(note)
+            await db.commit()
+        return NoteOut(body="", updated_at=None)
+    if note is None:
+        note = StockNote(user_id=user.id, ticker_id=ticker.id, body=payload.body)
+        db.add(note)
+    else:
+        note.body = payload.body
+    await db.commit()
+    await db.refresh(note)
+    return NoteOut(body=note.body, updated_at=note.updated_at)
+
+
+class MembershipOut(BaseModel):
+    id: int
+    name: str
+    contains: bool
+
+
+@router.get("/{symbol}/watchlists", response_model=list[MembershipOut])
+async def stock_watchlists(db: DbSession, user: AuthUser, symbol: str) -> list[MembershipOut]:
+    """The user's watchlists and whether each holds this stock (for the ☆ menu)."""
+    ticker = await _ticker(db, symbol)
+    rows = await db.execute(
+        select(Watchlist.id, Watchlist.name, WatchlistItem.id)
+        .outerjoin(
+            WatchlistItem,
+            (WatchlistItem.watchlist_id == Watchlist.id) & (WatchlistItem.ticker_id == ticker.id),
+        )
+        .where(Watchlist.user_id == user.id)
+        .order_by(Watchlist.position, Watchlist.id)
+    )
+    return [MembershipOut(id=i, name=n, contains=item is not None) for i, n, item in rows.all()]

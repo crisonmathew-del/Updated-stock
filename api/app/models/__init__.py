@@ -22,6 +22,7 @@ from app.models.setting import Setting
 from app.models.setups import ScanProgress, Setup, SetupTransition, Signal, SignalOutcome
 from app.models.ticker import Ticker, TickerType
 from app.models.user import User
+from app.models.workspace import SavedScreen, StockNote, Watchlist, WatchlistItem
 
 __all__ = [
     "CorporateAction",
@@ -40,6 +41,7 @@ __all__ = [
     "MarketRegimeDaily",
     "Pattern",
     "PatternReview",
+    "SavedScreen",
     "ScanProgress",
     "Setting",
     "Setup",
@@ -47,7 +49,10 @@ __all__ = [
     "SharesOutstanding",
     "Signal",
     "SignalOutcome",
+    "StockNote",
     "Ticker",
     "TickerType",
     "User",
+    "Watchlist",
+    "WatchlistItem",
 ]

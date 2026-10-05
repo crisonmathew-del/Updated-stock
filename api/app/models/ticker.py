@@ -40,6 +40,19 @@ class Ticker(Base):
     __table_args__ = (
         Index("uq_tickers_active_symbol", "symbol", unique=True, postgresql_where=text("active")),
         Index("ix_tickers_cik", "cik"),
+        # Search (pg_trgm, enabled by migration 0007): prefix and fuzzy matches on both.
+        Index(
+            "ix_tickers_symbol_trgm",
+            "symbol",
+            postgresql_using="gin",
+            postgresql_ops={"symbol": "gin_trgm_ops"},
+        ),
+        Index(
+            "ix_tickers_name_trgm",
+            "name",
+            postgresql_using="gin",
+            postgresql_ops={"name": "gin_trgm_ops"},
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)

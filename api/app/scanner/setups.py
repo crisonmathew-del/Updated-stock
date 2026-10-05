@@ -15,12 +15,11 @@ from collections.abc import Iterable, Sequence
 from datetime import date
 from typing import Any
 
-import polars as pl
 from sqlalchemy import func, insert, select, text, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.calendar import previous_session, sessions_back, sessions_between
+from app.core.calendar import sessions_back, sessions_between
 from app.core.logging import get_logger
 from app.data.loaders import read_frame
 from app.fundamentals.earnings import estimate_next_release
@@ -48,8 +47,8 @@ from app.scanner.evaluate import (
     Tracked,
     evaluate_stock,
 )
+from app.scanner.snapshot import indicators_on
 from app.scoring.lifecycle import State
-from app.scoring.trend_template import evaluate_trend_template
 from app.settings.schema import AppSettings
 
 log = get_logger(__name__)
@@ -136,40 +135,13 @@ async def _snapshot(session: AsyncSession, as_of: date) -> None:
 async def _technicals(
     ids: Sequence[int], as_of: date, settings: AppSettings
 ) -> dict[int, Technicals]:
-    if not ids:
-        return {}
-    listed = _ids(ids)
-    frame = await read_frame(
-        "SELECT i.ticker_id, b.close, i.ema21, i.sma50, i.sma150, i.sma200, i.low_52w, "
-        "i.high_52w, i.rs_rating, i.stage, i.rs_line_high_52w, i.rs_new_high_ahead, "
-        "i.rs_slope_63, i.up_down_volume_50, i.volume_ratio "
-        "FROM indicators_daily i JOIN daily_bars b ON b.ticker_id = i.ticker_id "
-        f"AND b.date = i.date WHERE i.date = '{as_of.isoformat()}' AND i.ticker_id IN ({listed})"
-    )
+    frame = await indicators_on(as_of, settings, ids)
     if frame.is_empty():
         return {}
-    ago = sessions_back(as_of, settings.ma200_uptrend_lookback_days)
-    earlier = await read_frame(
-        "SELECT ticker_id, sma200 AS sma200_ago FROM indicators_daily "
-        f"WHERE date = '{ago.isoformat()}' AND ticker_id IN ({listed})"
-    )
-    before = await read_frame(
-        "SELECT ticker_id, rs_new_high_ahead AS ahead_before FROM indicators_daily "
-        f"WHERE date = '{previous_session(as_of).isoformat()}' AND ticker_id IN ({listed})"
-    )
-    for extra in (earlier, before):
-        if not extra.is_empty():
-            frame = frame.join(extra, on="ticker_id", how="left")
-    if "sma200_ago" not in frame.columns:
-        frame = frame.with_columns(pl.lit(None, dtype=pl.Float64).alias("sma200_ago"))
-    if "ahead_before" not in frame.columns:
-        frame = frame.with_columns(pl.lit(None, dtype=pl.Boolean).alias("ahead_before"))
-    has_history = frame["sma200"].is_not_null()
-    frame = evaluate_trend_template(frame, settings).with_columns(has_history.alias("has_200"))
     out = {}
     for r in frame.iter_rows(named=True):
         out[int(r["ticker_id"])] = Technicals(
-            tt_passed=int(r["tt_passed"]) if r["has_200"] else None,
+            tt_passed=None if r["tt_passed"] is None else int(r["tt_passed"]),
             tt_pass=bool(r["tt_pass"]),
             stage=None if r["stage"] is None else int(r["stage"]),
             rs_rating=None if r["rs_rating"] is None else int(r["rs_rating"]),
