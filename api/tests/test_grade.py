@@ -325,3 +325,9 @@ def test_insider_cluster_needs_officers_or_directors_within_the_window() -> None
     assert bonus.detail == (
         "1 officer/director open-market buyer(s) in the last 30 days (Officer); a cluster needs 2."
     )
+
+
+def test_acceleration_text_keeps_the_eps_acronym() -> None:
+    result = grade_fundamentals(ACME_Q, ACME_A, as_of=AS_OF, settings=DEFAULTS)
+    acceleration = next(c for c in result.components if c.key == "eps_acceleration")
+    assert acceleration.detail == "EPS growth +25.0% → +30.0% → +40.0%: accelerating."

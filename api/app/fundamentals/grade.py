@@ -336,7 +336,12 @@ def _acceleration(
     trail = " → ".join(_pct(r) for r in oldest_first)
     if len(rates) == 3 and rates[0] > rates[1] > rates[2]:
         return Component(
-            key, label, weight, weight, "pass", f"{noun.capitalize()} growth {trail}: accelerating."
+            key,
+            label,
+            weight,
+            weight,
+            "pass",
+            f"{noun[:1].upper() + noun[1:]} growth {trail}: accelerating.",
         )
     if rates[0] > rates[1]:
         what = "up from the period before" if len(rates) == 3 else "up (only 2 periods known)"
@@ -346,10 +351,15 @@ def _acceleration(
             weight,
             weight / 2,
             "partial",
-            f"{noun.capitalize()} growth {trail}: {what}.",
+            f"{noun[:1].upper() + noun[1:]} growth {trail}: {what}.",
         )
     return Component(
-        key, label, weight, 0, "fail", f"{noun.capitalize()} growth {trail}: not accelerating."
+        key,
+        label,
+        weight,
+        0,
+        "fail",
+        f"{noun[:1].upper() + noun[1:]} growth {trail}: not accelerating.",
     )
 
 
