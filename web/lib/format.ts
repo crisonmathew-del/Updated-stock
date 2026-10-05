@@ -41,6 +41,7 @@ export function safeNext(next: string | null): string {
 }
 
 const JOB_LABELS: Record<string, string> = {
+  analytics: "Analytics",
   eod_update: "EOD update",
   data_quality: "Data quality",
   universe: "Universe",
@@ -49,4 +50,28 @@ const JOB_LABELS: Record<string, string> = {
 
 export function jobLabel(name: string): string {
   return JOB_LABELS[name] ?? humanize(name);
+}
+
+const priceFormat = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+export function formatPrice(value: number | null | undefined): string {
+  return value == null ? "—" : priceFormat.format(value);
+}
+
+/** A fraction (0.125) as a signed percentage ("+12.5%"). */
+export function formatChange(value: number | null | undefined, digits = 1): string {
+  if (value == null) return "—";
+  const pct = value * 100;
+  return `${pct > 0 ? "+" : pct < 0 ? "−" : ""}${Math.abs(pct).toFixed(digits)}%`;
+}
+
+/** Rank change with a direction symbol, so it doesn't rely on colour: ▲ 3, ▼ 2, – 0. */
+export function formatRankChange(change: number | null): string {
+  if (change == null) return "—";
+  if (change > 0) return `▲ ${change}`;
+  if (change < 0) return `▼ ${Math.abs(change)}`;
+  return "– 0";
 }

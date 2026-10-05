@@ -19,3 +19,16 @@ describe("format helpers", () => {
     expect(humanize("missing_sessions")).toBe("Missing sessions");
   });
 });
+
+describe("market formatters", () => {
+  it("formats prices, signed changes and rank moves", async () => {
+    const { formatPrice, formatChange, formatRankChange } = await import("./format");
+    expect(formatPrice(1234.5)).toBe("1,234.50");
+    expect(formatPrice(null)).toBe("—");
+    expect(formatChange(0.125)).toBe("+12.5%");
+    expect(formatChange(-0.04)).toBe("−4.0%");
+    expect(formatRankChange(3)).toBe("▲ 3");
+    expect(formatRankChange(-2)).toBe("▼ 2");
+    expect(formatRankChange(0)).toBe("– 0");
+  });
+});

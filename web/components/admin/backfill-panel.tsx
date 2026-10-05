@@ -12,6 +12,7 @@ const ACTIONS = [
   { label: "Run backfill", path: "/api/admin/backfill", done: "Backfill queued." },
   { label: "Run EOD update", path: "/api/admin/eod-update", done: "End-of-day update queued." },
   { label: "Run quality checks", path: "/api/admin/data-quality", done: "Quality checks queued." },
+  { label: "Run analytics", path: "/api/admin/analytics", done: "Analytics queued." },
 ] as const;
 
 function statusLine(p: BackfillProgress): string {

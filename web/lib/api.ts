@@ -171,3 +171,91 @@ export type DataHealth = {
 };
 
 export type Enqueued = { job: string; job_id: string };
+
+// --- Market and stocks ------------------------------------------------------------------------
+
+export type IndexRegime = {
+  symbol: string;
+  state: string;
+  label: string;
+  close: number | null;
+  ema21: number | null;
+  sma50: number | null;
+  sma200: number | null;
+  change_pct: number | null;
+  distribution_days: number;
+  distribution_dates: string[];
+  rally_day: number | null;
+  is_ftd: boolean;
+  last_ftd_date: string | null;
+  reasons: string[];
+};
+
+export type Regime = {
+  date: string | null;
+  state: string | null;
+  label: string | null;
+  changed_from: string | null;
+  reasons: string[];
+  indexes: IndexRegime[];
+  history: {
+    date: string;
+    states: Record<string, string>;
+    distribution_days: Record<string, number>;
+    is_ftd: boolean;
+  }[];
+};
+
+export type GroupRow = {
+  group_id: number;
+  rank: number;
+  rank_change_4w: number | null;
+  name: string;
+  sector: string;
+  members: number;
+  median_rs: number | null;
+  return_3m: number | null;
+  return_6m: number | null;
+  tt_passing: number;
+  new_highs: number;
+};
+
+export type SectorRow = {
+  symbol: string;
+  sector: string;
+  rank: number;
+  rank_change_4w: number | null;
+  rs_raw: number | null;
+  return_3m: number | null;
+};
+
+export type Groups = { date: string | null; groups: GroupRow[]; sectors: SectorRow[] };
+
+export type TrendCheck = { key: string; label: string; passed: boolean; detail: string };
+
+export type StockSummary = {
+  symbol: string;
+  name: string;
+  exchange: string;
+  type: string;
+  sector: string | null;
+  industry: string | null;
+  market_cap: number | null;
+  date: string | null;
+  close: number | null;
+  stage: number | null;
+  stage_label: string | null;
+  rs_rating: number | null;
+  trend_template_passed: number;
+  trend_template_pass: boolean;
+  checks: TrendCheck[];
+  group: {
+    id: number;
+    name: string;
+    sector: string;
+    rank: number | null;
+    rank_change_4w: number | null;
+    ranked_groups: number | null;
+  } | null;
+  indicators: Record<string, number | boolean | null>;
+};
