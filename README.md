@@ -49,10 +49,13 @@ containers.
 | Phase | | |
 |---|---|---|
 | 0 | Scaffold | ✅ done |
-| 1 | Data foundation | ✅ built, in review |
-| 2 | Indicators, regime, RS, groups | next |
-| 3–8 | Patterns → scoring → UI → real-time → backtests → polish | planned |
+| 1 | Data foundation | ✅ built (live acceptance pending data access) |
+| 2 | Indicators, regime, RS, groups | ✅ built, in review |
+| 3 | Fundamentals & patterns | next |
+| 4–8 | Scoring → UI → real-time → backtests → polish | planned |
 
-![Market data page](docs/screenshots/phase1-data.png)
+![Analytics inspection page](docs/screenshots/phase2-inspect.png)
 
-_The data page, shown with synthetic demo data that exercises each data-quality check._
+_The analytics inspection page (Trend Template checklist, market regime with reasons, group and
+sector leadership), shown with a synthetic demo market. The [data page](docs/screenshots/phase1-data.png)
+covers the universe, backfill and data health._

@@ -38,13 +38,17 @@ def rank_groups(members: pl.DataFrame) -> pl.DataFrame:
     group per date: group_id, date, rank, score, members, median_rs, return_3m, return_6m,
     tt_passing, new_highs."""
     c = pl.col
-    per_group = members.group_by("group_id", "date").agg(
-        pl.len().alias("members"),
-        c("rs_rating").median().alias("median_rs"),
-        c("return_3m").mean().alias("return_3m"),
-        c("return_6m").mean().alias("return_6m"),
-        c("tt_pass").sum().alias("tt_passing"),
-        c("at_high").sum().alias("new_highs"),
+    per_group = (
+        members.group_by("group_id", "date")
+        .agg(
+            pl.len().alias("members"),
+            c("rs_rating").median().alias("median_rs"),
+            c("return_3m").mean().alias("return_3m"),
+            c("return_6m").mean().alias("return_6m"),
+            c("tt_pass").sum().alias("tt_passing"),
+            c("at_high").sum().alias("new_highs"),
+        )
+        .cast({"members": pl.Int64, "tt_passing": pl.Int64, "new_highs": pl.Int64})
     )
     rankable = per_group.filter((c("members") >= MIN_RANKED_MEMBERS) & c("median_rs").is_not_null())
 

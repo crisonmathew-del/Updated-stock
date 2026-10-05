@@ -73,3 +73,15 @@ def test_chunks_add_up_and_the_ad_line_continues() -> None:
     split = finalize_breadth(chunked, ad_line_start=100)
     assert whole.equals(split)
     assert split.get_column("ad_line").to_list() == [100, 101]  # D1 has no prior close; D2 +2-1
+
+
+def test_weak_days_go_negative() -> None:
+    rows = (
+        stock(1, (20, 19), sma50=25, sma200=30, low=18, low_52w=18)  # down, new low
+        + stock(2, (30, 29), sma50=35, sma200=40, low=28, low_52w=28)  # down, new low
+        + stock(3, (10, 11), sma50=12, sma200=15)  # up
+    )
+    day = finalize_breadth(breadth_counts(pl.DataFrame(rows).sort("ticker_id", "date")), 50)
+    last = day.filter(pl.col("date") == D2).row(0, named=True)
+    assert (last["new_highs"], last["new_lows"], last["net_new_highs"]) == (0, 2, -2)
+    assert last["ad_line"] == 49  # 1 advancer, 2 decliners

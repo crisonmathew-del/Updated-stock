@@ -7,11 +7,15 @@ Trend Template + VCP / pocket pivots / episodic pivots). **The full build spec i
 ## Current phase
 
 - **Phase 0 (Scaffold):** complete and approved.
-- **Phase 1 (Data foundation): built, awaiting the owner's review.** Code and tests are done.
-  The acceptance run (universe loaded, ≥ 2 years of bars, data health clean) needs network
-  access to the data hosts (see Gotchas) or a run on the owner's machine (`make universe`).
-- **Next: Phase 2 (Indicators, regime, RS, groups).** Write a short plan (files, data flows,
-  tests) and get it approved before building, as for every phase (spec §0.2).
+- **Phase 1 (Data foundation):** built and approved. Its live acceptance run (real universe,
+  ≥ 2 years of bars, clean data health) still needs the data hosts (see Gotchas) or a run on
+  the owner's machine.
+- **Phase 2 (Indicators, regime, RS, groups): built, awaiting the owner's review.** Acceptance
+  needs real data too: the owner names 5 tickers + their charting platform to compare Trend
+  Template values on `/admin/inspect`, and the follow-through / distribution-day dates the
+  regime engine should reproduce.
+- **Next: Phase 3 (Fundamentals & patterns).** Write a short plan (files, data flows, tests)
+  and get it approved before building, as for every phase (spec §0.2).
 
 ## Owner decisions (answers to spec §0.3)
 
@@ -23,6 +27,7 @@ Trend Template + VCP / pocket pivots / episodic pivots). **The full build spec i
 | Markets | **US large/mid caps**: NYSE/NASDAQ/AMEX common stock, price ≥ $10, ADV50 ≥ $20M, market cap ≥ $1B. Small-cap mode is a setting. |
 | Auth | Single user, **email + password** (`make create-user`), built in Phase 1. |
 | ADRs | **Included** in the universe (stored as `type=adr`); the `include_adrs` setting filters them at scan time. |
+| Phase 2 defaults | Build Phase 2 before the Phase 1 live acceptance; overall market = **weaker of SPY and QQQ** (+IWM in small-cap mode); follow-through threshold **1.25%** (spec; IBD now uses ~1.7%, a setting); industry groups from **SEC SIC codes**. |
 
 ## Non-negotiables (spec §0, §2)
 
@@ -51,8 +56,15 @@ api/                 Python 3.12 · FastAPI · uv (non-packaged app; run command
   app/providers/     base.py interfaces + registry; nasdaq_trader, sec_edgar, yfinance_dev
   app/data/          classify (security types), universe, bars (bulk upserts), backfill,
                      eod_update, market_cap, quality (checks + issue register), loaders
-                     (Postgres → Polars via connectorx), jobs (entry points for worker/CLI)
-  app/api/routes/    health, auth, settings, admin
+                     (read: connectorx → Polars; write: Polars → ADBC binary COPY),
+                     jobs (entry points for worker/CLI)
+  app/indicators/    pure Polars indicator functions (MAs, ATR, volatility, volume, 52-week
+                     ranges, relative strength, stage); compute.py applies them all
+  app/scoring/       trend_template.py (8 checks + checklist text)
+  app/market/        regime.py (distribution days, rally/FTD state machine), breadth.py
+  app/groups/        classification.py (SIC → groups/sectors), industry_rank.py
+  app/scanner/       eod_scan.py: the analytics pipeline (full / stale / incremental)
+  app/api/routes/    health, auth, settings, admin, market, stocks
   app/worker.py      arq worker: `arq app.worker.WorkerSettings`
   app/scheduler.py   APScheduler (US/Eastern): `python -m app.scheduler`
   app/streamer.py    live feed (Phase 6): `python -m app.streamer`
@@ -61,9 +73,10 @@ api/                 Python 3.12 · FastAPI · uv (non-packaged app; run command
                      real-shaped directory and SEC files
 web/                 Next.js 16 App Router · React 19 · TS strict · Tailwind 4 · pnpm
   proxy.ts           sends signed-out visitors to /login (cookie presence only)
-  app/(app)/         signed-in pages with the header: / (status), /admin/data
+  app/(app)/         signed-in pages with the header: / (status), /admin/data, /admin/inspect
   app/login/         sign-in page (no header)
-  components/        UI components (+ colocated *.test.tsx); admin/ = data page panels
+  components/        UI components (+ colocated *.test.tsx); admin/ = data page panels,
+                     inspect/ = analytics inspection panels
   lib/api.ts         typed API client: CSRF header on writes, 401 → /login, response types
   lib/format.ts      number/date/duration formatters, safeNext() redirect guard
   test-utils.tsx     renderWithClient, mockApi (fetch stub keyed by "METHOD /path")
@@ -96,8 +109,8 @@ Only Docker is required; `make` targets run inside containers.
 | `make backfill [years=10] [symbols=A,B] [force=1]` | Load history (resumable) |
 | `make eod-update [date=YYYY-MM-DD]` | Latest session's bars + quality checks |
 | `make data-quality` | Quality checks only |
+| `make scan-now [full=1] [date=…]` | Recompute analytics from stored prices (`full=1` after changing stage or Trend Template settings) |
 | `make shell-api` / `make shell-db` | bash in api container / psql |
-| `make scan-now` | Stub until Phase 4 |
 
 Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost):
 - API: `cd api && uv sync && uv run pytest` (`-m "not integration"` needs no services;
@@ -126,6 +139,20 @@ Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost)
 - **Point in time:** prices are split-adjusted as of today (`daily_bars`); `corporate_actions`
   recovers as-traded prices. Share counts are keyed by `filed_date`. A new split re-fetches the
   ticker's whole history.
+- **Indicators:** pure functions over frames sorted by (ticker_id, date), computed per ticker
+  with `.over("ticker_id")`, backward-looking only, never NaN (zero denominators → null). Each
+  gets hand-calculated fixtures (working in comments) plus Hypothesis properties
+  (no lookahead, tickers never mix). Add new stored columns to `INDICATOR_COLUMNS`, the
+  `IndicatorDaily` model and a migration together.
+- **Analytics pipeline (`scanner/eod_scan.py`):** full rebuild when nothing is computed yet or
+  > 20% of tickers are stale; otherwise recompute stale tickers' whole history (new listings,
+  split re-fetches), then incremental new sessions with a 600-session warm-up. RS Rating is
+  ranked per date across stocks (common + ADR, not benchmarks). Breadth and group ranks are
+  stored per date; the regime history is recomputed every run so it follows the settings.
+  Tests prove incremental == full rebuild and the spec §12 lookahead guard.
+- **Regime definitions** are in `market/regime.py`'s docstring (DD count restarts at a
+  follow-through; the below-50-day rules apply only after the index reclaimed its 50-day since
+  the follow-through). Every state change and day carries human-readable reasons.
 - **Numerics (from Phase 2):** Polars first, NumPy second, pandas only where a library forces it.
 - **Tests:** `tests/conftest.py` points `DATABASE_URL` at `<db>_test` and `REDIS_URL` at Redis
   DB 15 *before* the app is imported, so tests never touch dev data. Fixtures: `db` (empty,
@@ -167,7 +194,15 @@ Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost)
   so `pnpm typecheck` runs `next typegen` first. `middleware` is now `proxy`.
 - **arq pins redis-py to 5.x.** Don't bump redis-py independently. arq's typed `func()` wants
   `(ctx, *args, **kwargs)`; wrap named-arg jobs with `_task()` in `worker.py`.
-- **SQLAlchemy 2.1** types selects as `Select[str, int]` (not `Select[tuple[...]]`).
+- **SQLAlchemy 2.1** types selects as `Select[str, int]` (not `Select[tuple[...]]`). A model
+  field named `date` shadows the `date` type inside the class body: use `import datetime as dt`.
+- **Polars:** sums of booleans and `pl.len()` are *unsigned*; cast to Int64 before subtracting
+  (this broke net new highs once). Nested `.over()` inside `.over()` fails: compute helper
+  columns first.
+- **ADBC writes** need exact column types (Int32 → integer, Int16 → smallint) and run on their
+  own connection: commit deletes/truncates before appending. A full rebuild drops the
+  `indicators_daily` PK/FK/date index for speed; `_ensure_indicator_constraints` restores them
+  at the start of every run. connectorx returns JSONB columns as text.
 - **yfinance is dev-only** and its `history()` end date is exclusive (the adapter adds a day).
 - **SEC_USER_AGENT** must be set for CIKs, SIC codes and market caps; without it the universe
   still builds and data health shows a warning. ADR market caps are left empty on purpose:

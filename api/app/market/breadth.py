@@ -33,16 +33,22 @@ def breadth_counts(ind: pl.DataFrame) -> pl.DataFrame:
         df = ind.with_columns(c("prev_close").alias("_prev_close"))
     else:
         df = ind.with_columns(per_ticker(c("close").shift(1)).alias("_prev_close"))
-    return df.group_by(DATE).agg(
-        pl.len().alias("members"),
-        c("sma50").is_not_null().sum().alias("with_50"),
-        (c("close") > c("sma50")).fill_null(False).sum().alias("above_50"),
-        c("sma200").is_not_null().sum().alias("with_200"),
-        (c("close") > c("sma200")).fill_null(False).sum().alias("above_200"),
-        (full_year & (c("high") >= c("high_52w"))).fill_null(False).sum().alias("new_highs"),
-        (full_year & (c("low") <= c("low_52w"))).fill_null(False).sum().alias("new_lows"),
-        (c("close") > c("_prev_close")).fill_null(False).sum().alias("advancers"),
-        (c("close") < c("_prev_close")).fill_null(False).sum().alias("decliners"),
+    # Boolean sums come back as unsigned integers; cast to signed so differences
+    # (net new highs, advancers - decliners) can go negative.
+    return (
+        df.group_by(DATE)
+        .agg(
+            pl.len().alias("members"),
+            c("sma50").is_not_null().sum().alias("with_50"),
+            (c("close") > c("sma50")).fill_null(False).sum().alias("above_50"),
+            c("sma200").is_not_null().sum().alias("with_200"),
+            (c("close") > c("sma200")).fill_null(False).sum().alias("above_200"),
+            (full_year & (c("high") >= c("high_52w"))).fill_null(False).sum().alias("new_highs"),
+            (full_year & (c("low") <= c("low_52w"))).fill_null(False).sum().alias("new_lows"),
+            (c("close") > c("_prev_close")).fill_null(False).sum().alias("advancers"),
+            (c("close") < c("_prev_close")).fill_null(False).sum().alias("decliners"),
+        )
+        .cast(dict.fromkeys(COUNT_COLUMNS, pl.Int64))
     )
 
 
