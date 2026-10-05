@@ -29,6 +29,37 @@ def test_defaults_match_the_spec() -> None:
     assert DEFAULTS.include_adrs is True
 
 
+def test_phase_3_defaults_follow_the_spec_and_the_approved_plan() -> None:
+    # Spec §6.5 / §6.7 / §6.8 numbers, and the grade points approved with the Phase 3 plan.
+    assert DEFAULTS.swing_atr_multiple == 1.5
+    assert (DEFAULTS.cup_min_depth_pct, DEFAULTS.cup_max_depth_pct) == (12, 33)
+    assert DEFAULTS.cup_bear_market_max_depth_pct == 50
+    assert (DEFAULTS.handle_min_depth_pct, DEFAULTS.handle_max_depth_pct) == (5, 12)
+    assert (DEFAULTS.htf_min_gain_pct, DEFAULTS.htf_max_pole_weeks) == (90, 8)
+    assert (DEFAULTS.htf_flag_min_depth_pct, DEFAULTS.htf_flag_max_depth_pct) == (10, 25)
+    assert DEFAULTS.three_weeks_tight_pct == 1.5
+    assert (DEFAULTS.ascending_min_weeks, DEFAULTS.ascending_max_weeks) == (9, 16)
+    assert DEFAULTS.pocket_pivot_lookback_days == 10
+    assert DEFAULTS.grade_weights.model_dump() == {
+        "eps_growth": 25,
+        "eps_acceleration": 10,
+        "sales_growth": 15,
+        "annual_eps_growth": 20,
+        "roe": 10,
+        "margins": 10,
+        "accumulation": 10,
+        "insider_bonus": 5,
+    }
+    assert DEFAULTS.revenue_grade_weights.model_dump() == {
+        "sales_growth": 40,
+        "sales_acceleration": 20,
+        "margins": 20,
+        "accumulation": 20,
+    }
+    assert DEFAULTS.grade_cutoffs.model_dump() == {"a": 80, "b": 65, "c": 50, "d": 35}
+    assert (DEFAULTS.insider_cluster_min_insiders, DEFAULTS.insider_cluster_window_days) == (2, 30)
+
+
 def test_every_setting_has_a_category_and_description() -> None:
     for key, field in AppSettings.model_fields.items():
         assert isinstance(category_of(key), Category)
@@ -40,6 +71,12 @@ def test_invalid_combinations_are_rejected() -> None:
         AppSettings(vcp_min_contractions=5, vcp_max_contractions=3)
     with pytest.raises(ValidationError):
         AppSettings(risk_per_trade_pct=0)
+    with pytest.raises(ValidationError, match="handle_min_depth_pct must not exceed"):
+        AppSettings(handle_min_depth_pct=15)
+    with pytest.raises(ValidationError, match="eps_growth_q_min must not exceed"):
+        AppSettings(eps_growth_q_min=50)
+    with pytest.raises(ValidationError, match="A > B > C > D"):
+        AppSettings.model_validate({"grade_cutoffs": {"a": 60, "b": 65, "c": 50, "d": 35}})
 
 
 @pytest.mark.integration

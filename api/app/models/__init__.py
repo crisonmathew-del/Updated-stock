@@ -8,8 +8,16 @@ from app.models.analytics import (
     MarketBreadthDaily,
     MarketRegimeDaily,
 )
+from app.models.fundamentals import (
+    EarningsEvent,
+    FundamentalGrade,
+    FundamentalsAnnual,
+    FundamentalsQuarterly,
+    InsiderTransaction,
+)
 from app.models.market_data import CorporateAction, DailyBar, SharesOutstanding
 from app.models.ops import DataQualityIssue, JobRun
+from app.models.patterns import Pattern, PatternReview
 from app.models.setting import Setting
 from app.models.ticker import Ticker, TickerType
 from app.models.user import User
@@ -18,12 +26,19 @@ __all__ = [
     "CorporateAction",
     "DailyBar",
     "DataQualityIssue",
+    "EarningsEvent",
+    "FundamentalGrade",
+    "FundamentalsAnnual",
+    "FundamentalsQuarterly",
     "GroupRankDaily",
     "IndicatorDaily",
     "IndustryGroup",
+    "InsiderTransaction",
     "JobRun",
     "MarketBreadthDaily",
     "MarketRegimeDaily",
+    "Pattern",
+    "PatternReview",
     "Setting",
     "SharesOutstanding",
     "Ticker",

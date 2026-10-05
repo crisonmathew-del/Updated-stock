@@ -40,6 +40,50 @@ class RegimeMultipliers(BaseModel):
     correction: float = Field(0.5, ge=0, le=1)
 
 
+class GradeWeights(BaseModel):
+    """Points per Fundamentals Grade component on the EPS path (spec §6.5). They need not sum
+    to 100: the score is rescaled over the components that have data."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    eps_growth: float = Field(25, ge=0, le=100)
+    eps_acceleration: float = Field(10, ge=0, le=100)
+    sales_growth: float = Field(15, ge=0, le=100)
+    annual_eps_growth: float = Field(20, ge=0, le=100)
+    roe: float = Field(10, ge=0, le=100)
+    margins: float = Field(10, ge=0, le=100)
+    accumulation: float = Field(10, ge=0, le=100)
+    insider_bonus: float = Field(5, ge=0, le=20)
+
+
+class RevenueGradeWeights(BaseModel):
+    """Points per component on the revenue-led path (companies without positive EPS)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    sales_growth: float = Field(40, ge=0, le=100)
+    sales_acceleration: float = Field(20, ge=0, le=100)
+    margins: float = Field(20, ge=0, le=100)
+    accumulation: float = Field(20, ge=0, le=100)
+
+
+class GradeCutoffs(BaseModel):
+    """Minimum score (0-100) for each grade; below `d` is an E."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    a: float = Field(80, ge=0, le=100)
+    b: float = Field(65, ge=0, le=100)
+    c: float = Field(50, ge=0, le=100)
+    d: float = Field(35, ge=0, le=100)
+
+    @model_validator(mode="after")
+    def _descending(self) -> "GradeCutoffs":
+        if not self.a > self.b > self.c > self.d:
+            raise ValueError("Grade cutoffs must satisfy A > B > C > D")
+        return self
+
+
 class AppSettings(BaseModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
@@ -101,6 +145,49 @@ class AppSettings(BaseModel):
         25, Category.FUNDAMENTALS, "Average annual EPS growth over 3 years (%)"
     )
     roe_min: float = _field(17, Category.FUNDAMENTALS, "Return on equity (%)")
+    eps_growth_q_strong: float = _field(
+        40, Category.FUNDAMENTALS, "Quarterly EPS growth that earns full credit (%)"
+    )
+    sales_growth_q_strong: float = _field(
+        40, Category.FUNDAMENTALS, "Revenue-led grade: sales growth that earns full credit (%)"
+    )
+    eps_growth_annual_strong: float = _field(
+        40, Category.FUNDAMENTALS, "Annual EPS growth that earns full credit (%)"
+    )
+    accumulation_up_down_ratio_min: float = _field(
+        1.2,
+        Category.FUNDAMENTALS,
+        "Accumulation: 50-day up/down volume ratio at least",
+        gt=0,
+    )
+    insider_cluster_min_insiders: int = _field(
+        2, Category.FUNDAMENTALS, "Insider cluster buy: at least this many insiders", ge=1
+    )
+    insider_cluster_window_days: int = _field(
+        30,
+        Category.FUNDAMENTALS,
+        "Insider cluster buy: open-market purchases within this many days",
+        ge=1,
+        le=365,
+    )
+    grade_weights: GradeWeights = _field(
+        GradeWeights(), Category.FUNDAMENTALS, "Fundamentals Grade: points per component"
+    )
+    revenue_grade_weights: RevenueGradeWeights = _field(
+        RevenueGradeWeights(),
+        Category.FUNDAMENTALS,
+        "Fundamentals Grade, revenue-led path (no positive EPS): points per component",
+    )
+    grade_cutoffs: GradeCutoffs = _field(
+        GradeCutoffs(), Category.FUNDAMENTALS, "Fundamentals Grade: minimum score for A-D"
+    )
+    grade_min_coverage_pct: float = _field(
+        50,
+        Category.FUNDAMENTALS,
+        "Show a grade only when components with data carry at least this % of the points",
+        ge=0,
+        le=100,
+    )
 
     # --- Industry groups (spec §6.6) ----------------------------------------------------------
     top_groups_preferred: int = _field(
@@ -111,6 +198,39 @@ class AppSettings(BaseModel):
     )
 
     # --- Patterns (spec §6.7) -----------------------------------------------------------------
+    swing_atr_multiple: float = _field(
+        1.5,
+        Category.PATTERNS,
+        "Swing detection: a reversal of this × ATR(14) confirms a swing high or low",
+        gt=0,
+        le=10,
+    )
+    prior_uptrend_min_pct: float = _field(
+        25, Category.PATTERNS, "A base must follow an advance of at least this % off a low", ge=0
+    )
+    prior_uptrend_lookback_days: int = _field(
+        130,
+        Category.PATTERNS,
+        "Look for the prior advance's low within this many sessions before the base",
+        ge=20,
+        le=500,
+    )
+    dry_up_day_pct_of_avg: float = _field(
+        50,
+        Category.PATTERNS,
+        "Volume dry-up: a day below this % of the 50-day average volume",
+        gt=0,
+        le=100,
+    )
+    late_stage_base_number: int = _field(
+        4, Category.PATTERNS, "A base this far into Stage 2 (or later) is late-stage", ge=2
+    )
+    base_count_min_correction_pct: float = _field(
+        8,
+        Category.PATTERNS,
+        "Base count: a pullback of at least this % (lasting the flat-base minimum) is a base",
+        gt=0,
+    )
     vcp_min_contractions: int = _field(2, Category.PATTERNS, "VCP: minimum contractions", ge=1)
     vcp_max_contractions: int = _field(6, Category.PATTERNS, "VCP: maximum contractions", ge=1)
     vcp_contraction_ratio_max: float = _field(
@@ -123,11 +243,79 @@ class AppSettings(BaseModel):
     vcp_final_contraction_max_pct: float = _field(
         10, Category.PATTERNS, "VCP: final contraction depth at most (%)", gt=0
     )
+    vcp_first_contraction_max_pct: float = _field(
+        35, Category.PATTERNS, "VCP: first (deepest) contraction at most (%)", gt=0, le=100
+    )
+    vcp_min_weeks: float = _field(3, Category.PATTERNS, "VCP: minimum duration (weeks)", gt=0)
+    vcp_max_weeks: float = _field(65, Category.PATTERNS, "VCP: maximum duration (weeks)", gt=0)
     flat_base_max_depth_pct: float = _field(
         15, Category.PATTERNS, "Flat base: maximum depth (%)", gt=0
     )
+    flat_base_min_weeks: float = _field(
+        5, Category.PATTERNS, "Flat base: minimum duration (weeks)", gt=0
+    )
+    cup_min_depth_pct: float = _field(12, Category.PATTERNS, "Cup: minimum depth (%)", ge=0)
     cup_max_depth_pct: float = _field(33, Category.PATTERNS, "Cup: maximum depth (%)", gt=0)
+    cup_bear_market_max_depth_pct: float = _field(
+        50,
+        Category.PATTERNS,
+        "Cup: maximum depth (%) when the market was in correction during the cup",
+        gt=0,
+        le=100,
+    )
+    cup_min_weeks: float = _field(
+        7, Category.PATTERNS, "Cup with handle: minimum duration (weeks)", gt=0
+    )
+    cup_max_weeks: float = _field(
+        65, Category.PATTERNS, "Cup with handle: maximum duration (weeks)", gt=0
+    )
+    cup_min_bottom_share_pct: float = _field(
+        15,
+        Category.PATTERNS,
+        "Cup must be U-shaped: at least this % of its sessions close in the bottom third",
+        ge=0,
+        le=100,
+    )
+    handle_min_depth_pct: float = _field(5, Category.PATTERNS, "Handle: minimum depth (%)", ge=0)
     handle_max_depth_pct: float = _field(12, Category.PATTERNS, "Handle: maximum depth (%)", gt=0)
+    handle_min_days: int = _field(5, Category.PATTERNS, "Handle: minimum length (sessions)", ge=1)
+    htf_min_gain_pct: float = _field(
+        90, Category.PATTERNS, "High tight flag: minimum gain of the pole (%)", gt=0
+    )
+    htf_max_pole_weeks: float = _field(
+        8, Category.PATTERNS, "High tight flag: the pole forms within (weeks)", gt=0
+    )
+    htf_flag_min_depth_pct: float = _field(
+        10, Category.PATTERNS, "High tight flag: minimum pullback (%)", ge=0
+    )
+    htf_flag_max_depth_pct: float = _field(
+        25, Category.PATTERNS, "High tight flag: maximum pullback (%)", gt=0
+    )
+    htf_flag_min_weeks: float = _field(
+        3, Category.PATTERNS, "High tight flag: minimum flag length (weeks)", gt=0
+    )
+    htf_flag_max_weeks: float = _field(
+        5, Category.PATTERNS, "High tight flag: maximum flag length (weeks)", gt=0
+    )
+    three_weeks_tight_pct: float = _field(
+        1.5,
+        Category.PATTERNS,
+        "Three-weeks-tight: weekly closes within this % of each other",
+        gt=0,
+        le=10,
+    )
+    ascending_pullback_min_pct: float = _field(
+        10, Category.PATTERNS, "Ascending base: each pullback at least (%)", gt=0
+    )
+    ascending_pullback_max_pct: float = _field(
+        20, Category.PATTERNS, "Ascending base: each pullback at most (%)", gt=0
+    )
+    ascending_min_weeks: float = _field(
+        9, Category.PATTERNS, "Ascending base: minimum duration (weeks)", gt=0
+    )
+    ascending_max_weeks: float = _field(
+        16, Category.PATTERNS, "Ascending base: maximum duration (weeks)", gt=0
+    )
 
     # --- Entry triggers (spec §6.8) -----------------------------------------------------------
     breakout_volume_min_pct_of_avg: float = _field(
@@ -145,6 +333,25 @@ class AppSettings(BaseModel):
     )
     earnings_warning_days: int = _field(
         5, Category.ENTRIES, "Warn when earnings are within this many trading days", ge=0
+    )
+    earnings_gap_catalyst_sessions: int = _field(
+        1,
+        Category.ENTRIES,
+        "Earnings gap: the results filing is on the gap day or up to this many sessions before",
+        ge=0,
+        le=5,
+    )
+    pocket_pivot_lookback_days: int = _field(
+        10,
+        Category.ENTRIES,
+        "Pocket pivot: volume must beat every down day's volume over this many sessions",
+        ge=1,
+    )
+    pocket_pivot_ma_distance_pct: float = _field(
+        3,
+        Category.ENTRIES,
+        "Pocket pivot: close at most this % above the 10- or 50-day SMA (or a forming base)",
+        ge=0,
     )
 
     # --- Market regime (spec §6.1) ------------------------------------------------------------
@@ -219,6 +426,22 @@ class AppSettings(BaseModel):
     def _check_ranges(self) -> "AppSettings":
         if self.vcp_min_contractions > self.vcp_max_contractions:
             raise ValueError("vcp_min_contractions must not exceed vcp_max_contractions")
+        for low, high in (
+            ("vcp_min_weeks", "vcp_max_weeks"),
+            ("cup_min_depth_pct", "cup_max_depth_pct"),
+            ("cup_max_depth_pct", "cup_bear_market_max_depth_pct"),
+            ("cup_min_weeks", "cup_max_weeks"),
+            ("handle_min_depth_pct", "handle_max_depth_pct"),
+            ("htf_flag_min_depth_pct", "htf_flag_max_depth_pct"),
+            ("htf_flag_min_weeks", "htf_flag_max_weeks"),
+            ("ascending_pullback_min_pct", "ascending_pullback_max_pct"),
+            ("ascending_min_weeks", "ascending_max_weeks"),
+            ("eps_growth_q_min", "eps_growth_q_strong"),
+            ("sales_growth_q_min", "sales_growth_q_strong"),
+            ("eps_growth_annual_min", "eps_growth_annual_strong"),
+        ):
+            if getattr(self, low) > getattr(self, high):
+                raise ValueError(f"{low} must not exceed {high}")
         if not (
             self.regime_confirmed_max_distribution_days
             < self.regime_pressure_distribution_days

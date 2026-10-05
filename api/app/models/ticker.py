@@ -60,6 +60,8 @@ class Ticker(Base):
         ForeignKey("industry_groups.id", ondelete="SET NULL")
     )
     reference_refreshed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # When statements, filings and earnings dates were last loaded from the fundamentals source.
+    fundamentals_refreshed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     # Latest values, refreshed by the EOD update (history lives in daily_bars/shares_outstanding).
     market_cap: Mapped[float | None] = mapped_column(Float)
