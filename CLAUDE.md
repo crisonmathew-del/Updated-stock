@@ -200,6 +200,8 @@ Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost)
   (`setup_transitions.recorded_on`, setups first seen that day). Signals are immutable and
   unique per (date, type, stock); a re-run only re-links `setup_id`. New signal types go in
   `SIGNAL_LABELS`. Trade plans are recomputed daily before a breakout and frozen at it.
+  Outcomes are % from the signal session's close; R only for breakouts (other signals fire
+  before the entry is reached).
 - **Regime definitions** are in `market/regime.py`'s docstring (DD count restarts at a
   follow-through; the below-50-day rules apply only after the index reclaimed its 50-day since
   the follow-through). Every state change and day carries human-readable reasons.

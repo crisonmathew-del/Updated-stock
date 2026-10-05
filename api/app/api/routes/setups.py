@@ -37,6 +37,9 @@ from app.scoring.lifecycle import State
 router = APIRouter(tags=["setups"], dependencies=[Depends(current_user)])
 
 SortKey = Literal["score", "readiness", "recent", "symbol"]
+# R needs a trade taken at the plan's entry: true for a confirmed breakout (the close is at the
+# entry). Other signals fire before the entry is reached, so their R would be hypothetical.
+R_SIGNALS = frozenset({"breakout"})
 
 
 class SetupRow(BaseModel):
@@ -81,7 +84,7 @@ class TransitionOut(BaseModel):
 class OutcomeOut(BaseModel):
     sessions_observed: int
     returns: dict[str, float | None]  # % change of the close after N sessions
-    returns_r: dict[str, float | None]  # the same in R, when the signal carried a plan
+    returns_r: dict[str, float | None]  # the same in R, for breakouts (entry and stop)
     mfe_pct: float | None
     mae_pct: float | None
     stop_hit_on: date | None
@@ -199,7 +202,10 @@ def _signal(signal: Signal, ticker: Ticker | None, outcome: SignalOutcome | None
             sessions_observed=outcome.sessions_observed,
             returns=returns,
             returns_r={
-                n: _in_r(signal.price, r, signal.entry, signal.stop) for n, r in returns.items()
+                n: _in_r(signal.price, r, signal.entry, signal.stop)
+                if signal.type in R_SIGNALS
+                else None
+                for n, r in returns.items()
             },
             mfe_pct=outcome.mfe_pct,
             mae_pct=outcome.mae_pct,
@@ -300,7 +306,7 @@ async def list_setups(
     total = await db.scalar(select(func.count()).select_from(query.subquery())) or 0
     orders: dict[str, tuple[Any, ...]] = {
         "score": (Setup.score.desc(), Ticker.symbol),
-        "readiness": (Setup.readiness_pct.asc().nulls_last(), Setup.score.desc()),
+        "readiness": (func.abs(Setup.readiness_pct).asc().nulls_last(), Setup.score.desc()),
         "recent": (Setup.state_since.desc(), Setup.score.desc()),
         "symbol": (Ticker.symbol,),
     }

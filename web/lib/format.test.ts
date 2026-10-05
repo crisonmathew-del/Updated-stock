@@ -32,3 +32,19 @@ describe("market formatters", () => {
     expect(formatRankChange(0)).toBe("– 0");
   });
 });
+
+describe("setup formatters", () => {
+  it("formats percent points, R multiples and the distance to the pivot", async () => {
+    const { formatPctPoints, formatR, formatReadiness } = await import("./format");
+    expect(formatPctPoints(1.37)).toBe("+1.4%");
+    expect(formatPctPoints(-2.9)).toBe("−2.9%");
+    expect(formatPctPoints(-0.04)).toBe("0.0%"); // never "−0.0%"
+    expect(formatPctPoints(null)).toBe("—");
+    expect(formatR(0.37)).toBe("+0.37R");
+    expect(formatR(-1)).toBe("−1.00R");
+    expect(formatR(null)).toBe("");
+    expect(formatReadiness(2.04)).toBe("2.0% below");
+    expect(formatReadiness(-4.5)).toBe("4.5% above");
+    expect(formatReadiness(null)).toBe("—");
+  });
+});

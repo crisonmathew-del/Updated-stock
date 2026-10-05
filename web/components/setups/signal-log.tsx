@@ -51,7 +51,7 @@ export function SignalLog() {
   return (
     <Panel
       title="Signal log"
-      description="Every signal as it was logged at the close, never edited. Returns run from that close; R uses the plan's entry and stop."
+      description="Every signal as it was logged at the close, never edited. Returns run from that close; for breakouts, R uses the plan's entry and stop."
     >
       <div role="group" aria-label="Signal type" className="flex flex-wrap gap-2 text-sm">
         {[

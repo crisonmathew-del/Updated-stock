@@ -107,7 +107,9 @@ export function patternStatus(status: string): string {
 /** A value already in percent (2.04) with a sign: "+2.0%", "−1.5%"; null → "—". */
 export function formatPctPoints(value: number | null | undefined, digits = 1): string {
   if (value == null) return "—";
-  return `${value > 0 ? "+" : value < 0 ? "−" : ""}${Math.abs(value).toFixed(digits)}%`;
+  const shown = Math.abs(value).toFixed(digits);
+  const zero = Number(shown) === 0; // −0.04 shows as "0.0%", not "−0.0%"
+  return `${zero ? "" : value > 0 ? "+" : "−"}${shown}%`;
 }
 
 /** An R multiple: "+0.05R", "−1.00R"; null → "". */

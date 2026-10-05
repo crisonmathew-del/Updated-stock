@@ -62,11 +62,13 @@ containers.
 | 4 | Scoring, lifecycle, trade plans, scanner | ✅ built (owner review pending) |
 | 5–8 | UI → real-time → backtests → polish | planned |
 
-![Pattern review page](docs/screenshots/phase3-patterns.png)
+![Setups page](docs/screenshots/phase4-setups.png)
 
-_The pattern review page: false-positive rate per pattern type and a seeded random sample of
-detections, each with its chart (swing points, contraction depths, pivot, base low), quality
-breakdown and a verdict. Shown with a synthetic demo market. The
-[inspection page](docs/screenshots/phase3-inspect.png) adds the Fundamentals Grade, quarters as
-reported, earnings dates, insider trades and the stock's detections; the
-[data page](docs/screenshots/phase1-data.png) covers the universe, backfill and data health._
+_The setups page on a synthetic demo market: every base, earnings gap and trend leader with its
+stage, grade, distance to the pivot and trade plan. Opening a row shows the score parts with
+their numbers, red flags, the full plan (entry, stop, size, 2R/3R, profit and breakeven levels,
+trailing exits), the stage history with reasons, its signals and the pattern chart. The
+[signal log](docs/screenshots/phase4-signals.png) lists every signal with its returns after
+1-60 sessions (in R for breakouts), best and worst move, and when the stop, 2R or +20% was
+reached. Earlier pages: [pattern review](docs/screenshots/phase3-patterns.png),
+[inspection](docs/screenshots/phase3-inspect.png), [data](docs/screenshots/phase1-data.png)._

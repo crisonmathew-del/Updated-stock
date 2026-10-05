@@ -73,12 +73,16 @@ async def test_signal_log_with_outcomes(db: AsyncSession, signed_in: httpx.Async
     )
     near = next(s for s in body["items"] if s["type"] == "near_pivot")
     outcome = near["outcome"]
-    # Signal close 91.50 on session 332; session 333 closed at 92.75: +1.37%. In R with
-    # entry 92.56 and stop 88.71: (92.75 - 92.56) / 3.85 = 0.05.
+    # Signal close 91.50 on session 332; session 333 closed at 92.75: +1.37%. No R: the price
+    # hadn't reached the entry when a near-pivot signal fired.
     assert outcome["sessions_observed"] == 2
     assert outcome["returns"]["1"] == pytest.approx(1.37, abs=0.01)
-    assert outcome["returns_r"]["1"] == 0.05
+    assert outcome["returns_r"]["1"] is None
     assert outcome["returns"]["5"] is None
+    # The breakout closed 92.75 on session 333, then 94.00: in R with entry 92.56 and stop
+    # 88.71, (94.00 - 92.56) / 3.85 = 0.37.
+    breakout = next(s for s in body["items"] if s["type"] == "breakout")
+    assert breakout["outcome"]["returns_r"]["1"] == 0.37
     filtered = (await signed_in.get("/api/signals", params={"type": "breakout"})).json()
     assert {s["type"] for s in filtered["items"]} == {"breakout"}
 
