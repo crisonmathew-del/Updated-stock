@@ -79,6 +79,20 @@ class AppSettings(BaseModel):
     ma200_uptrend_lookback_days: int = _field(
         21, Category.TREND, "200-day SMA must be higher than this many sessions ago", ge=1
     )
+    stage_slope_lookback_days: int = _field(
+        20,
+        Category.TREND,
+        "Stage analysis: measure the 150-day SMA slope over this many sessions",
+        ge=1,
+        le=100,
+    )
+    stage_flat_slope_pct: float = _field(
+        1.0,
+        Category.TREND,
+        "Stage analysis: a 150-day SMA moving less than this % counts as flat",
+        ge=0,
+        le=20,
+    )
 
     # --- Fundamentals (spec §6.5) -------------------------------------------------------------
     eps_growth_q_min: float = _field(25, Category.FUNDAMENTALS, "Quarterly EPS growth YoY (%)")
@@ -91,6 +105,9 @@ class AppSettings(BaseModel):
     # --- Industry groups (spec §6.6) ----------------------------------------------------------
     top_groups_preferred: int = _field(
         40, Category.GROUPS, "Prefer stocks in the top N industry groups", ge=1
+    )
+    group_min_members: int = _field(
+        5, Category.GROUPS, "An industry code needs this many stocks to be its own group", ge=1
     )
 
     # --- Patterns (spec §6.7) -----------------------------------------------------------------
@@ -137,6 +154,40 @@ class AppSettings(BaseModel):
     ftd_min_gain_pct: float = _field(
         1.25, Category.MARKET, "Follow-through day: index up at least (%)", gt=0
     )
+    ftd_min_day: int = _field(
+        4, Category.MARKET, "Follow-through day: earliest day of the rally attempt", ge=1
+    )
+    ftd_failure_window_sessions: int = _field(
+        10,
+        Category.MARKET,
+        "A follow-through fails if the rally low is undercut within this many sessions",
+        ge=0,
+    )
+    distribution_day_lookback_sessions: int = _field(
+        25, Category.MARKET, "Count distribution days over this many sessions", ge=1
+    )
+    distribution_day_expiry_gain_pct: float = _field(
+        5, Category.MARKET, "A distribution day expires once the index closes this % above it", gt=0
+    )
+    regime_pressure_distribution_days: int = _field(
+        5, Category.MARKET, "Uptrend under pressure at this many distribution days", ge=1
+    )
+    regime_correction_distribution_days: int = _field(
+        6, Category.MARKET, "Correction at this many distribution days", ge=1
+    )
+    regime_confirmed_max_distribution_days: int = _field(
+        4,
+        Category.MARKET,
+        "Back to confirmed uptrend at or below this many distribution days",
+        ge=0,
+    )
+    breadth_weak_pct_above_50: float = _field(
+        40,
+        Category.MARKET,
+        "Breadth is weak when fewer than this % of stocks are above their 50-day SMA",
+        ge=0,
+        le=100,
+    )
     regime_multipliers: RegimeMultipliers = _field(
         RegimeMultipliers(), Category.MARKET, "Score multiplier per market regime"
     )
@@ -168,6 +219,14 @@ class AppSettings(BaseModel):
     def _check_ranges(self) -> "AppSettings":
         if self.vcp_min_contractions > self.vcp_max_contractions:
             raise ValueError("vcp_min_contractions must not exceed vcp_max_contractions")
+        if not (
+            self.regime_confirmed_max_distribution_days
+            < self.regime_pressure_distribution_days
+            <= self.regime_correction_distribution_days
+        ):
+            raise ValueError(
+                "Distribution-day thresholds must satisfy confirmed max < pressure <= correction"
+            )
         return self
 
 
