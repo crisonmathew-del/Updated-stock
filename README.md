@@ -59,8 +59,9 @@ containers.
 | 1 | Data foundation | ✅ built (live acceptance pending data access) |
 | 2 | Indicators, regime, RS, groups | ✅ built (live acceptance pending data access) |
 | 3 | Fundamentals & patterns | ✅ built (live acceptance pending data access) |
-| 4 | Scoring, lifecycle, trade plans, scanner | ✅ built (owner review pending) |
-| 5–8 | UI → real-time → backtests → polish | planned |
+| 4 | Scoring, lifecycle, trade plans, scanner | ✅ built (live acceptance pending data access) |
+| 5 | Core UI | design plan awaiting approval |
+| 6–8 | Real-time → backtests → polish | planned |
 
 ![Setups page](docs/screenshots/phase4-setups.png)
 

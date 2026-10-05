@@ -18,12 +18,11 @@ Trend Template + VCP / pocket pivots / episodic pivots). **The full build spec i
 - **Phase 3 (Fundamentals & patterns):** built and approved. Its live acceptance needs real
   data: the owner's well-known historical breakouts (`make patterns date=… symbols=…`) and a
   reviewed random sample of 20 detections on `/admin/patterns`.
-- **Phase 4 (Scoring, lifecycle, trade plans, scanner):** built; waiting for the owner's review
-  of the results (spec §0.2: pause at the end of each phase). Its acceptance (EOD < 5 min,
-  explainable setups, signals logged) was checked on a synthetic 6,000-stock market; the live
-  run needs real data.
-- **Next: Phase 5 (Core UI).** Starts with a design plan the owner must approve before any UI
-  work.
+- **Phase 4 (Scoring, lifecycle, trade plans, scanner):** built and approved. Its acceptance
+  (EOD < 5 min: 52 s for 6,000 stocks; explainable setups; signals logged) was checked on a
+  synthetic market; the live run needs real data.
+- **Next: Phase 5 (Core UI).** Design plan (palette, typeface, stock-page wireframe) proposed
+  and waiting for the owner's approval. No UI work until it's approved (spec §9).
 
 ## Owner decisions (answers to spec §0.3)
 
