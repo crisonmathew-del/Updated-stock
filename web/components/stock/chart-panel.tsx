@@ -11,7 +11,8 @@ import { MA_STYLE } from "./price-chart";
 
 const PriceChart = dynamic(() => import("./price-chart"), {
   ssr: false,
-  loading: () => <div className="h-[520px] animate-pulse rounded bg-surface-2" />,
+  // Fills the box ChartPanel sizes to the chart's height.
+  loading: () => <div className="h-full animate-pulse rounded bg-surface-2" />,
 });
 
 /** Keys 1-5 (spec §8.1). Intraday arrives with real-time data in Phase 6. */
@@ -35,7 +36,16 @@ function stored<T>(key: string, fallback: T): T {
   }
 }
 
-export function ChartPanel({ symbol }: { symbol: string }) {
+/** `compact` (the screener's preview) drops the key hints and the legend note. */
+export function ChartPanel({
+  symbol,
+  height = 520,
+  compact = false,
+}: {
+  symbol: string;
+  height?: number;
+  compact?: boolean;
+}) {
   const [rangeKey, setRangeKey] = useState<string>("2");
   const [shown, setShown] = useState<Record<string, boolean>>({});
   useEffect(() => {
@@ -133,18 +143,32 @@ export function ChartPanel({ symbol }: { symbol: string }) {
             {chart.data.overlay.label} · pivot {chart.data.overlay.pivot.toFixed(2)}
           </span>
         )}
-        <span className="ml-auto hidden items-center gap-1 text-muted md:flex">
-          <Kbd>1</Kbd>–<Kbd>5</Kbd> range
-        </span>
+        {!compact && (
+          <span className="ml-auto hidden items-center gap-1 text-muted md:flex">
+            <Kbd>1</Kbd>–<Kbd>5</Kbd> range
+          </span>
+        )}
       </div>
       {chart.error && <p className="py-20 text-center text-sm text-fail">{chart.error.message}</p>}
-      {chart.isPending && <div className="h-[520px] animate-pulse rounded bg-surface-2" />}
-      {chart.data && <PriceChart data={chart.data} visible={range.visible} shownMas={shown} />}
-      <p className="text-xs text-muted">
-        ▲ pocket pivot · ■ earnings · ● RS high ahead of price · ▼ past signal. Shaded band: buy
-        zone. Hollow candles closed up, filled closed down; brighter volume is above the 50-day
-        average.
-      </p>
+      {chart.isPending && <div style={{ height }} className="animate-pulse rounded bg-surface-2" />}
+      {chart.data && (
+        <div style={{ height }}>
+          <PriceChart
+            data={chart.data}
+            visible={range.visible}
+            shownMas={shown}
+            height={height}
+            compact={compact}
+          />
+        </div>
+      )}
+      {!compact && (
+        <p className="text-xs text-muted">
+          ▲ pocket pivot · ■ earnings · ● RS high ahead of price · ▼ past signal. Shaded band: buy
+          zone. Hollow candles closed up, filled closed down; brighter volume is above the 50-day
+          average.
+        </p>
+      )}
     </div>
   );
 }

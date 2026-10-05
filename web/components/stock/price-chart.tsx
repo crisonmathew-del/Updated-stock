@@ -72,11 +72,14 @@ export function PriceChart({
   visible,
   shownMas,
   height = 520,
+  compact = false,
 }: {
   data: ChartData;
   visible: number;
   shownMas: Record<string, boolean>;
   height?: number;
+  /** A small chart (the screener preview): no axis labels for the averages and 2R/3R. */
+  compact?: boolean;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -164,8 +167,8 @@ export function PriceChart({
         color: token(style?.token ?? "--muted"),
         lineWidth: style?.width ?? 1,
         priceLineVisible: false,
-        lastValueVisible: true,
-        title: style?.label ?? key,
+        lastValueVisible: !compact,
+        title: compact ? "" : (style?.label ?? key),
         crosshairMarkerVisible: false,
         visible: shownMas[key] ?? true,
       });
@@ -212,7 +215,13 @@ export function PriceChart({
       candles.attachPrimitive(
         new BaseOverlayPrimitive(o, { tide: c.tide, label: c.text, font: `11px ${font}` }),
       );
-      const line = (price: number | null, color: string, title: string, style: LineStyle) => {
+      const line = (
+        price: number | null,
+        color: string,
+        title: string,
+        style: LineStyle,
+        label = true,
+      ) => {
         if (price == null) return;
         candles.createPriceLine({
           price,
@@ -220,13 +229,13 @@ export function PriceChart({
           title,
           lineStyle: style,
           lineWidth: 1,
-          axisLabelVisible: true,
+          axisLabelVisible: label,
         });
       };
       line(o.pivot, c.tide, "Pivot", LineStyle.Solid);
       line(o.stop, c.fall, "Stop", LineStyle.Dashed);
-      line(o.target_2r, c.rise, "2R", LineStyle.Dotted);
-      line(o.target_3r, c.rise, "3R", LineStyle.Dotted);
+      line(o.target_2r, c.rise, "2R", LineStyle.Dotted, !compact);
+      line(o.target_3r, c.rise, "3R", LineStyle.Dotted, !compact);
     }
 
     const count = s.time.length;
@@ -245,7 +254,7 @@ export function PriceChart({
     };
     // shownMas is applied by the effect below without rebuilding the chart.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, theme, visible, height]);
+  }, [data, theme, visible, height, compact]);
 
   useEffect(() => {
     for (const [key, series] of maSeries.current) {
