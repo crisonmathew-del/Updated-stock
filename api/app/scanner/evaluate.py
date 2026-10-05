@@ -46,6 +46,21 @@ from app.scoring.setup_score import ScoreInputs, SetupScore, readiness_pct, scor
 from app.scoring.triggers import Trigger, pullback_to_average, undercut_and_rally
 from app.settings.schema import AppSettings
 
+SIGNAL_LABELS = {  # every signal type (spec §7.2), as the UI names it
+    "new_top_setup": "New A/A+ setup",
+    "near_pivot": "Near pivot",
+    "breakout": "Breakout confirmed",
+    "breakout_rejected": "Breakout rejected",
+    "extended": "Extended",
+    "failed": "Breakout failed",
+    "invalidated": "Setup invalidated",
+    "pocket_pivot": "Pocket pivot",
+    "earnings_gap": "Earnings gap",
+    "rs_new_high_ahead": "RS line new high ahead of price",
+    "pullback": "Pullback buy point",
+    "undercut_rally": "Undercut & rally",
+    "regime_change": "Market regime change",
+}
 PRE_BREAKOUT = frozenset({State.BASING, State.NEAR_PIVOT})
 CURRENT = frozenset({Status.FORMING, Status.BROKEN_OUT})
 GRADE_ORDER = {"A+": 4, "A": 3, "B": 2, "C": 1}
@@ -673,6 +688,7 @@ def _finite(value: float) -> float | None:
 
 
 __all__ = [
+    "SIGNAL_LABELS",
     "Detected",
     "MarketDay",
     "SetupRecord",

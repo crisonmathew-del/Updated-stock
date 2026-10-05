@@ -25,7 +25,10 @@ make create-user email=you@example.com     # your login (prompts for a password)
 On first start the scheduler builds the universe (~5,000 US stocks and ADRs) and backfills 10
 years of daily bars. With the free development sources that takes roughly 30–60 minutes; it is
 resumable (`make backfill`). After that, prices update automatically 20 minutes after each
-close, followed by analytics, Fundamentals Grades and pattern detection. Fundamentals
+close, followed by analytics, Fundamentals Grades, pattern detection, setup scores and their
+lifecycle (watch → basing → near pivot → breakout → extended / failed), trade plans and the
+signal log, whose outcomes are tracked for 60 sessions. Open **Setups** and **Signals** to see
+them. Fundamentals
 (statements, earnings dates, insider trades) load nightly from SEC EDGAR; run
 `make fundamentals full=1` once after the first backfill to load them straight away.
 
@@ -56,7 +59,7 @@ containers.
 | 1 | Data foundation | ✅ built (live acceptance pending data access) |
 | 2 | Indicators, regime, RS, groups | ✅ built (live acceptance pending data access) |
 | 3 | Fundamentals & patterns | ✅ built (live acceptance pending data access) |
-| 4 | Scoring, lifecycle, trade plans, scanner | planning |
+| 4 | Scoring, lifecycle, trade plans, scanner | ✅ built (owner review pending) |
 | 5–8 | UI → real-time → backtests → polish | planned |
 
 ![Pattern review page](docs/screenshots/phase3-patterns.png)

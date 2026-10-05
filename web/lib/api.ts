@@ -383,3 +383,140 @@ export type ReviewStats = {
   reviewed: number;
   false_positive_rate: number | null;
 };
+
+// --- Setups and signals (Phase 4) -------------------------------------------------------------
+
+export type SetupState =
+  "watch" | "basing" | "near_pivot" | "breakout" | "extended" | "failed" | "invalidated";
+
+export type ScoreComponent = {
+  key: string;
+  label: string;
+  points: number;
+  max_points: number;
+  status: "pass" | "partial" | "fail" | "no_data";
+  detail: string;
+};
+
+export type RedFlag = { key: string; label: string; penalty: number; detail: string };
+
+export type TradePlan = {
+  entry: number;
+  stop: number;
+  stop_basis: "logical" | "max_loss";
+  logical_stop: number;
+  max_loss_stop: number;
+  risk_too_wide: boolean;
+  risk_per_share: number;
+  risk_pct: number;
+  shares: number;
+  capped_by_position_limit: boolean;
+  dollar_risk: number;
+  position_value: number;
+  position_pct: number;
+  buy_zone: [number, number];
+  target_2r: number;
+  target_3r: number;
+  profit_take: [number, number];
+  breakeven_at: number;
+  breakeven_basis: "2R" | "gain";
+  trail_aggressive: number | null;
+  trail_standard: number | null;
+  reward_risk: number;
+  currency: string;
+  notes: string[];
+};
+
+export type SetupRow = {
+  id: number;
+  symbol: string;
+  name: string;
+  kind: "watch" | "base" | "episodic_pivot";
+  pattern_type: string | null;
+  pattern_label: string | null;
+  state: SetupState;
+  state_label: string;
+  state_since: string;
+  first_seen: string;
+  as_of: string;
+  active: boolean;
+  close: number;
+  pivot: number | null;
+  base_low: number | null;
+  readiness_pct: number | null;
+  score: number;
+  raw_score: number;
+  grade: string | null;
+  best_grade: string | null;
+  breakout_date: string | null;
+  entry: number | null;
+  stop: number | null;
+  shares: number | null;
+  risk_too_wide: boolean | null;
+  red_flags: string[];
+  closed_on: string | null;
+  closed_reason: string | null;
+};
+
+export type SetupTransition = {
+  date: string;
+  from_state: string | null;
+  to_state: string;
+  to_label: string;
+  reason: string;
+};
+
+export type SignalOutcome = {
+  sessions_observed: number;
+  returns: Record<string, number | null>;
+  returns_r: Record<string, number | null>;
+  mfe_pct: number | null;
+  mae_pct: number | null;
+  stop_hit_on: string | null;
+  target_2r_on: string | null;
+  gain_20_on: string | null;
+  complete: boolean;
+};
+
+export type SignalEntry = {
+  id: number;
+  date: string;
+  type: string;
+  type_label: string;
+  symbol: string | null;
+  name: string | null;
+  setup_id: number | null;
+  summary: string;
+  price: number | null;
+  pivot: number | null;
+  entry: number | null;
+  stop: number | null;
+  score: number | null;
+  grade: string | null;
+  context: Record<string, unknown>;
+  outcome: SignalOutcome | null;
+};
+
+export type SetupDetail = SetupRow & {
+  regime_multiplier: number;
+  penalties: number;
+  components: ScoreComponent[];
+  red_flag_details: RedFlag[];
+  trade_plan: TradePlan | null;
+  transitions: SetupTransition[];
+  signals: SignalEntry[];
+  pattern: Pattern | null;
+};
+
+export type SetupList = {
+  as_of: string | null;
+  total: number;
+  counts: Partial<Record<SetupState, number>>;
+  items: SetupRow[];
+};
+
+export type SignalList = {
+  total: number;
+  counts: Record<string, number>;
+  items: SignalEntry[];
+};

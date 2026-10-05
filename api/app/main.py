@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import RequestResponseEndpoint
 
 from app import __version__
-from app.api.routes import admin, auth, health, market, patterns, stocks
+from app.api.routes import admin, auth, health, market, patterns, setups, stocks
 from app.api.routes import settings as settings_routes
 from app.core.config import get_settings
 from app.core.db import get_engine
@@ -67,6 +67,7 @@ def create_app() -> FastAPI:
     api.include_router(market.router)
     api.include_router(stocks.router)
     api.include_router(patterns.router)
+    api.include_router(setups.router)
     app.include_router(api)
     return app
 

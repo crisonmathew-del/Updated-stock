@@ -11,6 +11,8 @@ const LINKS = [
   { href: "/admin/data", label: "Data" },
   { href: "/admin/inspect", label: "Inspect" },
   { href: "/admin/patterns", label: "Patterns" },
+  { href: "/admin/setups", label: "Setups" },
+  { href: "/admin/signals", label: "Signals" },
 ];
 
 export function AppHeader() {

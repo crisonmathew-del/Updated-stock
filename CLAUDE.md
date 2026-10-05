@@ -18,8 +18,12 @@ Trend Template + VCP / pocket pivots / episodic pivots). **The full build spec i
 - **Phase 3 (Fundamentals & patterns):** built and approved. Its live acceptance needs real
   data: the owner's well-known historical breakouts (`make patterns date=… symbols=…`) and a
   reviewed random sample of 20 detections on `/admin/patterns`.
-- **Next: Phase 4 (Scoring, lifecycle, trade plans, scanner).** Plan written and waiting for
-  the owner's approval. Don't build until it's approved (spec §0.2).
+- **Phase 4 (Scoring, lifecycle, trade plans, scanner):** built; waiting for the owner's review
+  of the results (spec §0.2: pause at the end of each phase). Its acceptance (EOD < 5 min,
+  explainable setups, signals logged) was checked on a synthetic 6,000-stock market; the live
+  run needs real data.
+- **Next: Phase 5 (Core UI).** Starts with a design plan the owner must approve before any UI
+  work.
 
 ## Owner decisions (answers to spec §0.3)
 
@@ -32,6 +36,7 @@ Trend Template + VCP / pocket pivots / episodic pivots). **The full build spec i
 | Auth | Single user, **email + password** (`make create-user`), built in Phase 1. |
 | ADRs | **Included** in the universe (stored as `type=adr`); the `include_adrs` setting filters them at scan time. |
 | Phase 2 defaults | Build Phase 2 before the Phase 1 live acceptance; overall market = **weaker of SPY and QQQ** (+IWM in small-cap mode); follow-through threshold **1.25%** (spec; IBD now uses ~1.7%, a setting); industry groups from **SEC SIC codes**. |
+| Phase 4 defaults | Setup Score: trend 20, RS 20, fundamentals 20, pattern 20, group 10, accumulation 10; a part without data (e.g. no Fundamentals Grade) is left out and the rest scaled up; × regime 1.0 / 0.8 / 0.5; red-flag penalties extended, late stage, climax −10, wide-and-loose, distribution −5, earnings risk 0; A+ ≥ 90, A ≥ 80, B ≥ 70, C ≥ 60. Breakouts confirmed **at the close** (≥ 140% volume, close in the top third) until real-time data (Phase 6). Outcomes measured from the signal session's close, plus R from the plan. **Plain admin pages** until the Phase 5 design. |
 | Phase 3 defaults | Grade points/cutoffs as in `fundamentals/grade.py` (EPS growth 25, acceleration 10, sales 15, 3-year EPS 20, ROE 10, margins 10, accumulation 10, insider cluster +5; A ≥ 80, B ≥ 65, C ≥ 50, D ≥ 35); insider Form 4 now, **13F deferred** to a paid provider; next earnings date **estimated** from last year; review charts **server-rendered** (matplotlib). |
 
 ## Non-negotiables (spec §0, §2)
@@ -73,13 +78,18 @@ api/                 Python 3.12 · FastAPI · uv (non-packaged app; run command
                      building blocks and score parts), bases (VCP, flat, cup, ascending, HTF),
                      weekly (3WT), events (pocket pivot, earnings gap), detect (all), scan
                      (many stocks → `patterns` table), chart (review PNG)
-  app/scoring/       trend_template.py (8 checks + checklist text)
+  app/scoring/       trend_template.py (8 checks + checklist text), setup_score.py (Setup
+                     Score), red_flags.py, lifecycle.py (stage machine), triggers.py
+                     (pullback, undercut & rally)
+  app/risk/          trade_plan.py (entry, stop, size, targets, management)
   app/market/        regime.py (distribution days, rally/FTD state machine), breadth.py
   app/groups/        classification.py (SIC → groups/sectors), industry_rank.py
   app/scanner/       eod_scan.py: the analytics pipeline (full / stale / incremental);
-                     detection.py: grades + patterns stage; universe_filter.py: point-in-time
-                     liquidity filter
-  app/api/routes/    health, auth, settings, admin, market, stocks, patterns (review)
+                     daily.py: per-session stages in order (detection.py: grades + patterns;
+                     setups.py: load/store around evaluate.py, the pure per-stock setup rules;
+                     outcomes.py); universe_filter.py: point-in-time liquidity filter
+  app/api/routes/    health, auth, settings, admin, market, stocks, patterns (review), setups
+                     (setups, signals, a stock's setup)
   app/worker.py      arq worker: `arq app.worker.WorkerSettings`
   app/scheduler.py   APScheduler (US/Eastern): `python -m app.scheduler`
   app/streamer.py    live feed (Phase 6): `python -m app.streamer`
@@ -89,10 +99,11 @@ api/                 Python 3.12 · FastAPI · uv (non-packaged app; run command
 web/                 Next.js 16 App Router · React 19 · TS strict · Tailwind 4 · pnpm
   proxy.ts           sends signed-out visitors to /login (cookie presence only)
   app/(app)/         signed-in pages with the header: / (status), /admin/data, /admin/inspect,
-                     /admin/patterns (false-positive review)
+                     /admin/patterns (false-positive review), /admin/setups, /admin/signals
   app/login/         sign-in page (no header)
   components/        UI components (+ colocated *.test.tsx); admin/ = data page panels,
-                     inspect/ = analytics inspection panels, patterns/ = review board + card
+                     inspect/ = analytics inspection panels, patterns/ = review board + card,
+                     setups/ = setups board, setup detail, signal log
   lib/api.ts         typed API client: CSRF header on writes, 401 → /login, response types
   lib/format.ts      number/date/duration formatters, safeNext() redirect guard
   test-utils.tsx     renderWithClient, mockApi (fetch stub keyed by "METHOD /path")
@@ -128,6 +139,8 @@ Only Docker is required; `make` targets run inside containers.
 | `make scan-now [full=1] [date=…]` | Recompute analytics from stored prices, then grades + patterns (`full=1` after changing stage or Trend Template settings) |
 | `make fundamentals [full=1] [symbols=A,B]` | Statements, earnings dates, insider trades (nightly mode by default) |
 | `make patterns [date=…] [symbols=A,B]` | Grades + pattern detection as of a date; with symbols, lists the detections (acceptance checks) |
+| `make setups [date=…]` | Scores, lifecycle and signals for every session not processed yet (re-scores the latest after a settings change) |
+| `make outcomes` | Update signal outcomes (also runs after each scan and at 17:00 ET) |
 | `make shell-api` / `make shell-db` | bash in api container / psql |
 
 Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost):
@@ -179,6 +192,14 @@ Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost)
   near-miss per rule, and join the no-lookahead/scale property tests (`tests/test_patterns.py`).
   Bases report while forming or within 3 sessions of a breakout; the scan retires rows that
   stop matching (`failed` / `expired`); an older as-of run never overwrites a newer row.
+- **Setups (`scanner/evaluate.py` rules, `scanner/setups.py` storage):** one active setup per
+  stock (unique partial index: update a closing setup *before* inserting its successor).
+  Sessions are processed forward only and in order (`scan_progress`; catch-up capped at 10), so
+  a breakout is judged on its own day. Re-running the latest session restores each setup from
+  `setups.previous` (snapshot before that session) and deletes what the session recorded
+  (`setup_transitions.recorded_on`, setups first seen that day). Signals are immutable and
+  unique per (date, type, stock); a re-run only re-links `setup_id`. New signal types go in
+  `SIGNAL_LABELS`. Trade plans are recomputed daily before a breakout and frozen at it.
 - **Regime definitions** are in `market/regime.py`'s docstring (DD count restarts at a
   follow-through; the below-50-day rules apply only after the index reclaimed its 50-day since
   the follow-through). Every state change and day carries human-readable reasons.
@@ -208,7 +229,8 @@ Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost)
 - Data flow: scheduler (clock) → arq queue → worker → `app/data/jobs.py` → providers → Postgres.
   EOD: the scheduler checks every 10 min from 13:00–23:50 ET on weekdays and enqueues
   `eod_update` for the latest closed session until a run succeeds (handles half-days and
-  retries). Universe rebuild: Sundays 18:00 ET. Empty universe at scheduler start → universe +
+  retries). The update runs the analytics pipeline, then for each new session: grades →
+  patterns → setups → signals, then outcomes (also scheduled at 17:00 ET). Universe rebuild: Sundays 18:00 ET. Empty universe at scheduler start → universe +
   backfill. Backfill progress lives in Redis (`backfill:progress`); the admin page polls it.
 - Worker, scheduler and streamer each write `heartbeat:<service>` to Redis every 10 s (TTL 30 s).
   `GET /api/health/ready` checks Postgres, TimescaleDB, Redis and those heartbeats and returns 503
@@ -244,6 +266,10 @@ Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost)
   The app is dark-only for now, so the cards request `?theme=dark`.
 - Pattern tests that compare float prices across scales multiply by 8 (exact in binary
   floating point); ×10 can flip a comparison that sits exactly on a threshold.
+- **Pattern detection runs in a forkserver process pool** (`PATTERN_WORKERS`, 0 = cores − 1;
+  small scans stay in-process). Workers re-import the launching script, so every entry point
+  that can run a scan needs an `if __name__ == "__main__":` guard (the CLI, scheduler and
+  streamer have one; scratch scripts must too).
 - The Docker image installs uv from PyPI (pinned `0.12.23`; keep in sync with CI and local).
 - **Claude Code cloud sandbox only:**
   - The Docker daemon isn't running by default; start it with `dockerd &`.

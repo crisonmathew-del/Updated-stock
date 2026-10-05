@@ -103,3 +103,21 @@ const STATUS_LABELS: Record<string, string> = {
 export function patternStatus(status: string): string {
   return STATUS_LABELS[status] ?? humanize(status);
 }
+
+/** A value already in percent (2.04) with a sign: "+2.0%", "−1.5%"; null → "—". */
+export function formatPctPoints(value: number | null | undefined, digits = 1): string {
+  if (value == null) return "—";
+  return `${value > 0 ? "+" : value < 0 ? "−" : ""}${Math.abs(value).toFixed(digits)}%`;
+}
+
+/** An R multiple: "+0.05R", "−1.00R"; null → "". */
+export function formatR(value: number | null | undefined): string {
+  if (value == null) return "";
+  return `${value > 0 ? "+" : value < 0 ? "−" : ""}${Math.abs(value).toFixed(2)}R`;
+}
+
+/** Distance from the close to the pivot: "2.0% below" (positive readiness) or "1.5% above". */
+export function formatReadiness(value: number | null | undefined): string {
+  if (value == null) return "—";
+  return value >= 0 ? `${value.toFixed(1)}% below` : `${(-value).toFixed(1)}% above`;
+}
