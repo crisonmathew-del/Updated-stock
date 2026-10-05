@@ -12,15 +12,20 @@ import re
 from collections.abc import AsyncIterator
 from pathlib import Path
 
+import httpx
 import pytest
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.core.config import Settings, get_settings
+from app.core.db import Base, get_sessionmaker
 from app.core.redis import get_redis
+from app.core.security import create_user
+from app.main import app as fastapi_app
+from app.models import User
 
 API_ROOT = Path(__file__).resolve().parent.parent
 
@@ -66,3 +71,41 @@ async def clean_redis() -> AsyncIterator[None]:
     await redis.flushdb()
     yield
     await redis.flushdb()
+
+
+@pytest.fixture
+async def db(migrated_db: None) -> AsyncIterator[AsyncSession]:
+    """A session on an empty, migrated test database (every app table is truncated first)."""
+    tables = ", ".join(f'"{t.name}"' for t in Base.metadata.sorted_tables)
+    async with get_sessionmaker()() as session:
+        await session.execute(text(f"TRUNCATE {tables} RESTART IDENTITY CASCADE"))
+        await session.commit()
+        yield session
+
+
+@pytest.fixture
+async def client() -> AsyncIterator[httpx.AsyncClient]:
+    """HTTP client for the app. Sends the CSRF header that the web client always sends."""
+    transport = httpx.ASGITransport(app=fastapi_app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://test", headers={"X-Requested-With": "breakout"}
+    ) as client:
+        yield client
+
+
+TEST_EMAIL = "owner@example.com"
+TEST_PASSWORD = "correct horse battery staple"
+
+
+@pytest.fixture
+async def user(db: AsyncSession, clean_redis: None) -> User:
+    return await create_user(db, TEST_EMAIL, TEST_PASSWORD)
+
+
+@pytest.fixture
+async def signed_in(client: httpx.AsyncClient, user: User) -> httpx.AsyncClient:
+    response = await client.post(
+        "/api/auth/login", json={"email": TEST_EMAIL, "password": TEST_PASSWORD}
+    )
+    assert response.status_code == 200, response.text
+    return client

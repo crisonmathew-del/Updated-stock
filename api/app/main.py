@@ -3,16 +3,33 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, FastAPI, Request, Response
+from fastapi.responses import JSONResponse
+from starlette.middleware.base import RequestResponseEndpoint
 
 from app import __version__
-from app.api.routes import health
+from app.api.routes import auth, health
+from app.api.routes import settings as settings_routes
 from app.core.config import get_settings
 from app.core.db import get_engine
 from app.core.logging import configure_logging, get_logger
 from app.core.redis import get_redis
 
 log = get_logger(__name__)
+
+# Unsafe requests must carry this header. Browsers only let same-origin scripts set custom
+# headers (we never enable CORS), so a cross-site form or image can't forge a request.
+CSRF_HEADER = "x-requested-with"
+CSRF_VALUE = "breakout"
+UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+
+async def require_csrf_header(request: Request, call_next: RequestResponseEndpoint) -> Response:
+    if request.method in UNSAFE_METHODS and request.headers.get(CSRF_HEADER) != CSRF_VALUE:
+        return JSONResponse(
+            {"detail": f"Missing {CSRF_HEADER}: {CSRF_VALUE} header."}, status_code=403
+        )
+    return await call_next(request)
 
 
 @asynccontextmanager
@@ -38,8 +55,12 @@ def create_app() -> FastAPI:
         redoc_url=None,
     )
 
+    app.middleware("http")(require_csrf_header)
+
     api = APIRouter(prefix="/api")
     api.include_router(health.router)
+    api.include_router(auth.router)
+    api.include_router(settings_routes.router)
     app.include_router(api)
     return app
 
