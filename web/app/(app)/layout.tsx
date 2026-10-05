@@ -1,12 +1,12 @@
-import { AppHeader } from "@/components/app-header";
+import { TopBar } from "@/components/shell/top-bar";
 
 export default function AppLayout({ children }: LayoutProps<"/">) {
   return (
     <>
-      <AppHeader />
+      <TopBar />
       {children}
-      <footer className="mx-auto mt-auto w-full max-w-5xl px-6 py-6 text-xs text-muted">
-        Screening signals, not financial advice.
+      <footer className="mx-auto mt-auto w-full max-w-[1600px] px-4 py-6 text-xs text-muted">
+        Screening signals, not financial advice. The platform never places trades.
       </footer>
     </>
   );
