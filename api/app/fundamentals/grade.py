@@ -195,8 +195,9 @@ def as_known(
     return out
 
 
-def _find(periods: Sequence[StatementRow], end: date, gap: range) -> StatementRow | None:
-    """The period ending `gap` days before `end`."""
+def find_period(periods: Sequence[StatementRow], end: date, gap: range) -> StatementRow | None:
+    """The latest period ending `gap` days before `end` (e.g. YEAR_AGO for the same quarter a
+    year earlier)."""
     for p in reversed(periods):
         if (end - p.period_end).days in gap:
             return p
@@ -209,7 +210,7 @@ def _chain(periods: Sequence[StatementRow], count: int, gap: range) -> list[Stat
         return []
     chain = [periods[-1]]
     while len(chain) < count:
-        previous = _find(periods, chain[-1].period_end, gap)
+        previous = find_period(periods, chain[-1].period_end, gap)
         if previous is None:
             break
         chain.append(previous)
@@ -268,7 +269,7 @@ class _Context:
         return _chain(self.periods, count, self.previous_gap)
 
     def year_ago(self, period: StatementRow) -> StatementRow | None:
-        return _find(self.periods, period.period_end, YEAR_AGO)
+        return find_period(self.periods, period.period_end, YEAR_AGO)
 
     def growth_of(self, period: StatementRow, attr: str) -> Growth:
         prior = self.year_ago(period)
@@ -584,7 +585,7 @@ def grade_fundamentals(
     recent_quarters = (
         bool(quarters)
         and as_of - quarters[-1].period_end <= RECENT_QUARTER
-        and _find(quarters, quarters[-1].period_end, YEAR_AGO) is not None
+        and find_period(quarters, quarters[-1].period_end, YEAR_AGO) is not None
     )
     if recent_quarters:
         ctx = _Context(quarters, years, False, as_of, settings)

@@ -7,6 +7,7 @@ up/down volume ratio, recent insider purchases and splits, then writes one
 
 from collections import defaultdict
 from collections.abc import Sequence
+from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any
 
@@ -14,7 +15,13 @@ from sqlalchemy import delete, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.data.loaders import read_frame
-from app.fundamentals.grade import InsiderTrade, Split, StatementRow, grade_fundamentals
+from app.fundamentals.grade import (
+    GradeResult,
+    InsiderTrade,
+    Split,
+    StatementRow,
+    grade_fundamentals,
+)
 from app.models import FundamentalGrade
 from app.settings.schema import AppSettings
 
@@ -52,61 +59,84 @@ async def _statements(table: str, ids: str, as_of: date) -> dict[int, list[State
     return out
 
 
+@dataclass
+class GradeInputs:
+    quarterly: list[StatementRow] = field(default_factory=list)
+    annual: list[StatementRow] = field(default_factory=list)
+    up_down_volume: float | None = None
+    insiders: list[InsiderTrade] = field(default_factory=list)
+    splits: list[Split] = field(default_factory=list)
+
+    def grade(self, as_of: date, settings: AppSettings) -> GradeResult:
+        return grade_fundamentals(
+            self.quarterly,
+            self.annual,
+            as_of=as_of,
+            settings=settings,
+            up_down_volume=self.up_down_volume,
+            insider_trades=self.insiders,
+            splits=self.splits,
+        )
+
+
+async def load_grade_inputs(
+    ticker_ids: Sequence[int], as_of: date, settings: AppSettings
+) -> dict[int, GradeInputs]:
+    """Everything the grade needs for these stocks, as known on `as_of`."""
+    out: dict[int, GradeInputs] = defaultdict(GradeInputs)
+    if not ticker_ids:
+        return out
+    ids = _ids(ticker_ids)
+    for tid, rows in (await _statements("fundamentals_quarterly", ids, as_of)).items():
+        out[tid].quarterly = rows
+    for tid, rows in (await _statements("fundamentals_annual", ids, as_of)).items():
+        out[tid].annual = rows
+    volume = await read_frame(
+        "SELECT ticker_id, up_down_volume_50 FROM indicators_daily "
+        f"WHERE ticker_id IN ({ids}) AND date = '{as_of.isoformat()}'"
+    )
+    for tid, ratio in volume.iter_rows():
+        out[int(tid)].up_down_volume = ratio
+    window = as_of - timedelta(days=settings.insider_cluster_window_days)
+    trades = await read_frame(
+        "SELECT ticker_id, transaction_date, filed_date, insider_cik, insider_name, code, "
+        "is_director, is_officer FROM insider_transactions "
+        f"WHERE ticker_id IN ({ids}) AND code = 'P' AND filed_date <= '{as_of.isoformat()}' "
+        f"AND transaction_date > '{window.isoformat()}'"
+    )
+    for r in trades.iter_rows(named=True):
+        out[int(r["ticker_id"])].insiders.append(
+            InsiderTrade(
+                r["transaction_date"],
+                r["filed_date"],
+                r["insider_cik"],
+                r["insider_name"],
+                r["code"],
+                bool(r["is_director"]),
+                bool(r["is_officer"]),
+            )
+        )
+    actions = await read_frame(
+        "SELECT ticker_id, ex_date, value FROM corporate_actions "
+        f"WHERE ticker_id IN ({ids}) AND kind = 'split' AND ex_date <= '{as_of.isoformat()}'"
+    )
+    for tid, ex_date, ratio in actions.iter_rows():
+        out[int(tid)].splits.append(Split(ex_date, float(ratio)))
+    return out
+
+
 async def grade_stocks(
     session: AsyncSession, settings: AppSettings, as_of: date, ticker_ids: Sequence[int]
 ) -> dict[str, int]:
     """Grade `ticker_ids` as of `as_of` and store the results. Returns {grade: count}, with
     "n/a" for stocks without enough data."""
     counts: dict[str, int] = defaultdict(int)
-    window = as_of - timedelta(days=settings.insider_cluster_window_days)
     for start in range(0, len(ticker_ids), CHUNK):
         chunk = list(ticker_ids[start : start + CHUNK])
-        ids = _ids(chunk)
-        quarterly = await _statements("fundamentals_quarterly", ids, as_of)
-        annual = await _statements("fundamentals_annual", ids, as_of)
-        volume = await read_frame(
-            "SELECT ticker_id, up_down_volume_50 FROM indicators_daily "
-            f"WHERE ticker_id IN ({ids}) AND date = '{as_of.isoformat()}'"
-        )
-        ratios = {int(r[0]): r[1] for r in volume.iter_rows()}
-        insiders: dict[int, list[InsiderTrade]] = defaultdict(list)
-        trades = await read_frame(
-            "SELECT ticker_id, transaction_date, filed_date, insider_cik, insider_name, code, "
-            "is_director, is_officer FROM insider_transactions "
-            f"WHERE ticker_id IN ({ids}) AND code = 'P' AND filed_date <= '{as_of.isoformat()}' "
-            f"AND transaction_date > '{window.isoformat()}'"
-        )
-        for r in trades.iter_rows(named=True):
-            insiders[int(r["ticker_id"])].append(
-                InsiderTrade(
-                    r["transaction_date"],
-                    r["filed_date"],
-                    r["insider_cik"],
-                    r["insider_name"],
-                    r["code"],
-                    bool(r["is_director"]),
-                    bool(r["is_officer"]),
-                )
-            )
-        splits: dict[int, list[Split]] = defaultdict(list)
-        actions = await read_frame(
-            "SELECT ticker_id, ex_date, value FROM corporate_actions "
-            f"WHERE ticker_id IN ({ids}) AND kind = 'split' AND ex_date <= '{as_of.isoformat()}'"
-        )
-        for tid, ex_date, ratio in actions.iter_rows():
-            splits[int(tid)].append(Split(ex_date, float(ratio)))
-
+        inputs = await load_grade_inputs(chunk, as_of, settings)
         rows: list[dict[str, Any]] = []
         for tid in chunk:
-            result = grade_fundamentals(
-                quarterly.get(tid, []),
-                annual.get(tid, []),
-                as_of=as_of,
-                settings=settings,
-                up_down_volume=ratios.get(tid),
-                insider_trades=insiders.get(tid, []),
-                splits=splits.get(tid, []),
-            )
+            result = inputs[tid].grade(as_of, settings)
             counts[result.grade or "n/a"] += 1
             rows.append(
                 {
