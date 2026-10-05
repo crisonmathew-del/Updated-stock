@@ -5,8 +5,10 @@ from datetime import date
 from typing import ClassVar
 
 from app.providers.base import (
+    Bar,
     CompanyIdentifier,
     CompanyReference,
+    CorporateActionRecord,
     FetchResult,
     FundamentalsProvider,
     ListedSecurity,
@@ -78,3 +80,23 @@ class FakePrices(PriceProvider):
             actions = [a for a in history.actions if start <= a.ex_date <= end]
             found[symbol] = PriceHistory(symbol, bars, actions)
         return FetchResult(found, errors)
+
+
+def make_history(
+    symbol: str,
+    start: date,
+    end: date,
+    *,
+    first_close: float = 100.0,
+    step: float = 0.5,
+    actions: list[CorporateActionRecord] | None = None,
+) -> PriceHistory:
+    """Synthetic bars on every NYSE session between `start` and `end`."""
+    from app.core.calendar import sessions_between
+
+    bars = []
+    close = first_close
+    for day in sessions_between(start, end):
+        bars.append(Bar(day, close - 0.5, close + 1.0, close - 1.0, close, 1_000_000))
+        close += step
+    return PriceHistory(symbol, bars, actions or [])
