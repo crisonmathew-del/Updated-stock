@@ -102,6 +102,8 @@ def plain_bars(
         close=closes,
         volume=np.array(volume if volume is not None else [BASE_VOLUME] * n, dtype=float),
         atr14=nan.copy(),
+        ema10=nan.copy(),
+        ema21=nan.copy(),
         sma10=rolling_mean(closes, 10),
         sma50=nan.copy(),
         avg_volume_50=np.full(n, avg_volume),

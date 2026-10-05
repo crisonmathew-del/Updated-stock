@@ -17,6 +17,8 @@ Floats = npt.NDArray[np.float64]
 
 # Indicator columns the detectors read (computed by app.indicators; null → NaN).
 INDICATORS = (
+    "ema10",
+    "ema21",
     "atr14",
     "sma50",
     "avg_volume_50",
@@ -36,6 +38,8 @@ class Bars:
     close: Floats
     volume: Floats
     atr14: Floats
+    ema10: Floats
+    ema21: Floats
     sma10: Floats
     sma50: Floats
     avg_volume_50: Floats
@@ -88,6 +92,8 @@ class Bars:
             close=close,
             volume=col("volume"),
             atr14=col("atr14"),
+            ema10=col("ema10"),
+            ema21=col("ema21"),
             sma10=rolling_mean(close, 10),
             sma50=col("sma50"),
             avg_volume_50=col("avg_volume_50"),
