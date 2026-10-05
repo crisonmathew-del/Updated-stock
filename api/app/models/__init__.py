@@ -19,7 +19,7 @@ from app.models.market_data import CorporateAction, DailyBar, SharesOutstanding
 from app.models.ops import DataQualityIssue, JobRun
 from app.models.patterns import Pattern, PatternReview
 from app.models.setting import Setting
-from app.models.setups import Setup, SetupTransition, Signal, SignalOutcome
+from app.models.setups import ScanProgress, Setup, SetupTransition, Signal, SignalOutcome
 from app.models.ticker import Ticker, TickerType
 from app.models.user import User
 
@@ -40,6 +40,7 @@ __all__ = [
     "MarketRegimeDaily",
     "Pattern",
     "PatternReview",
+    "ScanProgress",
     "Setting",
     "Setup",
     "SetupTransition",

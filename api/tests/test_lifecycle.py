@@ -196,6 +196,23 @@ def test_breakout_day_flags() -> None:
     assert not holding.breakout_today
 
 
+def test_a_close_below_the_50_day_ends_a_post_breakout_setup() -> None:
+    later = replace(AFTER, state=State.EXTENDED, sessions_since_breakout=25, sma50=104.0)
+    ended = next_state(later, day(103.5, low=102.0), DEFAULTS)
+    assert (ended.state, ended.ended) == (State.EXTENDED, True)
+    assert ended.reason == (
+        "Closed at 103.50, below the 50-day SMA (104.00): the standard trailing exit. The move "
+        "is over; setup closed."
+    )
+    assert not next_state(later, day(104.5), DEFAULTS).ended
+    # The stop and the failed-breakout rule come first.
+    early = replace(AFTER, sessions_since_breakout=1, sma50=101.0)
+    assert next_state(early, day(99.0, low=98.0), DEFAULTS).state == State.FAILED
+    # Not on the breakout day itself.
+    today = replace(AFTER, sessions_since_breakout=0, sma50=103.0)
+    assert not next_state(today, day(102.0), DEFAULTS).ended
+
+
 def test_no_volume_average_cannot_confirm() -> None:
     session = replace(day(102.0, volume=5000.0), avg_volume_50=None)
     result = next_state(BASE, session, DEFAULTS)

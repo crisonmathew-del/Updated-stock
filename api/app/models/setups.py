@@ -66,6 +66,9 @@ class Setup(Base):
     best_grade: Mapped[str | None] = mapped_column(String(2))
     closed_on: Mapped[dt.date | None] = mapped_column(Date)
     closed_reason: Mapped[str | None] = mapped_column(Text)
+    # The row as it was before the session `as_of` was evaluated, so re-running that session
+    # starts from the same place (see app.scanner.setups).
+    previous: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     created_at: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -83,6 +86,9 @@ class SetupTransition(Base):
     from_state: Mapped[str | None] = mapped_column(String(16))
     to_state: Mapped[str] = mapped_column(String(16))
     reason: Mapped[str] = mapped_column(Text)
+    # The session whose evaluation logged it: a pattern found after its breakout is replayed,
+    # so `date` can be earlier. Re-running a session deletes what it recorded.
+    recorded_on: Mapped[dt.date] = mapped_column(Date, index=True)
     created_at: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -140,6 +146,20 @@ class SignalOutcome(Base):
     target_2r_on: Mapped[dt.date | None] = mapped_column(Date)
     gain_20_on: Mapped[dt.date | None] = mapped_column(Date)
     complete: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    updated_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class ScanProgress(Base):
+    """The last session each forward-only stage of the EOD scan has processed (`setups`: the
+    lifecycle, which must see every session in order)."""
+
+    __tablename__ = "scan_progress"
+
+    stage: Mapped[str] = mapped_column(String(32), primary_key=True)
+    through: Mapped[dt.date] = mapped_column(Date)
+    stats: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default="{}")
     updated_at: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

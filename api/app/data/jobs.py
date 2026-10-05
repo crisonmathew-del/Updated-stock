@@ -40,11 +40,14 @@ from app.providers.base import (
     ProviderNotConfiguredError,
     ReferenceProvider,
 )
+from app.scanner.daily import latest_analytics_date, run_daily
 from app.scanner.detection import run_detection
 from app.scanner.eod_scan import run_analytics
+from app.scanner.outcomes import update_outcomes
 from app.settings import store
 
 INGEST_LOCK = "ingest"
+OUTCOMES_LOCK = "outcomes"
 QUALITY_LOCK = "data_quality"
 FUNDAMENTALS_LOCK = "fundamentals"
 
@@ -310,4 +313,33 @@ async def patterns_job(
                     }
                     for tid, m in patterns.matches
                 ]
+        return run.stats
+
+
+async def setups_job(trigger: Trigger, *, through: date | None = None) -> dict[str, Any]:
+    """Grades, patterns, scores, lifecycle and signals for every session not processed yet
+    (in order, up to `through`; default the latest with analytics), then signal outcomes. The
+    EOD scan runs this itself; use it after changing scoring settings (re-scores the latest
+    processed session) or to catch up without recomputing indicators."""
+    async with track_job("setups", trigger) as run, job_lock(get_redis(), INGEST_LOCK):
+        async with get_sessionmaker()() as session:
+            settings = await store.load(session)
+            stats = await run_daily(session, settings, through or latest_session())
+            if not stats:
+                run.stats["skipped"] = "No analytics computed yet: run `make scan-now` first."
+            run.stats.update(stats)
+        return run.stats
+
+
+async def outcomes_job(trigger: Trigger, *, through: date | None = None) -> dict[str, Any]:
+    """Forward returns, best/worst move and stop/2R/+20% dates for every signal still inside
+    its 60-session window."""
+    async with track_job("outcomes", trigger) as run, job_lock(get_redis(), OUTCOMES_LOCK):
+        async with get_sessionmaker()() as session:
+            day = await latest_analytics_date(session, through or latest_session())
+            if day is None:
+                run.stats["skipped"] = "No analytics computed yet: run `make scan-now` first."
+                return run.stats
+            run.stats.update(await update_outcomes(session, day))
+            run.stats["through"] = day.isoformat()
         return run.stats

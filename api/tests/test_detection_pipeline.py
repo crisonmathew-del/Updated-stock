@@ -113,14 +113,16 @@ async def test_vcp_forms_then_breaks_out_then_stays_broken_out(db: AsyncSession)
     day1 = await extend(db, ids["SPOT"], [*VCP, (334, 94.0)], 333)
     await run_analytics(db, SETTINGS, through=day1)
     row = await vcp_row(db, ids["SPOT"])
-    assert (row.status, row.status_date) == ("broken_out", day1)
+    # Both new sessions are scanned in order, so the status changed on the breakout session.
+    assert (row.status, row.status_date) == ("broken_out", DAYS[333])
     assert row.details["breakout_date"] == DAYS[333].isoformat()  # the first close above
     assert row.first_detected == day0
 
     day5 = await extend(db, ids["SPOT"], [*VCP, (334, 94.0), (338, 98.0)], 335)
     await run_analytics(db, SETTINGS, through=day5)
     row = await vcp_row(db, ids["SPOT"])
-    assert (row.status, row.last_seen) == ("broken_out", DAYS[334])  # no longer detected, kept
+    # Reported on the breakout session and the two after it (each scanned in turn), then kept.
+    assert (row.status, row.last_seen) == ("broken_out", DAYS[335])
 
 
 @pytest.mark.integration
@@ -128,7 +130,8 @@ async def test_vcp_forms_then_breaks_out_then_stays_broken_out(db: AsyncSession)
 async def test_a_base_that_undercuts_its_low_is_marked_failed(db: AsyncSession) -> None:
     ids = await seed(db, VCP)
     await run_analytics(db, SETTINGS, through=DAYS[332])
-    crash = await extend(db, ids["SPOT"], [*VCP, (336, 70.0)], 333)
+    # One session straight through the low (a slower slide stops matching first: expired).
+    crash = await extend(db, ids["SPOT"], [*VCP, (333, 70.0)], 333)
     await run_analytics(db, SETTINGS, through=crash)
     row = await vcp_row(db, ids["SPOT"])
     assert (row.status, row.status_date) == ("failed", crash)  # close 70 < base low 75.62

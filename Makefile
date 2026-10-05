@@ -8,7 +8,7 @@ RUN_WEB := $(COMPOSE) run --rm -T --no-deps web
 .DEFAULT_GOAL := help
 .PHONY: help dev down logs ps restart test test-api test-web lint lint-api lint-web fmt \
         migrate migration seed create-user universe backfill eod-update data-quality scan-now \
-        fundamentals patterns \
+        fundamentals patterns setups outcomes \
         shell-api shell-db
 
 help: ## Show this help
@@ -91,6 +91,12 @@ fundamentals: ## Load statements, earnings dates, insider trades. Options: full=
 patterns: ## Grades + pattern detection as of a date. Options: date=YYYY-MM-DD symbols=NVDA,SMCI
 	$(RUN_API) python -m app.cli patterns $(if $(date),--date $(date)) \
 		$(if $(symbols),--symbols $(symbols))
+
+setups: ## Scores, lifecycle, signals for sessions not processed yet (re-scores the latest). Options: date=YYYY-MM-DD
+	$(RUN_API) python -m app.cli setups $(if $(date),--date $(date))
+
+outcomes: ## Update signal outcomes (returns after 1-60 sessions, stop/2R/+20% hit dates)
+	$(RUN_API) python -m app.cli outcomes
 
 shell-api: ## Open a shell in the api container
 	$(COMPOSE) exec api bash

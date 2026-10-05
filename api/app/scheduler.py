@@ -69,6 +69,11 @@ async def enqueue_fundamentals(pool: ArqRedis, full: bool) -> None:
     await pool.enqueue_job("fundamentals", "schedule", full, _job_id=f"fundamentals:{day}")
 
 
+async def enqueue_outcomes(pool: ArqRedis) -> None:
+    day = datetime.now().date().isoformat()
+    await pool.enqueue_job("outcomes", "schedule", _job_id=f"outcomes:{day}")
+
+
 async def bootstrap(pool: ArqRedis) -> None:
     async with get_sessionmaker()() as session:
         tickers = await session.scalar(select(func.count()).select_from(Ticker))
@@ -130,6 +135,17 @@ async def main() -> None:
             max_instances=1,
             coalesce=True,
         )
+    scheduler.add_job(
+        enqueue_outcomes,  # spec §7.1; the EOD scan also updates them when it finishes
+        "cron",
+        args=[pool],
+        day_of_week="mon-fri",
+        hour=17,
+        minute=0,
+        id="signal_outcomes",
+        max_instances=1,
+        coalesce=True,
+    )
     scheduler.start()
     log.info("scheduler.startup", env=settings.app_env, timezone=settings.market_timezone)
     try:

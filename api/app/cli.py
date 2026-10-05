@@ -10,6 +10,8 @@ data-quality  Run the data-quality checks only
 scan          Recompute analytics (indicators, RS, groups, breadth, regime); --full for all history
 fundamentals  Load statements, earnings dates and insider trades (nightly; --full for everyone)
 patterns      Grades and pattern detection as of a date (--date), optionally for --symbols only
+setups        Scores, lifecycle and signals for every session not processed yet (through --date)
+outcomes      Update signal outcomes (returns after 1-60 sessions, stop/2R/+20% dates)
 """
 
 import argparse
@@ -132,6 +134,15 @@ async def cmd_patterns(args: argparse.Namespace) -> int:
     return await _run_job(jobs.patterns_job("cli", as_of=as_of, symbols=symbols))
 
 
+async def cmd_setups(args: argparse.Namespace) -> int:
+    through = date.fromisoformat(args.date) if args.date else None
+    return await _run_job(jobs.setups_job("cli", through=through))
+
+
+async def cmd_outcomes(_: argparse.Namespace) -> int:
+    return await _run_job(jobs.outcomes_job("cli"))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m app.cli",
@@ -184,6 +195,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--date", help="As of this session YYYY-MM-DD (default: the latest)")
     p.add_argument("--symbols", help="Comma-separated symbols (default: the liquid universe)")
     p.set_defaults(handler=cmd_patterns)
+
+    p = sub.add_parser("setups", help="Scores, lifecycle and signals for new sessions")
+    p.add_argument("--date", help="Through this session YYYY-MM-DD (default: the latest)")
+    p.set_defaults(handler=cmd_setups)
+
+    p = sub.add_parser("outcomes", help="Update signal outcomes")
+    p.set_defaults(handler=cmd_outcomes)
     return parser
 
 

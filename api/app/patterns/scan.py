@@ -46,6 +46,7 @@ class PatternRun:
     expired: int = 0
     seconds: float = 0.0
     matches: list[tuple[int, PatternMatch]] = field(default_factory=list)
+    closes: dict[int, float] = field(default_factory=dict)  # every scanned stock with a bar
 
     def stats(self) -> dict[str, Any]:
         return {
@@ -200,6 +201,7 @@ async def run_patterns(
         run.by_type[str(m.type)] = run.by_type.get(str(m.type), 0) + 1
     run.failed, run.expired = await store_patterns(session, matches, as_of, closes)
     run.matches = list(matches)
+    run.closes = closes
     run.seconds = time.perf_counter() - started
     log.info("patterns.done", **run.stats())
     return run

@@ -47,7 +47,7 @@ from app.models import (
     Ticker,
     TickerType,
 )
-from app.scanner.detection import run_detection
+from app.scanner.daily import run_daily
 from app.scoring.trend_template import add_sma200_ago, evaluate_trend_template
 from app.settings.schema import AppSettings
 
@@ -601,11 +601,7 @@ async def run_analytics(
 
     market = await update_regime(session, settings, through)
     result.market_state = LABELS[market.state] if market else None
-    latest = await session.scalar(
-        select(func.max(IndicatorDaily.date)).where(IndicatorDaily.date <= through)
-    )
-    if latest is not None:
-        result.detection, _ = await run_detection(session, settings, latest)
+    result.detection = await run_daily(session, settings, through)
     result.seconds = time.perf_counter() - started
     log.info("analytics.done", **result.stats())
     if stats is not None:

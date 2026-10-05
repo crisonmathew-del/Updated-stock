@@ -17,6 +17,9 @@
   confirmed breakout: don't chase. There is no way back to BREAKOUT.
 - FAILED (after a breakout): the stop is hit (the day's low), or a close back below the pivot
   within `failed_breakout_sessions` of the breakout.
+- Ended (after a breakout, any later session): a close below the 50-day SMA, the plan's
+  standard trailing exit. The move is over: the setup closes in its last stage. (The spec's
+  diagram has no "done" stage; a new base later starts a new setup.)
 - INVALIDATED (before a breakout): the base breaks down (close below its low) or stops
   meeting its rules.
 """
@@ -76,6 +79,7 @@ class SetupFacts:
     sessions_since_breakout: int | None = None  # 0 on the breakout day
     trend_leader: bool = False
     leader_detail: str = ""
+    sma50: float | None = None  # today's 50-day SMA, for the trailing exit
 
 
 @dataclass(frozen=True)
@@ -84,6 +88,7 @@ class Transition:
     reason: str
     breakout_today: bool = False
     rejected_breakout: str | None = None  # why a close above the pivot wasn't a breakout
+    ended: bool = False  # the trailing exit closed a post-breakout setup
 
 
 def _pct(a: float, b: float) -> float:
@@ -118,6 +123,14 @@ def next_state(facts: SetupFacts, day: Session, settings: AppSettings) -> Transi
                 State.FAILED,
                 f"Closed back below the pivot {pivot:.2f} ({day.close:.2f}) {since} session(s) "
                 "after the breakout.",
+            )
+        if since and facts.sma50 is not None and day.close < facts.sma50:
+            assert previous is not None
+            return Transition(
+                previous,
+                f"Closed at {day.close:.2f}, below the 50-day SMA ({facts.sma50:.2f}): the "
+                "standard trailing exit. The move is over; setup closed.",
+                ended=True,
             )
         if day.close > zone_top:
             if previous == State.EXTENDED:
