@@ -7,7 +7,8 @@ RUN_WEB := $(COMPOSE) run --rm -T --no-deps web
 
 .DEFAULT_GOAL := help
 .PHONY: help dev down logs ps restart test test-api test-web lint lint-api lint-web fmt \
-        migrate migration seed backfill scan-now shell-api shell-db
+        migrate migration seed create-user universe backfill eod-update data-quality scan-now \
+        shell-api shell-db
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -59,11 +60,25 @@ migrate: ## Apply database migrations
 migration: ## Create a new migration: make migration m="add tickers table"
 	$(RUN_API) alembic revision --autogenerate -m "$(m)"
 
-seed: ## Seed default settings (Phase 1)
-	@echo "seed: not implemented yet; arrives in Phase 1 (settings defaults, benchmarks)."
+seed: ## Insert default settings (never overwrites your changes)
+	$(RUN_API) python -m app.cli seed
 
-backfill: ## Historical price backfill (Phase 1)
-	@echo "backfill: not implemented yet; arrives in Phase 1 (universe + daily bars)."
+create-user: ## Create the login user: make create-user email=you@example.com
+	@test -n "$(email)" || (echo 'Usage: make create-user email=you@example.com' && exit 1)
+	$(COMPOSE) run --rm api python -m app.cli create-user --email "$(email)"
+
+universe: ## Rebuild the universe now, then backfill new tickers
+	$(RUN_API) python -m app.cli universe --then-backfill
+
+backfill: ## Load history for pending tickers. Options: years=10 symbols=AAPL,MSFT force=1
+	$(RUN_API) python -m app.cli backfill $(if $(years),--years $(years)) \
+		$(if $(symbols),--symbols $(symbols)) $(if $(force),--force)
+
+eod-update: ## Fetch the latest session's bars and run quality checks. Option: date=YYYY-MM-DD
+	$(RUN_API) python -m app.cli eod-update $(if $(date),--date $(date))
+
+data-quality: ## Run the data-quality checks
+	$(RUN_API) python -m app.cli data-quality
 
 scan-now: ## Run the end-of-day scan immediately (Phase 4)
 	@echo "scan-now: not implemented yet; arrives in Phase 4 (EOD scan pipeline)."

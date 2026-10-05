@@ -134,6 +134,9 @@ class ReferenceProvider(ABC):
     @abstractmethod
     async def listed_securities(self) -> list[ListedSecurity]: ...
 
+    async def aclose(self) -> None:  # noqa: B027  (optional hook)
+        """Release network clients. Adapters that hold none need not override this."""
+
 
 class PriceProvider(ABC):
     """Daily bars and corporate actions."""
@@ -144,6 +147,9 @@ class PriceProvider(ABC):
     async def daily_history(self, symbols: Sequence[str], start: date, end: date) -> FetchResult:
         """Split-adjusted bars from `start` to `end` inclusive, one entry per symbol that
         returned data; symbols with no data or errors appear in `FetchResult.errors`."""
+
+    async def aclose(self) -> None:  # noqa: B027  (optional hook)
+        """Release network clients. Adapters that hold none need not override this."""
 
 
 class FundamentalsProvider(ABC):
@@ -159,6 +165,9 @@ class FundamentalsProvider(ABC):
 
     @abstractmethod
     async def shares_outstanding(self, cik: str) -> list[SharesObservation]: ...
+
+    async def aclose(self) -> None:  # noqa: B027  (optional hook)
+        """Release network clients. Adapters that hold none need not override this."""
 
 
 class StreamProvider(ABC):

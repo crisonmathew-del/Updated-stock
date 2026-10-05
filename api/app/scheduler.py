@@ -1,20 +1,31 @@
 """Scheduler service. Run with `python -m app.scheduler`.
 
-Owns the clock: in later phases it enqueues arq jobs on the Section 7.1 schedule (pre-market
-scan, intraday sweep, EOD scan, nightly fundamentals, ...), all in US/Eastern market time.
+Owns the clock (US/Eastern) and enqueues jobs for the worker; it never does the work itself.
+
+- EOD update: every 10 minutes from 13:00 to 23:50 on weekdays, enqueue the update for the
+  latest closed session unless it already succeeded. Covers early closes (13:00) and retries
+  failures without a fixed run time.
+- Universe rebuild: Sundays 18:00 (spec §7.1 weekly review).
+- First boot: if there are no tickers at all, build the universe and backfill.
+Later phases add the pre-market, intraday and nightly jobs here.
 """
 
 import asyncio
 from datetime import datetime
-from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from arq import create_pool
+from arq.connections import ArqRedis, RedisSettings
+from sqlalchemy import func, select
 
 from app.core.config import get_settings
+from app.core.db import get_engine, get_sessionmaker
 from app.core.heartbeat import HEARTBEAT_INTERVAL_SECONDS, beat
 from app.core.lifecycle import install_stop_signals
 from app.core.logging import configure_logging, get_logger
 from app.core.redis import get_redis
+from app.data.jobs import latest_session
+from app.models import JobRun, Ticker
 
 log = get_logger(__name__)
 
@@ -23,28 +34,92 @@ async def heartbeat() -> None:
     await beat(get_redis(), "scheduler")
 
 
+async def eod_already_done(session_date: str) -> bool:
+    async with get_sessionmaker()() as session:
+        count = await session.scalar(
+            select(func.count())
+            .select_from(JobRun)
+            .where(
+                JobRun.job_name == "eod_update",
+                JobRun.status == "succeeded",
+                JobRun.stats["session"].astext == session_date,
+            )
+        )
+    return bool(count)
+
+
+async def maybe_enqueue_eod(pool: ArqRedis) -> None:
+    target = latest_session().isoformat()
+    if await eod_already_done(target):
+        return
+    job = await pool.enqueue_job("eod_update", "schedule", target, _job_id=f"eod_update:{target}")
+    if job is not None:
+        log.info("scheduler.enqueued", job="eod_update", session=target)
+
+
+async def enqueue_universe(pool: ArqRedis) -> None:
+    week = datetime.now().strftime("%G-W%V")
+    await pool.enqueue_job("universe", "schedule", _job_id=f"universe:{week}")
+
+
+async def bootstrap(pool: ArqRedis) -> None:
+    async with get_sessionmaker()() as session:
+        tickers = await session.scalar(select(func.count()).select_from(Ticker))
+    if not tickers:
+        log.info("scheduler.bootstrap", reason="empty universe")
+        await pool.enqueue_job("universe", "schedule", True, _job_id="universe:bootstrap")
+
+
 async def main() -> None:
     settings = get_settings()
     configure_logging(settings.log_level, settings.log_format)
     stop = install_stop_signals()
-    tz = ZoneInfo(settings.market_timezone)
+    pool = await create_pool(RedisSettings.from_dsn(settings.redis_url))
 
-    scheduler = AsyncIOScheduler(timezone=tz)
+    scheduler = AsyncIOScheduler(timezone=settings.market_timezone)
     scheduler.add_job(
         heartbeat,
         "interval",
         seconds=HEARTBEAT_INTERVAL_SECONDS,
-        next_run_time=datetime.now(tz),
+        next_run_time=datetime.now(scheduler.timezone),
         id="heartbeat",
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        maybe_enqueue_eod,
+        "cron",
+        args=[pool],
+        day_of_week="mon-fri",
+        hour="13-23",
+        minute="*/10",
+        id="eod_update",
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        enqueue_universe,
+        "cron",
+        args=[pool],
+        day_of_week="sun",
+        hour=18,
+        minute=0,
+        id="universe",
         max_instances=1,
         coalesce=True,
     )
     scheduler.start()
     log.info("scheduler.startup", env=settings.app_env, timezone=settings.market_timezone)
+    try:
+        await bootstrap(pool)
+    except Exception:
+        log.exception("scheduler.bootstrap_failed")
 
     await stop.wait()
     scheduler.shutdown(wait=False)
+    await pool.aclose()
     await get_redis().aclose()
+    await get_engine().dispose()
     log.info("scheduler.shutdown")
 
 

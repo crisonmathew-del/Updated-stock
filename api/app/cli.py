@@ -3,17 +3,25 @@
 create-user   Create the login user (prompts for the password, or reads BREAKOUT_PASSWORD)
 set-password  Change a user's password
 seed          Insert default settings that are missing (never overwrites changes)
+universe      Rebuild the universe from the exchange directories (+ SEC reference data)
+backfill      Load daily history for tickers that don't have it yet (resumable)
+eod-update    Fetch the latest session's bars, then run the data-quality checks
+data-quality  Run the data-quality checks only
 """
 
 import argparse
 import asyncio
 import getpass
+import json
 import os
 import sys
 from collections.abc import Awaitable, Callable
+from datetime import date
+from typing import Any
 
 from app.core.config import get_settings
 from app.core.db import get_engine, get_sessionmaker
+from app.core.jobs import JobAlreadyRunningError
 from app.core.logging import configure_logging
 from app.core.redis import get_redis
 from app.core.security import (
@@ -23,6 +31,8 @@ from app.core.security import (
     create_user,
     set_password,
 )
+from app.data import jobs
+from app.providers.base import ProviderError
 from app.settings import store
 
 Command = Callable[[argparse.Namespace], Awaitable[int]]
@@ -70,6 +80,39 @@ async def cmd_seed(_: argparse.Namespace) -> int:
     return 0
 
 
+def _print_stats(stats: dict[str, Any]) -> int:
+    print(json.dumps(stats, indent=2, default=str))
+    return 0
+
+
+async def _run_job(job: Awaitable[dict[str, Any]]) -> int:
+    try:
+        return _print_stats(await job)
+    except (JobAlreadyRunningError, ProviderError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+
+async def cmd_universe(args: argparse.Namespace) -> int:
+    return await _run_job(jobs.universe_job("cli", then_backfill=args.then_backfill))
+
+
+async def cmd_backfill(args: argparse.Namespace) -> int:
+    symbols = [s.strip() for s in args.symbols.split(",")] if args.symbols else None
+    return await _run_job(
+        jobs.backfill_job("cli", years=args.years, symbols=symbols, force=args.force)
+    )
+
+
+async def cmd_eod_update(args: argparse.Namespace) -> int:
+    session_date = date.fromisoformat(args.date) if args.date else None
+    return await _run_job(jobs.eod_update_job("cli", session_date=session_date))
+
+
+async def cmd_data_quality(_: argparse.Namespace) -> int:
+    return await _run_job(jobs.data_quality_job("cli"))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m app.cli",
@@ -88,6 +131,25 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("seed", help="Insert missing default settings")
     p.set_defaults(handler=cmd_seed)
+
+    p = sub.add_parser("universe", help="Rebuild the universe")
+    p.add_argument("--then-backfill", action="store_true", help="Backfill new tickers after")
+    p.set_defaults(handler=cmd_universe)
+
+    p = sub.add_parser("backfill", help="Load daily history")
+    p.add_argument(
+        "--years", type=int, help="Years of history (default: the backfill_years setting)"
+    )
+    p.add_argument("--symbols", help="Comma-separated symbols (default: every pending ticker)")
+    p.add_argument("--force", action="store_true", help="Re-fetch even if already loaded")
+    p.set_defaults(handler=cmd_backfill)
+
+    p = sub.add_parser("eod-update", help="Fetch the latest session and run quality checks")
+    p.add_argument("--date", help="Session date YYYY-MM-DD (default: the latest closed session)")
+    p.set_defaults(handler=cmd_eod_update)
+
+    p = sub.add_parser("data-quality", help="Run the data-quality checks")
+    p.set_defaults(handler=cmd_data_quality)
     return parser
 
 
