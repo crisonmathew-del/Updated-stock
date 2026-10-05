@@ -245,6 +245,13 @@ async def refresh_shares(
             )
 
     await asyncio.gather(*(one(cik, ids) for cik, ids in by_cik.items()))
+    await upsert_shares(session, rows)
+    await session.commit()
+    return len(tickers) - len(errors), errors
+
+
+async def upsert_shares(session: AsyncSession, rows: list[dict[str, object]]) -> None:
+    """Insert or update share-count observations (not committed)."""
     for start in range(0, len(rows), 5000):
         chunk = rows[start : start + 5000]
         stmt = insert(SharesOutstanding).values(chunk)
@@ -254,8 +261,6 @@ async def refresh_shares(
                 set_={"shares": stmt.excluded.shares, "form": stmt.excluded.form},
             )
         )
-    await session.commit()
-    return len(tickers) - len(errors), errors
 
 
 async def build_universe(

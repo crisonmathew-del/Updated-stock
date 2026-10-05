@@ -11,6 +11,7 @@ from app.providers.base import (
     CompanyIdentifier,
     CompanyReference,
     CorporateActionRecord,
+    EarningsRelease,
     FetchResult,
     FilingRecord,
     FilingsProvider,
@@ -20,6 +21,7 @@ from app.providers.base import (
     ListedSecurity,
     PriceHistory,
     PriceProvider,
+    ProviderError,
     ReferenceProvider,
     SharesObservation,
 )
@@ -45,12 +47,16 @@ class FakeFundamentals(FundamentalsProvider):
         shares: dict[str, list[SharesObservation]] | None = None,
         financials: dict[str, CompanyFinancials] | None = None,
         filings: dict[str, list[FilingRecord]] | None = None,
+        releases: dict[str, list[EarningsRelease]] | None = None,
+        errors: dict[str, str] | None = None,
     ):
         self.identifiers = identifiers
         self.references = references or {}
         self.shares = shares or {}
         self.financials = financials or {}
         self.filings = filings or {}
+        self.releases = releases or {}
+        self.errors = errors or {}
         self.share_calls: list[str] = []
         self.financial_calls: list[str] = []
         self.filing_calls: list[str] = []
@@ -67,12 +73,16 @@ class FakeFundamentals(FundamentalsProvider):
 
     async def company_financials(self, cik: str) -> CompanyFinancials:
         self.financial_calls.append(cik)
+        if cik in self.errors:
+            raise ProviderError(self.errors[cik])
         return self.financials.get(cik, CompanyFinancials([], list(self.shares.get(cik, []))))
 
     async def company_filings(self, cik: str) -> CompanyFilings:
         self.filing_calls.append(cik)
         reference = self.references.get(cik, CompanyReference(cik, "", None, None))
-        return CompanyFilings(reference, list(self.filings.get(cik, [])))
+        return CompanyFilings(
+            reference, list(self.filings.get(cik, [])), list(self.releases.get(cik, []))
+        )
 
 
 class FakeFilings(FilingsProvider):

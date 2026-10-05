@@ -69,6 +69,15 @@ async def analytics(
     return await jobs.analytics_job(trigger, force_full=force_full)
 
 
+async def fundamentals(
+    _: dict[str, Any],
+    trigger: Trigger = "api",
+    full: bool = False,
+    symbols: list[str] | None = None,
+) -> dict[str, Any]:
+    return await jobs.fundamentals_job(trigger, full=full, symbols=symbols)
+
+
 async def startup(ctx: dict[str, Any]) -> None:
     settings = get_settings()
     configure_logging(settings.log_level, settings.log_format)
@@ -88,6 +97,7 @@ class WorkerSettings:
         _task(eod_update, 8 * HOUR),
         _task(data_quality, HOUR),
         _task(analytics, 4 * HOUR),
+        _task(fundamentals, 8 * HOUR),  # the first full load reads every company
     ]
     cron_jobs: ClassVar[list[Any]] = [
         cron(heartbeat, second={0, 10, 20, 30, 40, 50}, run_at_startup=False, timeout=5)

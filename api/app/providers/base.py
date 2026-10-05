@@ -161,10 +161,21 @@ class FilingRecord:
     primary_document: str | None
 
 
+@dataclass(frozen=True, slots=True)
+class EarningsRelease:
+    """A quarterly/annual results release. `timing` is before_open, during_session,
+    after_close or unknown (relative to the regular session on `report_date`)."""
+
+    report_date: date
+    timing: str
+    accession: str | None
+
+
 @dataclass(frozen=True)
 class CompanyFilings:
     reference: CompanyReference
     filings: list[FilingRecord]
+    releases: list[EarningsRelease] = field(default_factory=list)
 
 
 @dataclass(frozen=True, slots=True)

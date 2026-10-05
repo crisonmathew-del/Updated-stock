@@ -8,6 +8,7 @@ RUN_WEB := $(COMPOSE) run --rm -T --no-deps web
 .DEFAULT_GOAL := help
 .PHONY: help dev down logs ps restart test test-api test-web lint lint-api lint-web fmt \
         migrate migration seed create-user universe backfill eod-update data-quality scan-now \
+        fundamentals \
         shell-api shell-db
 
 help: ## Show this help
@@ -82,6 +83,10 @@ data-quality: ## Run the data-quality checks
 
 scan-now: ## Recompute analytics from stored prices. Options: full=1 date=YYYY-MM-DD
 	$(RUN_API) python -m app.cli scan $(if $(full),--full) $(if $(date),--date $(date))
+
+fundamentals: ## Load statements, earnings dates, insider trades. Options: full=1 symbols=AAPL,MSFT
+	$(RUN_API) python -m app.cli fundamentals $(if $(full),--full) \
+		$(if $(symbols),--symbols $(symbols))
 
 shell-api: ## Open a shell in the api container
 	$(COMPOSE) exec api bash

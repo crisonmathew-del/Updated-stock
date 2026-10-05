@@ -6,6 +6,8 @@ Owns the clock (US/Eastern) and enqueues jobs for the worker; it never does the 
   latest closed session unless it already succeeded. Covers early closes (13:00) and retries
   failures without a fixed run time.
 - Universe rebuild: Sundays 18:00 (spec §7.1 weekly review).
+- Fundamentals: 06:00 Tuesday-Saturday for the companies that filed the previous weekday
+  (spec §5.5 nightly), and a full refresh of every company on Sundays at 06:00.
 - First boot: if there are no tickers at all, build the universe and backfill.
 Later phases add the pre-market, intraday and nightly jobs here.
 """
@@ -62,6 +64,11 @@ async def enqueue_universe(pool: ArqRedis) -> None:
     await pool.enqueue_job("universe", "schedule", _job_id=f"universe:{week}")
 
 
+async def enqueue_fundamentals(pool: ArqRedis, full: bool) -> None:
+    day = datetime.now().date().isoformat()
+    await pool.enqueue_job("fundamentals", "schedule", full, _job_id=f"fundamentals:{day}")
+
+
 async def bootstrap(pool: ArqRedis) -> None:
     async with get_sessionmaker()() as session:
         tickers = await session.scalar(select(func.count()).select_from(Ticker))
@@ -108,6 +115,21 @@ async def main() -> None:
         max_instances=1,
         coalesce=True,
     )
+    for job_id, days, full in (
+        ("fundamentals_nightly", "tue-sat", False),
+        ("fundamentals_weekly", "sun", True),
+    ):
+        scheduler.add_job(
+            enqueue_fundamentals,
+            "cron",
+            args=[pool, full],
+            day_of_week=days,
+            hour=6,
+            minute=0,
+            id=job_id,
+            max_instances=1,
+            coalesce=True,
+        )
     scheduler.start()
     log.info("scheduler.startup", env=settings.app_env, timezone=settings.market_timezone)
     try:

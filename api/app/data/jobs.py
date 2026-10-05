@@ -2,11 +2,12 @@
 
 Every job records a `job_runs` row and holds a Redis lock: universe, backfill and EOD update share
 the `ingest` lock because they all write tickers and bars. A run that finds the lock taken is
-recorded as failed with "already running" and changes nothing.
+recorded as failed with "already running" and changes nothing. The fundamentals job has its own
+lock: it writes statements, filings and insider trades, never bars.
 """
 
 from collections.abc import Sequence
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from app.core.calendar import MARKET_TZ, last_completed_session
@@ -17,8 +18,20 @@ from app.data.backfill import run_backfill
 from app.data.eod_update import EOD_DELAY, run_eod_update
 from app.data.quality import run_quality_checks
 from app.data.universe import build_universe
+from app.fundamentals.ingest import (
+    index_days,
+    issuer_map,
+    last_index_through,
+    load_companies,
+    load_insider_quarters,
+    needs_full_refresh,
+    process_filing_index,
+    quarters_back,
+    refresh_companies,
+)
 from app.providers import registry
 from app.providers.base import (
+    FilingsProvider,
     FundamentalsProvider,
     PriceProvider,
     ProviderNotConfiguredError,
@@ -29,6 +42,7 @@ from app.settings import store
 
 INGEST_LOCK = "ingest"
 QUALITY_LOCK = "data_quality"
+FUNDAMENTALS_LOCK = "fundamentals"
 
 
 def latest_session(now: datetime | None = None) -> date:
@@ -167,3 +181,80 @@ async def analytics_job(
                 stats=run.stats,
             )
         return run.stats
+
+
+async def fundamentals_job(
+    trigger: Trigger,
+    *,
+    full: bool = False,
+    symbols: Sequence[str] | None = None,
+    fundamentals: FundamentalsProvider | None = None,
+    filings: FilingsProvider | None = None,
+) -> dict[str, Any]:
+    """Statements, earnings dates and insider trades (spec §5.5: nightly for companies that
+    filed, weekly for everyone).
+
+    Nightly: read the filing indexes since the last run, store that period's Form 4 trades and
+    refresh every company that filed a 10-Q/10-K/20-F/40-F/8-K/6-K, plus tickers never loaded.
+    `full` (weekly, or when the indexes are more than 10 business days behind) refreshes every
+    company. `symbols` refreshes just those. Each run also loads any missing quarter of SEC's
+    bulk insider data sets."""
+    async with track_job("fundamentals", trigger) as run, job_lock(get_redis(), FUNDAMENTALS_LOCK):
+        fundamentals = fundamentals or registry.fundamentals_provider()
+        filings = filings or registry.filings_provider()
+        stats = run.stats
+        try:
+            async with get_sessionmaker()() as session:
+                settings = await store.load(session)
+                today, now = market_today(), datetime.now(UTC)
+                issuers = await issuer_map(session)
+                if not issuers:
+                    stats["skipped"] = "No stocks with a CIK yet: run the universe job first."
+                    return stats
+                if symbols:
+                    stats["mode"] = "symbols"
+                    companies = await load_companies(session, symbols=symbols)
+                    await refresh_companies(
+                        session, fundamentals, companies, today=today, now=now, stats=stats
+                    )
+                    return stats
+
+                last = await last_index_through(session)
+                yesterday = today - timedelta(days=1)
+                full = full or needs_full_refresh(last, yesterday)
+                index = await process_filing_index(
+                    session,
+                    filings,
+                    index_days(last, yesterday, settings.insider_cluster_window_days),
+                    issuers,
+                )
+                through = index.through or last
+                stats.update(
+                    mode="full" if full else "nightly",
+                    index_days=[d.isoformat() for d in index.days_read],
+                    index_through=through.isoformat() if through else None,
+                    companies_that_filed=len(index.refresh_ciks),
+                    form4_filings=index.form4_filings,
+                    insider_rows=index.insider_rows,
+                )
+                companies = (
+                    await load_companies(session)
+                    if full
+                    else await load_companies(
+                        session, ciks=index.refresh_ciks, never_refreshed=True
+                    )
+                )
+                await refresh_companies(
+                    session, fundamentals, companies, today=today, now=now, stats=stats
+                )
+                await load_insider_quarters(
+                    session,
+                    filings,
+                    quarters_back(today, settings.insider_history_quarters),
+                    issuers,
+                    stats,
+                )
+        finally:
+            await fundamentals.aclose()
+            await filings.aclose()
+        return stats

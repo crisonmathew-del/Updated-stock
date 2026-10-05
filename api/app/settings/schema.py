@@ -421,6 +421,13 @@ class AppSettings(BaseModel):
     backfill_years: int = _field(
         10, Category.DATA, "Years of daily history to backfill", ge=2, le=30
     )
+    insider_history_quarters: int = _field(
+        8,
+        Category.DATA,
+        "Quarters of insider transactions to load from SEC's bulk data sets",
+        ge=1,
+        le=80,
+    )
 
     @model_validator(mode="after")
     def _check_ranges(self) -> "AppSettings":

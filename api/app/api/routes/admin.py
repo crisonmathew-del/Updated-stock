@@ -12,7 +12,7 @@ from sqlalchemy import Select, case, func, select
 from app.api.deps import DbSession, RedisClient, current_user
 from app.core.queue import get_queue
 from app.data.backfill import read_progress
-from app.data.jobs import INGEST_LOCK
+from app.data.jobs import FUNDAMENTALS_LOCK, INGEST_LOCK
 from app.models import DataQualityIssue, JobRun, Ticker
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(current_user)])
@@ -257,6 +257,22 @@ class AnalyticsRequest(BaseModel):
 @router.post("/analytics", response_model=Enqueued, status_code=status.HTTP_202_ACCEPTED)
 async def start_analytics(body: AnalyticsRequest, redis: RedisClient) -> Enqueued:
     return await _enqueue(redis, "analytics", body.full)
+
+
+class FundamentalsRequest(BaseModel):
+    full: bool = False
+    symbols: list[str] | None = None
+
+
+@router.post("/fundamentals", response_model=Enqueued, status_code=status.HTTP_202_ACCEPTED)
+async def start_fundamentals(body: FundamentalsRequest, redis: RedisClient) -> Enqueued:
+    if await redis.exists(f"lock:{FUNDAMENTALS_LOCK}"):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "A fundamentals load is already running. Try again when it finishes.",
+        )
+    symbols = [s.strip().upper() for s in body.symbols] if body.symbols else None
+    return await _enqueue(redis, "fundamentals", body.full, symbols, ingest=False)
 
 
 @router.post("/data-quality", response_model=Enqueued, status_code=status.HTTP_202_ACCEPTED)

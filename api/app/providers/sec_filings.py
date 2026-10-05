@@ -21,7 +21,7 @@ from xml.etree import ElementTree
 import polars as pl
 
 from app.core.calendar import MARKET_TZ
-from app.providers.base import FilingRecord, IndexEntry, InsiderTransaction
+from app.providers.base import EarningsRelease, FilingRecord, IndexEntry, InsiderTransaction
 
 EARNINGS_ITEM = "2.02"  # 8-K item 2.02: results of operations and financial condition
 EARNINGS_FORMS = frozenset({"8-K"})
@@ -125,6 +125,16 @@ def release_timing(accepted_at: datetime | None) -> str:
     if clock >= MARKET_CLOSE:
         return "after_close"
     return "during_session"
+
+
+def earnings_releases(filings: Iterable[FilingRecord]) -> list[EarningsRelease]:
+    """One release per day from the 8-K item 2.02 filings, oldest first."""
+    by_day: dict[date, EarningsRelease] = {}
+    for f in sorted(filings, key=lambda f: (f.filed, f.accession)):
+        if is_earnings_release(f):
+            release = EarningsRelease(f.filed, release_timing(f.accepted_at), f.accession)
+            by_day.setdefault(f.filed, release)
+    return list(by_day.values())
 
 
 # --- Daily index ----------------------------------------------------------------------------

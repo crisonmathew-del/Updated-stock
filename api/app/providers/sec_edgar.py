@@ -33,6 +33,7 @@ from app.providers.base import (
 from app.providers.sec_facts import parse_financials
 from app.providers.sec_filings import (
     accession_from_path,
+    earnings_releases,
     extra_pages,
     pad_cik,
     parse_daily_index,
@@ -204,7 +205,8 @@ class SecEdgarProvider(_SecClient, FundamentalsProvider):
             page = await self._json(SUBMISSIONS_PAGE_URL.format(name=name))
             if page is not None:
                 pages.append(page)
-        return CompanyFilings(parse_submissions(payload), parse_filing_history(payload, pages))
+        filings = parse_filing_history(payload, pages)
+        return CompanyFilings(parse_submissions(payload), filings, earnings_releases(filings))
 
 
 class SecFilingsProvider(_SecClient, FilingsProvider):

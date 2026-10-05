@@ -8,6 +8,7 @@ backfill      Load daily history for tickers that don't have it yet (resumable)
 eod-update    Fetch the latest session's bars, then run the data-quality checks
 data-quality  Run the data-quality checks only
 scan          Recompute analytics (indicators, RS, groups, breadth, regime); --full for all history
+fundamentals  Load statements, earnings dates and insider trades (nightly; --full for everyone)
 """
 
 import argparse
@@ -119,6 +120,11 @@ async def cmd_scan(args: argparse.Namespace) -> int:
     return await _run_job(jobs.analytics_job("cli", through=through, force_full=args.full))
 
 
+async def cmd_fundamentals(args: argparse.Namespace) -> int:
+    symbols = [s.strip() for s in args.symbols.split(",")] if args.symbols else None
+    return await _run_job(jobs.fundamentals_job("cli", full=args.full, symbols=symbols))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m app.cli",
@@ -161,6 +167,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--date", help="Through this session YYYY-MM-DD (default: the latest)")
     p.add_argument("--full", action="store_true", help="Recompute all history")
     p.set_defaults(handler=cmd_scan)
+
+    p = sub.add_parser("fundamentals", help="Load statements, earnings dates and insider trades")
+    p.add_argument("--full", action="store_true", help="Refresh every company")
+    p.add_argument("--symbols", help="Comma-separated symbols (refresh just these)")
+    p.set_defaults(handler=cmd_fundamentals)
     return parser
 
 

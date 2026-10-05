@@ -85,3 +85,20 @@ async def test_buttons_enqueue_jobs_unless_a_data_job_is_running(
     # Quality checks only read market data, so they don't wait for the ingest lock.
     assert (await signed_in.post("/api/admin/data-quality")).status_code == 202
     await close_queue()
+
+
+@pytest.mark.integration
+async def test_fundamentals_button_has_its_own_lock(signed_in: httpx.AsyncClient) -> None:
+    # Fundamentals never write bars, so a running EOD update doesn't block them.
+    await get_redis().set("lock:ingest", "someone", ex=60)
+    response = await signed_in.post("/api/admin/fundamentals", json={"symbols": ["nvda"]})
+    assert response.status_code == 202
+    queue = await get_queue()
+    queued = {j.job_id: j for j in await queue.queued_jobs()}
+    assert queued[response.json()["job_id"]].args == ("api", False, ["NVDA"])
+
+    await get_redis().set("lock:fundamentals", "someone", ex=60)
+    blocked = await signed_in.post("/api/admin/fundamentals", json={"full": True})
+    assert blocked.status_code == 409
+    assert "already running" in blocked.json()["detail"]
+    await close_queue()
