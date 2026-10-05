@@ -3,7 +3,7 @@
 Adapters are chosen by the `*_PROVIDER` settings (see `app.providers.registry`), so swapping
 yfinance for Massive, or SEC EDGAR for FMP, never touches the ingestion code. Each interface
 declares only the methods built so far; later phases add methods as they need them (intraday
-bars and snapshots in Phase 6, statements and estimates in Phase 3).
+bars and snapshots in Phase 6, estimates and 13F holdings once a paid provider is connected).
 """
 
 from abc import ABC, abstractmethod
@@ -106,6 +106,99 @@ class SharesObservation:
     form: str | None
 
 
+class PeriodKind(StrEnum):
+    QUARTER = "quarter"
+    ANNUAL = "annual"
+
+
+@dataclass(frozen=True, slots=True)
+class FinancialPeriod:
+    """One version of a fiscal period's figures, as known from `reported_date` (the filing
+    date) until a later version replaces it. Restatements and later comparatives become new
+    versions, so a calculation for date D uses the latest version with reported_date <= D.
+
+    Money values are in `currency` units; EPS in currency per share as reported at the time
+    (not adjusted for later splits). `derived` marks a quarter computed from year-to-date
+    totals (usually Q4 = full year - nine months), which is approximate for EPS."""
+
+    kind: PeriodKind
+    period_start: date
+    period_end: date
+    reported_date: date
+    fiscal_year: int | None
+    fiscal_period: str | None  # Q1..Q4 or FY
+    form: str | None
+    accession: str | None
+    currency: str | None
+    eps_diluted: float | None = None
+    eps_basic: float | None = None
+    revenue: float | None = None
+    net_income: float | None = None
+    operating_income: float | None = None
+    equity: float | None = None
+    derived: bool = False
+
+
+@dataclass(frozen=True)
+class CompanyFinancials:
+    """Everything we read from one company-facts document."""
+
+    periods: list[FinancialPeriod]
+    shares: list[SharesObservation]
+
+
+@dataclass(frozen=True, slots=True)
+class FilingRecord:
+    """One filing from a company's submission history. `accepted_at` is the EDGAR acceptance
+    time in US/Eastern; `items` are 8-K item numbers (e.g. "2.02" = results of operations)."""
+
+    accession: str
+    form: str
+    filed: date
+    accepted_at: datetime | None
+    report_date: date | None
+    items: tuple[str, ...]
+    primary_document: str | None
+
+
+@dataclass(frozen=True)
+class CompanyFilings:
+    reference: CompanyReference
+    filings: list[FilingRecord]
+
+
+@dataclass(frozen=True, slots=True)
+class IndexEntry:
+    """One line of an EDGAR daily index: a filing by (or about) the company with this CIK."""
+
+    cik: str
+    company: str
+    form: str
+    filed: date
+    path: str  # edgar/data/<cik>/<accession>.txt
+
+
+@dataclass(frozen=True, slots=True)
+class InsiderTransaction:
+    """An open-market purchase (code P) or sale (code S) of common stock from Form 4.
+    `seq` numbers the transactions within one filing."""
+
+    accession: str
+    seq: int
+    issuer_cik: str
+    filed: date
+    transaction_date: date
+    insider_cik: str
+    insider_name: str
+    role: str
+    is_director: bool
+    is_officer: bool
+    is_ten_percent_owner: bool
+    code: str
+    shares: float
+    price: float | None
+
+
 @dataclass(frozen=True, slots=True)
 class Trade:
     symbol: str
@@ -153,7 +246,8 @@ class PriceProvider(ABC):
 
 
 class FundamentalsProvider(ABC):
-    """Company identifiers, classification and share counts (statements arrive in Phase 3)."""
+    """Company identifiers, classification, share counts, financial statements and the filing
+    history (earnings release dates)."""
 
     name: ClassVar[str]
 
@@ -165,6 +259,14 @@ class FundamentalsProvider(ABC):
 
     @abstractmethod
     async def shares_outstanding(self, cik: str) -> list[SharesObservation]: ...
+
+    @abstractmethod
+    async def company_financials(self, cik: str) -> CompanyFinancials:
+        """Point-in-time quarterly and annual figures plus share counts (empty if unknown)."""
+
+    @abstractmethod
+    async def company_filings(self, cik: str) -> CompanyFilings:
+        """Reference data and the full filing history, oldest first."""
 
     async def aclose(self) -> None:  # noqa: B027  (optional hook)
         """Release network clients. Adapters that hold none need not override this."""
@@ -189,9 +291,24 @@ class NewsProvider(ABC):
 
 
 class FilingsProvider(ABC):
-    """Insider transactions (Form 4) and institutional holdings (13F), Phase 3."""
+    """The daily filing index and insider transactions (Form 4). Institutional holdings (13F)
+    arrive with a paid provider."""
 
     name: ClassVar[str]
 
     @abstractmethod
-    async def insider_transactions(self, cik: str, since: date) -> list[dict[str, object]]: ...
+    async def daily_index(self, day: date) -> list[IndexEntry] | None:
+        """Every filing accepted on `day`, or None if there is no index (weekend/holiday or
+        not published yet)."""
+
+    @abstractmethod
+    async def insider_filing(self, entry: IndexEntry) -> list[InsiderTransaction]:
+        """Open-market purchases and sales in one Form 4 filing."""
+
+    @abstractmethod
+    async def insider_quarter(self, year: int, quarter: int) -> list[InsiderTransaction] | None:
+        """Every open-market purchase and sale filed in a calendar quarter (bulk data set), or
+        None if that quarter isn't published yet."""
+
+    async def aclose(self) -> None:  # noqa: B027  (optional hook)
+        """Release network clients. Adapters that hold none need not override this."""

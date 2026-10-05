@@ -1,0 +1,33 @@
+{"cik":1234567,"entityName":"Northwind Tools Inc.","facts":{"dei":{"EntityCommonStockSharesOutstanding":{"label":"Entity Common Stock, Shares Outstanding","description":"Entity Common Stock, Shares Outstanding.","units":{"shares":[
+{"end":"2023-04-28","val":20000000,"accn":"0001234567-23-000012","fy":2023,"fp":"Q1","form":"10-Q","filed":"2023-05-05","frame":"CY2023Q1I"}]}}},"us-gaap":{"Revenues":{"label":"Revenues","description":"Revenues.","units":{"USD":[
+{"start":"2021-07-01","end":"2021-09-30","val":95000000,"accn":"0001234567-22-000030","fy":2022,"fp":"Q3","form":"10-Q","filed":"2022-11-04","frame":"CY2021Q3"},
+{"start":"2022-07-01","end":"2022-09-30","val":120000000,"accn":"0001234567-22-000030","fy":2022,"fp":"Q3","form":"10-Q","filed":"2022-11-04","frame":"CY2022Q3"},
+{"start":"2021-01-01","end":"2021-09-30","val":280000000,"accn":"0001234567-22-000030","fy":2022,"fp":"Q3","form":"10-Q","filed":"2022-11-04"},
+{"start":"2022-01-01","end":"2022-09-30","val":330000000,"accn":"0001234567-22-000030","fy":2022,"fp":"Q3","form":"10-Q","filed":"2022-11-04"},
+{"start":"2021-01-01","end":"2021-12-31","val":380000000,"accn":"0001234567-23-000005","fy":2022,"fp":"FY","form":"10-K","filed":"2023-02-24"},
+{"start":"2022-01-01","end":"2022-12-31","val":460000000,"accn":"0001234567-23-000005","fy":2022,"fp":"FY","form":"10-K","filed":"2023-02-24"},
+{"start":"2022-01-01","end":"2022-12-31","val":460000000,"accn":"0001234567-23-000005","fy":2022,"fp":"FY","form":"10-K","filed":"2023-02-24"},
+{"start":"2021-01-01","end":"2021-12-31","val":380000000,"accn":"0001234567-23-000020","fy":2022,"fp":"FY","form":"10-K/A","filed":"2023-06-15","frame":"CY2021"},
+{"start":"2022-01-01","end":"2022-12-31","val":455000000,"accn":"0001234567-23-000020","fy":2022,"fp":"FY","form":"10-K/A","filed":"2023-06-15","frame":"CY2022"}]}},"RevenueFromContractWithCustomerExcludingAssessedTax":{"label":"Revenue from Contract with Customer, Excluding Assessed Tax","description":"Revenue from Contract with Customer, Excluding Assessed Tax.","units":{"USD":[
+{"start":"2022-01-01","end":"2022-03-31","val":100000000,"accn":"0001234567-23-000012","fy":2023,"fp":"Q1","form":"10-Q","filed":"2023-05-05","frame":"CY2022Q1"},
+{"start":"2023-01-01","end":"2023-03-31","val":125000000,"accn":"0001234567-23-000012","fy":2023,"fp":"Q1","form":"10-Q","filed":"2023-05-05","frame":"CY2023Q1"}]}},"EarningsPerShareDiluted":{"label":"Earnings Per Share, Diluted","description":"Earnings Per Share, Diluted.","units":{"USD/shares":[
+{"start":"2021-07-01","end":"2021-09-30","val":0.48,"accn":"0001234567-22-000030","fy":2022,"fp":"Q3","form":"10-Q","filed":"2022-11-04","frame":"CY2021Q3"},
+{"start":"2022-07-01","end":"2022-09-30","val":0.6,"accn":"0001234567-22-000030","fy":2022,"fp":"Q3","form":"10-Q","filed":"2022-11-04","frame":"CY2022Q3"},
+{"start":"2021-01-01","end":"2021-09-30","val":1.35,"accn":"0001234567-22-000030","fy":2022,"fp":"Q3","form":"10-Q","filed":"2022-11-04"},
+{"start":"2022-01-01","end":"2022-09-30","val":1.65,"accn":"0001234567-22-000030","fy":2022,"fp":"Q3","form":"10-Q","filed":"2022-11-04"},
+{"start":"2021-01-01","end":"2021-12-31","val":1.8,"accn":"0001234567-23-000005","fy":2022,"fp":"FY","form":"10-K","filed":"2023-02-24"},
+{"start":"2022-01-01","end":"2022-12-31","val":2.3,"accn":"0001234567-23-000005","fy":2022,"fp":"FY","form":"10-K","filed":"2023-02-24"},
+{"start":"2022-01-01","end":"2022-03-31","val":0.5,"accn":"0001234567-23-000012","fy":2023,"fp":"Q1","form":"10-Q","filed":"2023-05-05","frame":"CY2022Q1"},
+{"start":"2023-01-01","end":"2023-03-31","val":0.62,"accn":"0001234567-23-000012","fy":2023,"fp":"Q1","form":"10-Q","filed":"2023-05-05","frame":"CY2023Q1"},
+{"start":"2021-01-01","end":"2021-12-31","val":1.8,"accn":"0001234567-23-000020","fy":2022,"fp":"FY","form":"10-K/A","filed":"2023-06-15","frame":"CY2021"},
+{"start":"2022-01-01","end":"2022-12-31","val":2.25,"accn":"0001234567-23-000020","fy":2022,"fp":"FY","form":"10-K/A","filed":"2023-06-15","frame":"CY2022"}]}},"NetIncomeLoss":{"label":"Net Income (Loss) Attributable to Parent","description":"Net Income (Loss) Attributable to Parent.","units":{"USD":[
+{"start":"2021-01-01","end":"2021-12-31","val":36000000,"accn":"0001234567-23-000005","fy":2022,"fp":"FY","form":"10-K","filed":"2023-02-24"},
+{"start":"2022-01-01","end":"2022-12-31","val":46000000,"accn":"0001234567-23-000005","fy":2022,"fp":"FY","form":"10-K","filed":"2023-02-24","frame":"CY2022"},
+{"start":"2022-01-01","end":"2022-03-31","val":10000000,"accn":"0001234567-23-000012","fy":2023,"fp":"Q1","form":"10-Q","filed":"2023-05-05","frame":"CY2022Q1"},
+{"start":"2023-01-01","end":"2023-03-31","val":12400000,"accn":"0001234567-23-000012","fy":2023,"fp":"Q1","form":"10-Q","filed":"2023-05-05","frame":"CY2023Q1"}]}},"OperatingIncomeLoss":{"label":"Operating Income (Loss)","description":"Operating Income (Loss).","units":{"USD":[
+{"start":"2022-01-01","end":"2022-03-31","val":14000000,"accn":"0001234567-23-000012","fy":2023,"fp":"Q1","form":"10-Q","filed":"2023-05-05","frame":"CY2022Q1"},
+{"start":"2023-01-01","end":"2023-03-31","val":18000000,"accn":"0001234567-23-000012","fy":2023,"fp":"Q1","form":"10-Q","filed":"2023-05-05","frame":"CY2023Q1"}]}},"StockholdersEquity":{"label":"Stockholders' Equity Attributable to Parent","description":"Stockholders' Equity Attributable to Parent.","units":{"USD":[
+{"end":"2021-12-31","val":350000000,"accn":"0001234567-23-000005","fy":2022,"fp":"FY","form":"10-K","filed":"2023-02-24"},
+{"end":"2022-12-31","val":400000000,"accn":"0001234567-23-000005","fy":2022,"fp":"FY","form":"10-K","filed":"2023-02-24"},
+{"end":"2022-12-31","val":400000000,"accn":"0001234567-23-000012","fy":2023,"fp":"Q1","form":"10-Q","filed":"2023-05-05","frame":"CY2022Q4I"},
+{"end":"2023-03-31","val":412000000,"accn":"0001234567-23-000012","fy":2023,"fp":"Q1","form":"10-Q","filed":"2023-05-05","frame":"CY2023Q1I"}]}}}}}

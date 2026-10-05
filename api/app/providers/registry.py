@@ -2,6 +2,7 @@
 
 from app.core.config import get_settings
 from app.providers.base import (
+    FilingsProvider,
     FundamentalsProvider,
     PriceProvider,
     ProviderNotConfiguredError,
@@ -39,3 +40,11 @@ def fundamentals_provider() -> FundamentalsProvider:
 
         return SecEdgarProvider()
     raise _not_built("FUNDAMENTALS_PROVIDER", name, "FMP_API_KEY")
+
+
+def filings_provider() -> FilingsProvider:
+    """SEC EDGAR for the daily index and Form 4 (needs SEC_USER_AGENT whatever the
+    fundamentals provider is; a paid provider adds 13F holdings later)."""
+    from app.providers.sec_edgar import SecFilingsProvider
+
+    return SecFilingsProvider()

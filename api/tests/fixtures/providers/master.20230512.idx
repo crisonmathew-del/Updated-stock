@@ -1,0 +1,15 @@
+Description:           Daily Index of EDGAR Dissemination Feed by Company Name
+Last Data Received:    May 12, 2023
+Comments:              webmaster@sec.gov
+Anonymous FTP:         ftp://ftp.sec.gov/edgar/
+ 
+ 
+ 
+ 
+CIK|Company Name|Form Type|Date Filed|File Name
+--------------------------------------------------------------------------------
+1111111|SOME FUND LP|SC 13G/A|20230512|edgar/data/1111111/0001111111-23-000001.txt
+1234567|Northwind Tools Inc.|4|20230512|edgar/data/1234567/0001234567-23-000031.txt
+1234567|Northwind Tools Inc.|8-K|20230512|edgar/data/1234567/0001234567-23-000032.txt
+1876543|Doe Jane|4|20230512|edgar/data/1876543/0001234567-23-000031.txt
+7654321|Fjord Holdings ASA|6-K|20230512|edgar/data/7654321/0007654321-23-000010.txt

@@ -1,0 +1,14 @@
+{"cik":7654321,"entityName":"Fjord Holdings ASA","facts":{"ifrs-full":{"Revenue":{"label":"Revenue","description":"Revenue.","units":{"USD":[
+{"start":"2019-01-01","end":"2019-12-31","val":1500000000,"accn":"0007654321-20-000002","fy":2019,"fp":"FY","form":"20-F","filed":"2020-04-01"}],"EUR":[
+{"start":"2021-01-01","end":"2021-12-31","val":1600000000,"accn":"0007654321-23-000004","fy":2022,"fp":"FY","form":"20-F","filed":"2023-03-30"},
+{"start":"2022-01-01","end":"2022-12-31","val":2000000000,"accn":"0007654321-23-000004","fy":2022,"fp":"FY","form":"20-F","filed":"2023-03-30"},
+{"start":"2022-01-01","end":"2022-12-31","val":2000000000,"accn":"0007654321-24-000003","fy":2023,"fp":"FY","form":"20-F","filed":"2024-03-28"},
+{"start":"2023-01-01","end":"2023-12-31","val":2600000000,"accn":"0007654321-24-000003","fy":2023,"fp":"FY","form":"20-F","filed":"2024-03-28","frame":"CY2023"}]}},"DilutedEarningsLossPerShare":{"label":"Diluted earnings (loss) per share","description":"Diluted earnings (loss) per share.","units":{"EUR/shares":[
+{"start":"2021-01-01","end":"2021-12-31","val":0.8,"accn":"0007654321-23-000004","fy":2022,"fp":"FY","form":"20-F","filed":"2023-03-30"},
+{"start":"2022-01-01","end":"2022-12-31","val":1.1,"accn":"0007654321-23-000004","fy":2022,"fp":"FY","form":"20-F","filed":"2023-03-30"},
+{"start":"2022-01-01","end":"2022-12-31","val":1.1,"accn":"0007654321-24-000003","fy":2023,"fp":"FY","form":"20-F","filed":"2024-03-28"},
+{"start":"2023-01-01","end":"2023-12-31","val":1.5,"accn":"0007654321-24-000003","fy":2023,"fp":"FY","form":"20-F","filed":"2024-03-28","frame":"CY2023"}]}},"ProfitLossAttributableToOwnersOfParent":{"label":"Profit (loss), attributable to owners of parent","description":"Profit (loss), attributable to owners of parent.","units":{"EUR":[
+{"start":"2022-01-01","end":"2022-12-31","val":220000000,"accn":"0007654321-24-000003","fy":2023,"fp":"FY","form":"20-F","filed":"2024-03-28"},
+{"start":"2023-01-01","end":"2023-12-31","val":300000000,"accn":"0007654321-24-000003","fy":2023,"fp":"FY","form":"20-F","filed":"2024-03-28","frame":"CY2023"}]}},"EquityAttributableToOwnersOfParent":{"label":"Equity attributable to owners of parent","description":"Equity attributable to owners of parent.","units":{"EUR":[
+{"end":"2022-12-31","val":1300000000,"accn":"0007654321-24-000003","fy":2023,"fp":"FY","form":"20-F","filed":"2024-03-28"},
+{"end":"2023-12-31","val":1500000000,"accn":"0007654321-24-000003","fy":2023,"fp":"FY","form":"20-F","filed":"2024-03-28","frame":"CY2023Q4I"}]}}}}}

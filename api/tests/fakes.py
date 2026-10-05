@@ -6,11 +6,17 @@ from typing import ClassVar
 
 from app.providers.base import (
     Bar,
+    CompanyFilings,
+    CompanyFinancials,
     CompanyIdentifier,
     CompanyReference,
     CorporateActionRecord,
     FetchResult,
+    FilingRecord,
+    FilingsProvider,
     FundamentalsProvider,
+    IndexEntry,
+    InsiderTransaction,
     ListedSecurity,
     PriceHistory,
     PriceProvider,
@@ -37,11 +43,17 @@ class FakeFundamentals(FundamentalsProvider):
         identifiers: list[CompanyIdentifier],
         references: dict[str, CompanyReference] | None = None,
         shares: dict[str, list[SharesObservation]] | None = None,
+        financials: dict[str, CompanyFinancials] | None = None,
+        filings: dict[str, list[FilingRecord]] | None = None,
     ):
         self.identifiers = identifiers
         self.references = references or {}
         self.shares = shares or {}
+        self.financials = financials or {}
+        self.filings = filings or {}
         self.share_calls: list[str] = []
+        self.financial_calls: list[str] = []
+        self.filing_calls: list[str] = []
 
     async def company_identifiers(self) -> list[CompanyIdentifier]:
         return list(self.identifiers)
@@ -52,6 +64,47 @@ class FakeFundamentals(FundamentalsProvider):
     async def shares_outstanding(self, cik: str) -> list[SharesObservation]:
         self.share_calls.append(cik)
         return list(self.shares.get(cik, []))
+
+    async def company_financials(self, cik: str) -> CompanyFinancials:
+        self.financial_calls.append(cik)
+        return self.financials.get(cik, CompanyFinancials([], list(self.shares.get(cik, []))))
+
+    async def company_filings(self, cik: str) -> CompanyFilings:
+        self.filing_calls.append(cik)
+        reference = self.references.get(cik, CompanyReference(cik, "", None, None))
+        return CompanyFilings(reference, list(self.filings.get(cik, [])))
+
+
+class FakeFilings(FilingsProvider):
+    """Daily indexes by date, Form 4 trades by index path, insider data sets by quarter."""
+
+    name: ClassVar[str] = "fake_filings"
+
+    def __init__(
+        self,
+        index: dict[date, list[IndexEntry]] | None = None,
+        form4: dict[str, list[InsiderTransaction]] | None = None,
+        quarters: dict[tuple[int, int], list[InsiderTransaction]] | None = None,
+    ):
+        self.index = index or {}
+        self.form4 = form4 or {}
+        self.quarters = quarters or {}
+        self.index_calls: list[date] = []
+        self.form4_calls: list[str] = []
+        self.quarter_calls: list[tuple[int, int]] = []
+
+    async def daily_index(self, day: date) -> list[IndexEntry] | None:
+        self.index_calls.append(day)
+        return self.index.get(day)
+
+    async def insider_filing(self, entry: IndexEntry) -> list[InsiderTransaction]:
+        self.form4_calls.append(entry.path)
+        return list(self.form4.get(entry.path, []))
+
+    async def insider_quarter(self, year: int, quarter: int) -> list[InsiderTransaction] | None:
+        self.quarter_calls.append((year, quarter))
+        found = self.quarters.get((year, quarter))
+        return None if found is None else list(found)
 
 
 class FakePrices(PriceProvider):
