@@ -1,47 +1,111 @@
 @import "tailwindcss";
 
 /*
- * Placeholder tokens for the Phase 0 scaffold. The real palette, type scale and grade/lifecycle
- * colours are proposed in the Phase 5 design plan and replace these.
+ * Design tokens (Phase 5 design plan, approved). Dark is the default; `.light` on <html> swaps
+ * every token. The palette was checked with a colour-blindness simulator (protan/deutan) and
+ * for contrast; colour always comes with a symbol or label (▲/▼, ✓/✕, stage icons).
+ *
+ *   Ink    page background     Slate  panels          Paper  text
+ *   Rise   up, gains, ✓ pass, breakout                Fall   down, losses, ✕ fail, stop
+ *   Tide   pivot, buy zone, near pivot, focus
+ * Grades use one blue ramp (A+ strongest). Moving averages: 10 EMA dim paper, 21 EMA violet,
+ * 50 magenta, 150 amber, 200 grey; each line carries its own label on the chart.
  */
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-  --muted: #6b6b6b;
-  --border: #e4e4e4;
-  --ok: #1a7f5a;
-  --warn: #a15c07;
-  --fail: #b42318;
+:root,
+.dark {
+  color-scheme: dark;
+  --background: #12161d; /* Ink */
+  --surface: #1a1f28; /* Slate */
+  --surface-2: #232934;
+  --border: #2c3340;
+  --foreground: #e8e4da; /* Paper */
+  --muted: #9ca2ab;
+  --rise: #4a90e8;
+  --fall: #dc6b2a;
+  --tide: #21a28e;
+  --tide-ink: #21a28e;
+  --warn: #c98500;
+  --grade-a-plus: #9ec5f4;
+  --grade-a: #6da7ec;
+  --grade-b: #3987e5;
+  --grade-c: #256abf;
+  --ma-10: #b9b4a8;
+  --ma-21: #9085e9;
+  --ma-50: #d55181;
+  --ma-150: #c98500;
+  --ma-200: #8b919a;
+  --chart-grid: #222833;
 }
 
-.dark {
-  --background: #0f1115;
-  --foreground: #e6e6e6;
-  --muted: #8a8f98;
-  --border: #23262d;
-  --ok: #4cc38a;
-  --warn: #f5b546;
-  --fail: #f97066;
+.light {
+  color-scheme: light;
+  --background: #f7f5f0;
+  --surface: #ffffff;
+  --surface-2: #f0ede6;
+  --border: #dedad0;
+  --foreground: #1b2029;
+  --muted: #5d636c;
+  --rise: #2468c8;
+  --fall: #c4531a;
+  --tide: #008c7c;
+  --tide-ink: #00756a; /* teal text needs more contrast on light surfaces */
+  --warn: #9a6500;
+  --grade-a-plus: #184f95;
+  --grade-a: #256abf;
+  --grade-b: #3987e5;
+  --grade-c: #6da7ec;
+  --ma-10: #6b6f76;
+  --ma-21: #4a3aa7;
+  --ma-50: #c43c72;
+  --ma-150: #9a6500;
+  --ma-200: #9aa0a8;
+  --chart-grid: #ebe7de;
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
-  --color-border: var(--border);
-  --color-ok: var(--ok);
+  --color-rise: var(--rise);
+  --color-fall: var(--fall);
+  --color-tide: var(--tide);
+  --color-tide-ink: var(--tide-ink);
   --color-warn: var(--warn);
-  --color-fail: var(--fail);
-  --font-sans:
-    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Status aliases used since Phase 1: pass = Rise, fail = Fall. */
+  --color-ok: var(--rise);
+  --color-fail: var(--fall);
+  --color-grade-a-plus: var(--grade-a-plus);
+  --color-grade-a: var(--grade-a);
+  --color-grade-b: var(--grade-b);
+  --color-grade-c: var(--grade-c);
+  --font-sans: var(--font-plex), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+  /* Tabular figures everywhere so columns of prices line up. */
+  font-variant-numeric: tabular-nums;
 }
 
 .tabular {
   font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--tide);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

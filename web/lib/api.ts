@@ -245,6 +245,16 @@ export type StockSummary = {
   market_cap: number | null;
   date: string | null;
   close: number | null;
+  prev_close: number | null;
+  change: number | null;
+  change_pct: number | null;
+  volume: number | null;
+  volume_ratio: number | null;
+  high_52w: number | null;
+  low_52w: number | null;
+  next_earnings: string | null;
+  sessions_to_earnings: number | null;
+  fundamentals_grade: string | null;
   stage: number | null;
   stage_label: string | null;
   rs_rating: number | null;
@@ -519,4 +529,125 @@ export type SignalList = {
   total: number;
   counts: Record<string, number>;
   items: SignalEntry[];
+};
+
+// --- Phase 5: search, chart, screener, watchlists ------------------------------------------
+
+export type SearchHit = {
+  symbol: string;
+  name: string;
+  exchange: string;
+  type: string;
+  date: string | null;
+  close: number | null;
+  change_pct: number | null;
+  grade: string | null;
+  score: number | null;
+  state: SetupState | null;
+};
+
+export type Quote = {
+  symbol: string;
+  date: string | null;
+  close: number | null;
+  change_pct: number | null;
+};
+
+export type ChartPoint = { time: string; price: number; kind: "high" | "low" };
+
+export type ChartData = {
+  symbol: string;
+  timeframe: "daily" | "weekly";
+  series: {
+    time: string[];
+    open: number[];
+    high: number[];
+    low: number[];
+    close: number[];
+    volume: number[];
+    avg_volume: (number | null)[];
+    ma: Record<string, (number | null)[]>;
+    rs_line: (number | null)[];
+  };
+  markers: {
+    time: string;
+    kind: "pocket_pivot" | "earnings" | "gap" | "rs_high" | "signal";
+    label: string;
+    text: string;
+  }[];
+  overlay: {
+    pattern_id: number;
+    type: string;
+    label: string;
+    status: string;
+    start: string;
+    end: string;
+    pivot: number;
+    base_low: number | null;
+    buy_zone_top: number;
+    swings: ChartPoint[];
+    contractions: { number: number; high: ChartPoint; low: ChartPoint; depth_pct: number }[];
+    setup_state: SetupState | null;
+    entry: number | null;
+    stop: number | null;
+    target_2r: number | null;
+    target_3r: number | null;
+  } | null;
+};
+
+export type Peer = {
+  symbol: string;
+  name: string;
+  close: number | null;
+  change_pct: number | null;
+  rs_rating: number | null;
+  stage: number | null;
+  grade: string | null;
+  score: number | null;
+  state: SetupState | null;
+  is_self: boolean;
+};
+
+export type Note = { body: string; updated_at: string | null };
+
+export type Membership = { id: number; name: string; contains: boolean };
+
+export type WatchlistItem = {
+  symbol: string;
+  name: string;
+  position: number;
+  note: string | null;
+  added_at: string;
+  date: string | null;
+  close: number | null;
+  change_pct: number | null;
+  rs_rating: number | null;
+  grade: string | null;
+  score: number | null;
+  state: SetupState | null;
+  pivot: number | null;
+  readiness_pct: number | null;
+};
+
+export type Watchlist = { id: number; name: string; position: number; items: WatchlistItem[] };
+
+export type ScreenerSnapshot = {
+  as_of: string | null;
+  fields: string[];
+  rows: unknown[][];
+  groups: number;
+};
+
+export type ScreenFilter =
+  | { field: string; op: "between"; min?: number | null; max?: number | null }
+  | { field: string; op: "is"; value: boolean }
+  | { field: string; op: "in"; values: string[] };
+
+export type SavedScreen = {
+  id: number;
+  name: string;
+  filters: ScreenFilter[];
+  sort: { field: string; desc: boolean } | null;
+  columns: string[] | null;
+  updated_at: string;
 };

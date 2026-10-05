@@ -3,10 +3,8 @@
 import Image from "next/image";
 import type { Pattern } from "@/lib/api";
 import { formatPrice, patternStatus } from "@/lib/format";
+import { useTheme } from "@/lib/use-theme";
 import { cn } from "@/lib/utils";
-
-// The app uses its dark theme everywhere for now (app/layout.tsx); the chart matches it.
-const CHART_THEME = "dark";
 
 const STATUS_CLASS: Record<Pattern["status"], string> = {
   forming: "text-foreground",
@@ -26,6 +24,7 @@ export function PatternCard({
   children?: React.ReactNode;
 }) {
   const p = pattern;
+  const theme = useTheme();
   const facts = [
     `${p.start_date} → ${p.end_date}`,
     `${p.duration_weeks.toFixed(1)} weeks`,
@@ -51,7 +50,7 @@ export function PatternCard({
       <p className="tabular text-sm text-muted">{facts.join(" · ")}</p>
       {showChart && (
         <Image
-          src={`/api/admin/patterns/${p.id}/chart.png?theme=${CHART_THEME}`}
+          src={`/api/admin/patterns/${p.id}/chart.png?theme=${theme}`}
           alt={`Chart of ${p.symbol}: ${p.type_label} from ${p.start_date} to ${p.end_date}, pivot ${formatPrice(p.pivot)}`}
           width={1000}
           height={600}
