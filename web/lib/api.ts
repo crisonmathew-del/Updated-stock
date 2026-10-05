@@ -69,6 +69,8 @@ export const api = {
   get: <T>(path: string) => send<T>("GET", path),
   post: <T>(path: string, body?: unknown) => send<T>("POST", path, body ?? {}),
   patch: <T>(path: string, body: unknown) => send<T>("PATCH", path, body),
+  put: <T>(path: string, body: unknown) => send<T>("PUT", path, body),
+  delete: <T = void>(path: string) => send<T>("DELETE", path),
 };
 
 // --- Health (public) ----------------------------------------------------------------------
@@ -258,4 +260,126 @@ export type StockSummary = {
     ranked_groups: number | null;
   } | null;
   indicators: Record<string, number | boolean | null>;
+};
+
+// --- Fundamentals (Phase 3) ---------------------------------------------------------------
+
+export type GradeComponent = {
+  key: string;
+  label: string;
+  points: number;
+  max_points: number;
+  status: "pass" | "partial" | "fail" | "no_data";
+  detail: string;
+  bonus: boolean;
+};
+
+export type Grade = {
+  date: string;
+  grade: string | null;
+  score: number | null;
+  path: "eps" | "revenue";
+  basis: "quarterly" | "annual" | "none";
+  coverage_pct: number;
+  components: GradeComponent[];
+};
+
+export type FiscalPeriod = {
+  period_end: string;
+  label: string;
+  reported_date: string;
+  eps: number | null;
+  revenue: number | null;
+  net_income: number | null;
+  eps_growth_pct: number | null;
+  eps_note: "turnaround" | "loss" | null;
+  revenue_growth_pct: number | null;
+  derived: boolean;
+  currency: string | null;
+};
+
+export type EarningsDate = {
+  report_date: string;
+  status: "reported" | "estimated";
+  timing: string;
+};
+
+export type InsiderTrade = {
+  transaction_date: string;
+  filed_date: string;
+  insider_name: string;
+  role: string;
+  code: "P" | "S";
+  shares: number;
+  price: number | null;
+};
+
+export type Fundamentals = {
+  symbol: string;
+  as_of: string | null;
+  refreshed_at: string | null;
+  grade: Grade | null;
+  quarters: FiscalPeriod[];
+  years: FiscalPeriod[];
+  earnings: EarningsDate[];
+  insiders: InsiderTrade[];
+};
+
+// --- Patterns (Phase 3) -------------------------------------------------------------------
+
+export type PatternComponent = {
+  key: string;
+  label: string;
+  points: number;
+  max_points: number;
+  detail: string;
+};
+
+export type PatternPoint = { date: string; price: number; kind: "high" | "low" };
+
+export type Verdict = "correct" | "wrong" | "unsure";
+
+export type PatternReview = { verdict: Verdict; note: string | null; reviewed_at: string };
+
+export type Pattern = {
+  id: number;
+  symbol: string;
+  name: string;
+  type: string;
+  type_label: string;
+  timeframe: "daily" | "weekly";
+  start_date: string;
+  end_date: string;
+  pivot: number;
+  base_low: number | null;
+  depth_pct: number | null;
+  duration_weeks: number;
+  quality: number;
+  base_number: number | null;
+  status: "forming" | "broken_out" | "failed" | "expired";
+  status_date: string;
+  first_detected: string;
+  last_seen: string;
+  components: PatternComponent[];
+  swings: PatternPoint[];
+  contractions: { high: PatternPoint; low: PatternPoint; depth_pct: number }[];
+  details: Record<string, unknown>;
+  review: PatternReview | null;
+};
+
+export type PatternTypeStats = {
+  type: string;
+  type_label: string;
+  detected: number;
+  reviewed: number;
+  correct: number;
+  wrong: number;
+  unsure: number;
+  false_positive_rate: number | null;
+};
+
+export type ReviewStats = {
+  types: PatternTypeStats[];
+  reviewed: number;
+  false_positive_rate: number | null;
 };

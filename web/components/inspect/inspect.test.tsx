@@ -1,6 +1,6 @@
 import { fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Groups, Regime, StockSummary } from "@/lib/api";
+import type { Fundamentals, Groups, Regime, StockSummary } from "@/lib/api";
 import { mockApi, renderWithClient } from "@/test-utils";
 import { GroupsPanel } from "./groups-panel";
 import { RegimePanel } from "./regime-panel";
@@ -50,9 +50,24 @@ const NVDA: StockSummary = {
   indicators: { sma50: 170.2, roc_63: 0.184, rs_new_high_ahead: true, avg_volume_50: 212345678 },
 };
 
+const NO_FUNDAMENTALS: Fundamentals = {
+  symbol: "NVDA",
+  as_of: "2026-10-02",
+  refreshed_at: null,
+  grade: null,
+  quarters: [],
+  years: [],
+  earnings: [],
+  insiders: [],
+};
+
 describe("StockPanel", () => {
   it("shows the checklist with pass/fail marks and numbers", async () => {
-    mockApi({ "GET /api/stocks/NVDA": { body: NVDA } });
+    mockApi({
+      "GET /api/stocks/NVDA": { body: NVDA },
+      "GET /api/stocks/NVDA/fundamentals": { body: NO_FUNDAMENTALS },
+      "GET /api/stocks/NVDA/patterns": { body: [] },
+    });
     renderWithClient(<StockPanel />);
 
     fireEvent.change(screen.getByLabelText("Ticker"), { target: { value: "nvda" } });
@@ -67,6 +82,10 @@ describe("StockPanel", () => {
     expect(failing).toHaveTextContent("-27.0% from the 52-week high 248.60 (needs within 25%)");
     expect(screen.getByText("+18.4%")).toBeInTheDocument();
     expect(screen.getByText("212,345,678")).toBeInTheDocument();
+    expect(await screen.findByText(/Statements for NVDA aren.t loaded yet/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/No bases or entry events detected for NVDA/),
+    ).toBeInTheDocument();
   });
 
   it("explains an unknown ticker", async () => {

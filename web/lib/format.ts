@@ -42,6 +42,8 @@ export function safeNext(next: string | null): string {
 
 const JOB_LABELS: Record<string, string> = {
   analytics: "Analytics",
+  fundamentals: "Fundamentals",
+  patterns: "Patterns",
   eod_update: "EOD update",
   data_quality: "Data quality",
   universe: "Universe",
@@ -74,4 +76,30 @@ export function formatRankChange(change: number | null): string {
   if (change > 0) return `▲ ${change}`;
   if (change < 0) return `▼ ${Math.abs(change)}`;
   return "– 0";
+}
+
+const compactFormat = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+/** 1234567890 → "1.2B"; null → "—". */
+export function formatCompact(value: number | null | undefined): string {
+  return value == null ? "—" : compactFormat.format(value);
+}
+
+/** A rate between 0 and 1 as a whole percentage ("12%"); null → "—". */
+export function formatRate(value: number | null | undefined): string {
+  return value == null ? "—" : `${Math.round(value * 100)}%`;
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  forming: "Forming",
+  broken_out: "Broken out",
+  failed: "Failed",
+  expired: "No longer valid",
+};
+
+export function patternStatus(status: string): string {
+  return STATUS_LABELS[status] ?? humanize(status);
 }

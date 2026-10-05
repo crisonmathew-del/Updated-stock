@@ -10,6 +10,7 @@ const LINKS = [
   { href: "/", label: "Status" },
   { href: "/admin/data", label: "Data" },
   { href: "/admin/inspect", label: "Inspect" },
+  { href: "/admin/patterns", label: "Patterns" },
 ];
 
 export function AppHeader() {

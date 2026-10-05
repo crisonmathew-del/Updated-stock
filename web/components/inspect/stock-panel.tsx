@@ -3,6 +3,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { Panel, Stat } from "@/components/admin/panel";
+import { FundamentalsSection } from "@/components/inspect/fundamentals-section";
+import { StockPatterns } from "@/components/inspect/stock-patterns";
 import { api, type StockSummary } from "@/lib/api";
 import { formatChange, formatNumber, formatPrice, formatRankChange } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -60,7 +62,10 @@ export function StockPanel({ initialSymbol = "" }: { initialSymbol?: string }) {
   }
 
   return (
-    <Panel title="Stock" description="Trend Template, stage, RS and indicators for one ticker.">
+    <Panel
+      title="Stock"
+      description="Trend Template, stage, RS, indicators, fundamentals and patterns for one ticker."
+    >
       <form onSubmit={onSubmit} className="flex gap-2">
         <label className="sr-only" htmlFor="inspect-symbol">
           Ticker
@@ -151,6 +156,8 @@ export function StockPanel({ initialSymbol = "" }: { initialSymbol?: string }) {
                   />
                 ))}
               </dl>
+              <FundamentalsSection symbol={data.symbol} />
+              <StockPatterns symbol={data.symbol} />
             </>
           )}
         </div>
