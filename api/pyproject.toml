@@ -74,6 +74,8 @@ filterwarnings = [
     # arq's Worker.close() calls redis-py's deprecated close(); nothing we can change.
     "ignore:Call to deprecated close:DeprecationWarning",
 ]
+addopts = "-m 'not network'"
 markers = [
     "integration: needs Postgres (with TimescaleDB) and Redis; run inside `make test` or CI",
+    "network: calls real external data sources; run by hand with `pytest -m network`",
 ]

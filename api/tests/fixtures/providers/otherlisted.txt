@@ -1,0 +1,19 @@
+ACT Symbol|Security Name|Exchange|CQS Symbol|ETF|Round Lot Size|Test Issue|NASDAQ Symbol
+A|Agilent Technologies, Inc. Common Stock|N|A|N|100|N|A
+BRK.A|Berkshire Hathaway Inc. Class A Common Stock|N|BRK.A|N|1|N|BRK.A
+BRK.B|Berkshire Hathaway Inc. Class B Common Stock|N|BRK.B|N|100|N|BRK.B
+TSM|Taiwan Semiconductor Manufacturing Company Ltd. American Depositary Shares (each representing 5 ordinary shares)|N|TSM|N|100|N|TSM
+PBR.A|Petroleo Brasileiro S.A.- Petrobras American Depositary Shares|N|PBR.A|N|100|N|PBR.A
+SPY|SPDR S&P 500 ETF Trust|P|SPY|Y|100|N|SPY
+XLK|Technology Select Sector SPDR Fund|P|XLK|Y|100|N|XLK
+ABR$D|Arbor Realty Trust 6.375% Series D Cumulative Redeemable Preferred Stock Liquidation Preference $25.00 per Share|N|ABRpD|N|100|N|ABR-D
+EPD|Enterprise Products Partners L.P. Common Units representing Limited Partner Interests|N|EPD|N|100|N|EPD
+ADX|Adams Diversified Equity Fund, Inc.|N|ADX|N|100|N|ADX
+SEB|Seaboard Corporation Common Stock|A|SEB|N|10|N|SEB
+CBOE|Cboe Global Markets, Inc. Common Stock|Z|CBOE|N|100|N|CBOE
+NTEST|NYSE Tick Pilot Test Stock|N|NTEST|N|100|Y|NTEST
+AAM.U|AA Mission Acquisition Corp. Units, each consisting of one Class A Ordinary Share and one-half of one Redeemable Warrant|N|AAM.U|N|100|N|AAM=
+AAM.WS|AA Mission Acquisition Corp. Redeemable Warrants, each whole warrant exercisable for one Class A Ordinary Share|N|AAM.WS|N|100|N|AAM+
+BAM|Brookfield Asset Management Ltd. Class A Limited Voting Shares|N|BAM|N|100|N|BAM
+O|Realty Income Corporation Common Stock|N|O|N|100|N|O
+File Creation Time: 1004202617:01|||||||

@@ -1,0 +1,16 @@
+Symbol|Security Name|Market Category|Test Issue|Financial Status|Round Lot Size|ETF|NextShares
+AAPL|Apple Inc. - Common Stock|Q|N|N|100|N|N
+GOOGL|Alphabet Inc. - Class A Common Stock|Q|N|N|100|N|N
+GOOG|Alphabet Inc. - Class C Capital Stock|Q|N|N|100|N|N
+ASML|ASML Holding N.V. - New York Registry Shares|Q|N|N|100|N|N
+PDD|PDD Holdings Inc. - American Depositary Shares|Q|N|N|100|N|N
+QQQ|Invesco QQQ Trust, Series 1|G|N|N|100|Y|N
+ZVZZT|NASDAQ TEST STOCK|G|Y|N|100|N|N
+CCCX|Churchill Capital Corp X - Class A Ordinary Shares|S|N|N|100|N|N
+CCCXU|Churchill Capital Corp X - Units|S|N|N|100|N|N
+CCCXW|Churchill Capital Corp X - Warrants|S|N|N|100|N|N
+GDSTR|Goldenstone Acquisition Limited - Rights|S|N|D|100|N|N
+LBRDP|Liberty Broadband Corporation - Series A Cumulative Redeemable Preferred Stock|S|N|N|100|N|N
+OXLCZ|Oxford Lane Capital Corp. - 6.75% Notes due 2031|G|N|N|100|N|N
+SPOT|Spotify Technology S.A. - Ordinary Shares|Q|N|N|100|N|N
+File Creation Time: 1004202617:01|||||||
