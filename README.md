@@ -50,8 +50,8 @@ containers.
 |---|---|---|
 | 0 | Scaffold | ✅ done |
 | 1 | Data foundation | ✅ built (live acceptance pending data access) |
-| 2 | Indicators, regime, RS, groups | ✅ built, in review |
-| 3 | Fundamentals & patterns | next |
+| 2 | Indicators, regime, RS, groups | ✅ built (live acceptance pending data access) |
+| 3 | Fundamentals & patterns | planning |
 | 4–8 | Scoring → UI → real-time → backtests → polish | planned |
 
 ![Analytics inspection page](docs/screenshots/phase2-inspect.png)

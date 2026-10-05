@@ -10,12 +10,13 @@ Trend Template + VCP / pocket pivots / episodic pivots). **The full build spec i
 - **Phase 1 (Data foundation):** built and approved. Its live acceptance run (real universe,
   ≥ 2 years of bars, clean data health) still needs the data hosts (see Gotchas) or a run on
   the owner's machine.
-- **Phase 2 (Indicators, regime, RS, groups): built, awaiting the owner's review.** Acceptance
-  needs real data too: the owner names 5 tickers + their charting platform to compare Trend
-  Template values on `/admin/inspect`, and the follow-through / distribution-day dates the
-  regime engine should reproduce.
-- **Next: Phase 3 (Fundamentals & patterns).** Write a short plan (files, data flows, tests)
-  and get it approved before building, as for every phase (spec §0.2).
+- **Phase 2 (Indicators, regime, RS, groups):** built and approved, including the regime
+  judgement calls in `market/regime.py`'s docstring. Its live acceptance also needs real data:
+  the owner names 5 tickers + their charting platform to compare Trend Template values on
+  `/admin/inspect`, and the follow-through / distribution-day dates the regime engine should
+  reproduce.
+- **Next: Phase 3 (Fundamentals & patterns).** Plan written and waiting for the owner's
+  approval. Don't build until it's approved (spec §0.2).
 
 ## Owner decisions (answers to spec §0.3)
 
