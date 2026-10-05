@@ -91,9 +91,10 @@ return 0
 
 
 @asynccontextmanager
-async def job_lock(redis: Redis, name: str, ttl_seconds: int = 6 * 3600) -> AsyncIterator[None]:
+async def job_lock(redis: Redis, name: str, ttl_seconds: int = 9 * 3600) -> AsyncIterator[None]:
     """Hold `lock:<name>` for the duration of the block; raise if another run holds it.
-    The TTL is a safety net so a crashed process can't hold the lock forever."""
+    The TTL is a safety net so a crashed process can't hold the lock forever; it must outlast
+    the longest worker job timeout (8 hours) so a live run never loses its lock."""
     key = f"lock:{name}"
     token = secrets.token_hex(16)
     if not await redis.set(key, token, nx=True, ex=ttl_seconds):

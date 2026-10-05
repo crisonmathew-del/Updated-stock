@@ -39,3 +39,14 @@ export function safeNext(next: string | null): string {
   if (!next || !next.startsWith("/") || next.startsWith("//") || next.startsWith("/\\")) return "/";
   return next;
 }
+
+const JOB_LABELS: Record<string, string> = {
+  eod_update: "EOD update",
+  data_quality: "Data quality",
+  universe: "Universe",
+  backfill: "Backfill",
+};
+
+export function jobLabel(name: string): string {
+  return JOB_LABELS[name] ?? humanize(name);
+}

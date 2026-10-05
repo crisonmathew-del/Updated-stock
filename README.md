@@ -13,12 +13,21 @@ The full product and build specification is in [`docs/spec.md`](docs/spec.md).
 Requirements: Docker (with Compose v2) and `make`.
 
 ```bash
-cp .env.example .env      # optional in development: every key has a keyless default
-make dev                  # builds and starts all services, waits until healthy
+cp .env.example .env                       # then set SEC_USER_AGENT="Breakout you@example.com"
+make dev                                   # builds and starts all services, waits until healthy
+make seed                                  # default settings ($100k account, 1% risk, spec §14)
+make create-user email=you@example.com     # your login (prompts for a password)
 ```
 
-- Web: <http://localhost:3000> (the home page shows the health of every service)
+- Web: <http://localhost:3000>. Sign in, then open **Data** to watch the universe and backfill.
 - API docs: <http://localhost:8000/api/docs>
+
+On first start the scheduler builds the universe (~5,000 US stocks and ADRs) and backfills 10
+years of daily bars. With the free development sources that takes roughly 30–60 minutes; it is
+resumable (`make backfill`). After that, prices update automatically 20 minutes after each
+close. No API keys are needed for development: the universe comes from the Nasdaq Trader symbol
+directory, company data from SEC EDGAR, and prices from yfinance (development only; switch
+`PRICE_PROVIDER` to a paid feed before relying on it).
 
 `make help` lists every command. `make test` and `make lint` run all checks inside the
 containers.
@@ -40,7 +49,10 @@ containers.
 | Phase | | |
 |---|---|---|
 | 0 | Scaffold | ✅ done |
-| 1 | Data foundation | next |
-| 2–8 | Indicators → patterns → scoring → UI → real-time → backtests → polish | planned |
+| 1 | Data foundation | ✅ built, in review |
+| 2 | Indicators, regime, RS, groups | next |
+| 3–8 | Patterns → scoring → UI → real-time → backtests → polish | planned |
 
-![Phase 0 status page](docs/screenshots/phase0-status.png)
+![Market data page](docs/screenshots/phase1-data.png)
+
+_The data page, shown with synthetic demo data that exercises each data-quality check._

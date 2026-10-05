@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { api, type JobRun } from "@/lib/api";
-import { formatDateTime, formatDuration, humanize } from "@/lib/format";
+import { formatDateTime, formatDuration, jobLabel } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Panel } from "./panel";
 
@@ -22,6 +22,9 @@ function summary(run: JobRun): string {
   if (run.job_name === "eod_update")
     return `Session ${s.session ?? "?"} · ${s.tickers ?? 0} tickers`;
   if (run.job_name === "universe") return `${s.universe ?? 0} in universe · ${s.added ?? 0} added`;
+  if (run.job_name === "data_quality") {
+    return `${s.critical ?? 0} critical · ${s.warning ?? 0} warning · ${s.info ?? 0} info`;
+  }
   return "";
 }
 
@@ -52,7 +55,7 @@ export function JobsPanel() {
               {data.map((run) => (
                 <tr key={run.id} className="align-top">
                   <td className="py-2 pr-4 whitespace-nowrap">
-                    {humanize(run.job_name)}
+                    {jobLabel(run.job_name)}
                     <span className="text-muted"> · {run.trigger}</span>
                   </td>
                   <td className={cn("py-2 pr-4 whitespace-nowrap", STATUS[run.status].className)}>

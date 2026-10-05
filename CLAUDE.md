@@ -6,9 +6,12 @@ Trend Template + VCP / pocket pivots / episodic pivots). **The full build spec i
 
 ## Current phase
 
-- **Phase 0 (Scaffold): complete**, awaiting the owner's review.
-- **Next: Phase 1 (Data foundation).** Write a short plan (files, data flows, tests) and get it
-  approved before building, as for every phase (spec §0.2). Pause at the end of each phase.
+- **Phase 0 (Scaffold):** complete and approved.
+- **Phase 1 (Data foundation): built, awaiting the owner's review.** Code and tests are done.
+  The acceptance run (universe loaded, ≥ 2 years of bars, data health clean) needs network
+  access to the data hosts (see Gotchas) or a run on the owner's machine (`make universe`).
+- **Next: Phase 2 (Indicators, regime, RS, groups).** Write a short plan (files, data flows,
+  tests) and get it approved before building, as for every phase (spec §0.2).
 
 ## Owner decisions (answers to spec §0.3)
 
@@ -18,7 +21,8 @@ Trend Template + VCP / pocket pivots / episodic pivots). **The full build spec i
 | Account defaults | "You choose": **$100,000, 1% risk per trade, 25% max position**. Seed into `settings`; editable. |
 | Notifications | **In-app + email** (Resend or SMTP). No browser push or Telegram for now. |
 | Markets | **US large/mid caps**: NYSE/NASDAQ/AMEX common stock, price ≥ $10, ADV50 ≥ $20M, market cap ≥ $1B. Small-cap mode is a setting. |
-| Auth | Not assigned to a phase by the spec; single-user login lands in **Phase 1** with the `users` table. |
+| Auth | Single user, **email + password** (`make create-user`), built in Phase 1. |
+| ADRs | **Included** in the universe (stored as `type=adr`); the `include_adrs` setting filters them at scan time. |
 
 ## Non-negotiables (spec §0, §2)
 
@@ -37,19 +41,32 @@ Trend Template + VCP / pocket pivots / episodic pivots). **The full build spec i
 
 ```
 api/                 Python 3.12 · FastAPI · uv (non-packaged app; run commands from api/)
-  app/main.py        FastAPI app; every route lives under /api
-  app/core/          config (pydantic-settings), logging (structlog JSON), db, redis,
-                     heartbeat (service liveness), lifecycle (signal handling)
-  app/api/routes/    route modules (health so far)
+  app/main.py        FastAPI app; every route under /api; CSRF header check on writes
+  app/cli.py         operator commands (create-user, seed, universe, backfill, eod-update, …)
+  app/core/          config (env), logging, db, redis, heartbeat, lifecycle, security (auth),
+                     calendar (NYSE sessions), rate_limit (Redis token bucket),
+                     jobs (job_runs tracking + Redis locks), queue (enqueue from the API)
+  app/models/        SQLAlchemy models (one module per area)
+  app/settings/      AppSettings (every spec §14 threshold, typed + bounded) and its store
+  app/providers/     base.py interfaces + registry; nasdaq_trader, sec_edgar, yfinance_dev
+  app/data/          classify (security types), universe, bars (bulk upserts), backfill,
+                     eod_update, market_cap, quality (checks + issue register), loaders
+                     (Postgres → Polars via connectorx), jobs (entry points for worker/CLI)
+  app/api/routes/    health, auth, settings, admin
   app/worker.py      arq worker: `arq app.worker.WorkerSettings`
   app/scheduler.py   APScheduler (US/Eastern): `python -m app.scheduler`
   app/streamer.py    live feed (Phase 6): `python -m app.streamer`
   alembic/           async migrations; URL comes from app settings, never alembic.ini
-  tests/             pytest; `integration` marker = needs Postgres + Redis
+  tests/             pytest; fakes.py has in-memory providers; fixtures/providers/ has
+                     real-shaped directory and SEC files
 web/                 Next.js 16 App Router · React 19 · TS strict · Tailwind 4 · pnpm
-  app/               routes; providers.tsx holds the TanStack Query client
-  components/        UI components (+ colocated *.test.tsx)
-  lib/api.ts         typed API client (same-origin /api/*, proxied to FastAPI)
+  proxy.ts           sends signed-out visitors to /login (cookie presence only)
+  app/(app)/         signed-in pages with the header: / (status), /admin/data
+  app/login/         sign-in page (no header)
+  components/        UI components (+ colocated *.test.tsx); admin/ = data page panels
+  lib/api.ts         typed API client: CSRF header on writes, 401 → /login, response types
+  lib/format.ts      number/date/duration formatters, safeNext() redirect guard
+  test-utils.tsx     renderWithClient, mockApi (fetch stub keyed by "METHOD /path")
   stores/            Zustand stores (empty so far)
 infra/docker-compose.yml   web, api, worker, scheduler, streamer, migrate (one-shot), postgres, redis
 docs/spec.md         the build specification
@@ -73,29 +90,52 @@ Only Docker is required; `make` targets run inside containers.
 | `make lint` | ruff + ruff format --check + mypy strict; eslint + prettier --check + tsc |
 | `make fmt` | Auto-fix formatting in both codebases |
 | `make migrate` / `make migration m="..."` | Apply / autogenerate an Alembic migration |
+| `make seed` | Insert default settings (never overwrites changes) |
+| `make create-user email=…` | Create the login user (prompts for a password) |
+| `make universe` | Rebuild the universe, then backfill new tickers |
+| `make backfill [years=10] [symbols=A,B] [force=1]` | Load history (resumable) |
+| `make eod-update [date=YYYY-MM-DD]` | Latest session's bars + quality checks |
+| `make data-quality` | Quality checks only |
 | `make shell-api` / `make shell-db` | bash in api container / psql |
-| `make seed`, `backfill`, `scan-now` | Stubs until Phases 1 and 4 |
+| `make scan-now` | Stub until Phase 4 |
 
 Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost):
-- API: `cd api && uv sync && uv run pytest` (`-m "not integration"` needs no services),
+- API: `cd api && uv sync && uv run pytest` (`-m "not integration"` needs no services;
+  `-m network` runs the live smoke tests against the real data sources, never in CI),
   `uv run ruff check . && uv run ruff format --check . && uv run mypy`
 - Web: `cd web && pnpm install && pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build`
 
 ## Conventions
 
 - **Python:** async everywhere; Pydantic v2 models for every request/response; `mypy --strict`
-  clean; ruff (line length 100). Settings via `get_settings()` (cached); add new env vars to
-  `Settings` **and** `.env.example`. Secrets are `SecretStr`. Log with
+  clean; ruff (line length 100). Pytest runs with `filterwarnings = error`. Log with
   `get_logger(__name__)` and event-style names (`"scheduler.startup"`) plus key/value context.
-  Pytest runs with `filterwarnings = error`.
+- **Two kinds of settings:** `app.core.config.Settings` is environment/infrastructure (add new
+  env vars there **and** to `.env.example`; secrets are `SecretStr`). `app.settings.AppSettings`
+  holds every user-tunable threshold (spec §14) with bounds and a description; load it with
+  `await store.load(session)`, never hardcode a threshold. Settings are instance-wide for now.
+- **Providers:** ingestion code only talks to `providers/base.py` interfaces via
+  `providers.registry`. A paid adapter is one new module plus a registry branch. Every adapter
+  rate-limits through `RateLimiter` (shared across processes) and retries via `providers/http.py`.
+- **Jobs:** new background work goes in `app/data/jobs.py` (or a sibling for later phases),
+  wrapped in `track_job` (job_runs row) and `job_lock`; register it on the worker, the CLI and
+  (if scheduled) the scheduler. Jobs that write tickers/bars share the `ingest` lock.
+- **Data quality:** checks are pure functions over Polars frames. Severity `critical` is only
+  for problems that make today's scan untrustworthy (benchmarks, EOD not run, universe empty or
+  widely stale); single-ticker problems are `warning`/`info`.
+- **Point in time:** prices are split-adjusted as of today (`daily_bars`); `corporate_actions`
+  recovers as-traded prices. Share counts are keyed by `filed_date`. A new split re-fetches the
+  ticker's whole history.
 - **Numerics (from Phase 2):** Polars first, NumPy second, pandas only where a library forces it.
 - **Tests:** `tests/conftest.py` points `DATABASE_URL` at `<db>_test` and `REDIS_URL` at Redis
-  DB 15 *before* the app is imported, so tests never touch dev data. Use the `migrated_db` and
-  `clean_redis` fixtures for integration tests and mark them `@pytest.mark.integration`.
+  DB 15 *before* the app is imported, so tests never touch dev data. Fixtures: `db` (empty,
+  migrated database), `clean_redis`, `client` (sends the CSRF header), `user`, `signed_in`.
+  Mark DB/Redis tests `@pytest.mark.integration`. Use `tests/fakes.py` providers instead of the
+  network; live calls belong in `test_providers_live.py` (`network` marker).
 - **Migrations:** one Alembic revision per schema change; never edit an applied revision.
   TimescaleDB internal schemas are excluded from autogenerate (`alembic/env.py`).
 - **Web:** Server Components by default, `"use client"` only where needed. All API calls go
-  through `lib/api.ts`. Colours come from CSS tokens in `app/globals.css` (the real palette arrives
+  through `lib/api.ts` (`api.get/post/patch`). Component tests use `test-utils.tsx`. Colours come from CSS tokens in `app/globals.css` (the real palette arrives
   with the Phase 5 design plan, which needs owner approval before any UI work). Numbers use the
   `tabular` class. Pair colour with a symbol (✓/✕, ▲/▼) for colour-blind users.
 - **Copy:** plain and specific; errors say what went wrong and how to fix it.
@@ -106,6 +146,14 @@ Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost)
 
 - Browser → Next.js (`/api/*` rewrite) → FastAPI. `next.config.ts` is evaluated **at build time**
   for production, so `API_URL` is a build arg in `web/Dockerfile`.
+- Auth: `POST /api/auth/login` sets an HTTP-only `breakout_session` cookie holding an opaque
+  token; Redis maps an HMAC of it to the user (30-day sliding expiry). Every route except
+  health and login depends on `current_user`. Unsafe methods need `X-Requested-With: breakout`.
+- Data flow: scheduler (clock) → arq queue → worker → `app/data/jobs.py` → providers → Postgres.
+  EOD: the scheduler checks every 10 min from 13:00–23:50 ET on weekdays and enqueues
+  `eod_update` for the latest closed session until a run succeeds (handles half-days and
+  retries). Universe rebuild: Sundays 18:00 ET. Empty universe at scheduler start → universe +
+  backfill. Backfill progress lives in Redis (`backfill:progress`); the admin page polls it.
 - Worker, scheduler and streamer each write `heartbeat:<service>` to Redis every 10 s (TTL 30 s).
   `GET /api/health/ready` checks Postgres, TimescaleDB, Redis and those heartbeats and returns 503
   if anything is down; the home page renders it. `GET /api/health` is plain liveness.
@@ -117,13 +165,21 @@ Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost)
 - **Next.js 16 differs from older versions.** Read `web/node_modules/next/dist/docs/` before
   using an unfamiliar API (see `web/AGENTS.md`). `LayoutProps`/`PageProps` are generated types,
   so `pnpm typecheck` runs `next typegen` first. `middleware` is now `proxy`.
-- **arq pins redis-py to 5.x.** Don't bump redis-py independently.
+- **arq pins redis-py to 5.x.** Don't bump redis-py independently. arq's typed `func()` wants
+  `(ctx, *args, **kwargs)`; wrap named-arg jobs with `_task()` in `worker.py`.
+- **SQLAlchemy 2.1** types selects as `Select[str, int]` (not `Select[tuple[...]]`).
+- **yfinance is dev-only** and its `history()` end date is exclusive (the adapter adds a day).
+- **SEC_USER_AGENT** must be set for CIKs, SIC codes and market caps; without it the universe
+  still builds and data health shows a warning. ADR market caps are left empty on purpose:
+  SEC share counts are ordinary shares, not ADSs.
+- In web tests, Next's route announcer also has `role="alert"`; scope alert queries to the form.
 - The Docker image installs uv from PyPI (pinned `0.12.23`; keep in sync with CI and local).
 - **Claude Code cloud sandbox only:**
   - The Docker daemon isn't running by default; start it with `dockerd &`.
   - Container TLS is intercepted. Build with CA-shimmed base images passed via the Dockerfiles'
     `PYTHON_IMAGE`/`NODE_IMAGE` build args from a scratch compose override. **Never commit
     proxy or CA config.**
-  - The network policy blocks ghcr.io blobs and the market-data hosts (data.sec.gov,
-    www.nasdaqtrader.com, query1/query2.finance.yahoo.com). The owner must allow them in the
-    environment's network settings before Phase 1 data work can run here.
+  - The network policy blocks ghcr.io blobs and the market-data hosts (www.nasdaqtrader.com,
+    www.sec.gov, data.sec.gov, query1/query2.finance.yahoo.com). Until the owner allows them in
+    the environment's network settings, verify ingestion with the fake providers (the
+    universe job fails with "HTTP 403" here, which is expected).

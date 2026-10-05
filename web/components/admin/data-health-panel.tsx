@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { api, type DataHealth, type Severity } from "@/lib/api";
-import { formatDateTime, humanize } from "@/lib/format";
+import { formatDateTime, humanize, jobLabel } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Panel, SeverityBadge } from "./panel";
 
@@ -35,7 +35,7 @@ export function DataHealthPanel() {
       title="Data health"
       description={
         data?.last_check
-          ? `Last checked ${formatDateTime(data.last_check.started_at)} (${data.last_check.job_name.replace("_", " ")}).`
+          ? `Last checked ${formatDateTime(data.last_check.started_at)} (${jobLabel(data.last_check.job_name)}).`
           : "Checks run after every end-of-day update."
       }
     >
