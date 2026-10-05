@@ -88,3 +88,13 @@ def test_previous_session_and_offsets() -> None:
 )
 def test_last_completed_session_respects_close_and_delay(now: datetime, expected: date) -> None:
     assert last_completed_session(now, delay=timedelta(minutes=20)) == expected
+
+
+def test_next_session_and_week_ends() -> None:
+    from app.core.calendar import ends_week, next_session
+
+    assert next_session(date(2024, 3, 28)) == date(2024, 4, 1)  # Good Friday closed
+    assert next_session(date(2024, 3, 30)) == date(2024, 4, 1)  # from a Saturday
+    assert ends_week(date(2024, 3, 28))  # Thursday before Good Friday
+    assert ends_week(date(2024, 4, 5))  # an ordinary Friday
+    assert not ends_week(date(2024, 4, 4))

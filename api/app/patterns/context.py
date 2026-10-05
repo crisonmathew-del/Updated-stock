@@ -46,6 +46,27 @@ def prior_uptrend(bars: Bars, start: int, settings: AppSettings) -> Uptrend | No
     return Uptrend((bars.high[start] / bars.low[low_index] - 1) * 100, low_index)
 
 
+def linear(value: float, full_at: float, zero_at: float) -> float:
+    """1 at `full_at`, 0 at `zero_at`, linear between (either direction), clamped."""
+    if full_at == zero_at:
+        return 1.0 if value == full_at else 0.0
+    return min(1.0, max(0.0, (value - zero_at) / (full_at - zero_at)))
+
+
+def qualifying_uptrend(bars: Bars, start: int, settings: AppSettings) -> float | None:
+    """The prior advance's gain in percent, or None if it is below prior_uptrend_min_pct."""
+    trend = prior_uptrend(bars, start, settings)
+    if trend is None or trend.gain_pct < settings.prior_uptrend_min_pct:
+        return None
+    return trend.gain_pct
+
+
+def is_left_side_high(bars: Bars, index: int, settings: AppSettings) -> bool:
+    """A base starts at its highest point: no higher high in the base_left_side_days before."""
+    first = max(0, index - settings.base_left_side_days)
+    return first == index or bool(bars.high[first:index].max() <= bars.high[index])
+
+
 # --- Breakout status ------------------------------------------------------------------------
 
 
@@ -151,25 +172,21 @@ def add_tightness_score(card: Scorecard, bars: Bars, end: int, weight: float) ->
 
 
 def add_position_score(
-    card: Scorecard,
-    bars: Bars,
-    end: int,
-    base_low: float,
-    base_high: float,
-    pivot: float,
-    weight: float,
+    card: Scorecard, bars: Bars, end: int, base_low: float, pivot: float, weight: float
 ) -> None:
+    """Where the close sits between the base low and the pivot: full credit in the top 15%,
+    none in the lower half."""
     close = bars.close[end]
-    span = base_high - base_low
+    span = pivot - base_low
     place = (close - base_low) / span if span > 0 else 1.0
     below = pct(close, pivot)
     where = f"{below:.1f}% below the pivot" if below > 0 else f"{-below:.1f}% above the pivot"
     card.add(
         "position",
-        "Close in the upper part of the base",
+        "Close near the pivot",
         weight,
         (place - 0.5) / 0.35,
-        f"Close is {where}, {place * 100:.0f}% of the way up the base.",
+        f"Close is {where}, {min(place, 9.99) * 100:.0f}% of the way from the base low to it.",
     )
 
 

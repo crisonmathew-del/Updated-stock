@@ -70,3 +70,17 @@ def last_completed_session(now: datetime, delay: timedelta = timedelta(0)) -> da
     if session_close(candidate) + delay > now:
         candidate = previous_session(candidate)
     return candidate
+
+
+def next_session(d: date) -> date:
+    """The first session strictly after `d`."""
+    cal = _xnys()
+    session = cal.date_to_session(_ts(d), direction="next")
+    if _date(session) == d:
+        session = cal.next_session(session)
+    return _date(session)
+
+
+def ends_week(d: date) -> bool:
+    """True if `d` is the last session of its ISO week (Friday, or earlier before a holiday)."""
+    return next_session(d).isocalendar()[:2] != d.isocalendar()[:2]

@@ -222,6 +222,13 @@ class AppSettings(BaseModel):
         gt=0,
         le=100,
     )
+    base_left_side_days: int = _field(
+        40,
+        Category.PATTERNS,
+        "A VCP or flat base starts at the highest high of at least this many prior sessions",
+        ge=0,
+        le=250,
+    )
     late_stage_base_number: int = _field(
         4, Category.PATTERNS, "A base this far into Stage 2 (or later) is late-stage", ge=2
     )
@@ -270,9 +277,10 @@ class AppSettings(BaseModel):
         65, Category.PATTERNS, "Cup with handle: maximum duration (weeks)", gt=0
     )
     cup_min_bottom_share_pct: float = _field(
-        15,
+        40,
         Category.PATTERNS,
-        "Cup must be U-shaped: at least this % of its sessions close in the bottom third",
+        "Cup must be U-shaped: at least this % of its closes in its bottom third "
+        "(a V with straight sides has 33%)",
         ge=0,
         le=100,
     )

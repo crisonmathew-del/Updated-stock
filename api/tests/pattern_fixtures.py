@@ -33,9 +33,13 @@ def chart(
     volume_on: dict[int, float] | None = None,
     open_on: dict[int, float] | None = None,
     corrections: set[date] | None = None,
+    cut: int | None = None,
+    scale: float = 1.0,
 ) -> Bars:
     """`volumes`: (from session, multiple of 1M shares) levels; `volume_on` / `open_on`
-    override single sessions (volume multiple / opening price)."""
+    override single sessions (volume multiple / opening price). `cut` keeps only sessions
+    0..cut *before* computing indicators (what the system knew on that day); `scale`
+    multiplies every price."""
     n = waypoints[-1][0] + 1
     xs, ys = zip(*waypoints, strict=True)
     close = np.interp(np.arange(n), xs, ys)
@@ -51,6 +55,7 @@ def chart(
     for i, multiple in (volume_on or {}).items():
         level[i] = multiple
     days = sessions(n)
+    open_, high, low, close = (a * scale for a in (open_, high, low, close))
     frame = pl.DataFrame(
         {
             "ticker_id": [1] * n,
@@ -62,7 +67,10 @@ def chart(
             "volume": (level * BASE_VOLUME).round().astype(np.int64),
         }
     )
-    benchmark = pl.DataFrame({"date": days, "close": [100.0] * n})
+    if cut is not None:
+        frame = frame.head(cut + 1)
+        days = days[: cut + 1]
+    benchmark = pl.DataFrame({"date": days, "close": [100.0] * len(days)})
     indicators = compute_indicators(frame, benchmark)
     joined = indicators.join(frame.select("date", "open"), on="date")
     return Bars.from_frame(joined, corrections)
