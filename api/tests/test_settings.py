@@ -60,6 +60,32 @@ def test_phase_3_defaults_follow_the_spec_and_the_approved_plan() -> None:
     assert (DEFAULTS.insider_cluster_min_insiders, DEFAULTS.insider_cluster_window_days) == (2, 30)
 
 
+def test_phase_4_defaults_follow_the_spec_and_the_approved_plan() -> None:
+    # Spec §6.10 weights and letter cutoffs, §6.11 trade plan, and the approved penalties.
+    assert DEFAULTS.setup_weights.model_dump() == {
+        "trend": 20,
+        "relative_strength": 20,
+        "fundamentals": 20,
+        "pattern": 20,
+        "group": 10,
+        "accumulation": 10,
+    }
+    assert DEFAULTS.setup_grade_cutoffs.model_dump() == {"a_plus": 90, "a": 80, "b": 70, "c": 60}
+    assert DEFAULTS.red_flag_penalties.model_dump() == {
+        "extended": 10,
+        "late_stage": 10,
+        "climax": 10,
+        "wide_and_loose": 5,
+        "distribution": 5,
+        "earnings_soon": 0,
+    }
+    assert DEFAULTS.extended_above_50d_pct == 25
+    assert (DEFAULTS.entry_offset_amount, DEFAULTS.entry_offset_pct) == (0.10, 0.1)
+    assert (DEFAULTS.profit_take_min_pct, DEFAULTS.profit_take_max_pct) == (20, 25)
+    assert (DEFAULTS.breakeven_after_r, DEFAULTS.breakeven_after_gain_pct) == (2, 10)
+    assert DEFAULTS.failed_breakout_sessions == 3
+
+
 def test_every_setting_has_a_category_and_description() -> None:
     for key, field in AppSettings.model_fields.items():
         assert isinstance(category_of(key), Category)
@@ -75,6 +101,12 @@ def test_invalid_combinations_are_rejected() -> None:
         AppSettings(handle_min_depth_pct=15)
     with pytest.raises(ValidationError, match="eps_growth_q_min must not exceed"):
         AppSettings(eps_growth_q_min=50)
+    with pytest.raises(ValidationError, match=r"A\+ > A > B > C"):
+        AppSettings.model_validate(
+            {"setup_grade_cutoffs": {"a_plus": 80, "a": 85, "b": 70, "c": 60}}
+        )
+    with pytest.raises(ValidationError, match="profit_take_min_pct must not exceed"):
+        AppSettings(profit_take_min_pct=30)
     with pytest.raises(ValidationError, match="A > B > C > D"):
         AppSettings.model_validate({"grade_cutoffs": {"a": 60, "b": 65, "c": 50, "d": 35}})
 

@@ -20,6 +20,7 @@ class Category(StrEnum):
     GROUPS = "groups"
     PATTERNS = "patterns"
     ENTRIES = "entries"
+    SCORING = "scoring"
     MARKET = "market"
     RISK = "risk"
     ALERTS = "alerts"
@@ -82,6 +83,49 @@ class GradeCutoffs(BaseModel):
         if not self.a > self.b > self.c > self.d:
             raise ValueError("Grade cutoffs must satisfy A > B > C > D")
         return self
+
+
+class SetupWeights(BaseModel):
+    """Points per Setup Score component (spec §6.10). Rescaled over components with data."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    trend: float = Field(20, ge=0, le=100)
+    relative_strength: float = Field(20, ge=0, le=100)
+    fundamentals: float = Field(20, ge=0, le=100)
+    pattern: float = Field(20, ge=0, le=100)
+    group: float = Field(10, ge=0, le=100)
+    accumulation: float = Field(10, ge=0, le=100)
+
+
+class SetupGradeCutoffs(BaseModel):
+    """Minimum final Setup Score for each letter; below `c` is not a recommendation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    a_plus: float = Field(90, ge=0, le=100)
+    a: float = Field(80, ge=0, le=100)
+    b: float = Field(70, ge=0, le=100)
+    c: float = Field(60, ge=0, le=100)
+
+    @model_validator(mode="after")
+    def _descending(self) -> "SetupGradeCutoffs":
+        if not self.a_plus > self.a > self.b > self.c:
+            raise ValueError("Setup grade cutoffs must satisfy A+ > A > B > C")
+        return self
+
+
+class RedFlagPenalties(BaseModel):
+    """Points subtracted from the Setup Score per red flag (spec §6.9)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    extended: float = Field(10, ge=0, le=100)
+    late_stage: float = Field(10, ge=0, le=100)
+    climax: float = Field(10, ge=0, le=100)
+    wide_and_loose: float = Field(5, ge=0, le=100)
+    distribution: float = Field(5, ge=0, le=100)
+    earnings_soon: float = Field(0, ge=0, le=100)
 
 
 class AppSettings(BaseModel):
@@ -362,6 +406,85 @@ class AppSettings(BaseModel):
         ge=0,
     )
 
+    breakout_close_range_min_pct: float = _field(
+        67,
+        Category.ENTRIES,
+        "Confirmed breakout: close at least this % of the way up the day's range",
+        ge=0,
+        le=100,
+    )
+    failed_breakout_sessions: int = _field(
+        3,
+        Category.ENTRIES,
+        "A breakout fails if it closes back below the pivot within this many sessions",
+        ge=0,
+    )
+    pullback_rs_min: int = _field(
+        85, Category.ENTRIES, "Pullback entry: RS Rating at least", ge=1, le=99
+    )
+    pullback_breakout_within_sessions: int = _field(
+        30,
+        Category.ENTRIES,
+        "Pullback entry: the breakout happened within this many sessions",
+        ge=1,
+    )
+    pullback_ma_touch_pct: float = _field(
+        1,
+        Category.ENTRIES,
+        "Pullback entry: the low comes within this % of the 10/21-day EMA or 50-day SMA",
+        ge=0,
+    )
+    undercut_max_pct: float = _field(
+        3,
+        Category.ENTRIES,
+        "Undercut & rally: the low undercuts a prior base low by at most this %",
+        gt=0,
+    )
+    undercut_within_sessions: int = _field(
+        5,
+        Category.ENTRIES,
+        "Undercut & rally: the undercut happened within this many sessions",
+        ge=1,
+    )
+
+    # --- Setup Score & red flags (spec §6.9, §6.10) -------------------------------------------
+    setup_weights: SetupWeights = _field(
+        SetupWeights(), Category.SCORING, "Setup Score: points per component"
+    )
+    setup_grade_cutoffs: SetupGradeCutoffs = _field(
+        SetupGradeCutoffs(), Category.SCORING, "Setup Score: minimum final score for A+ to C"
+    )
+    red_flag_penalties: RedFlagPenalties = _field(
+        RedFlagPenalties(), Category.SCORING, "Points subtracted per red flag"
+    )
+    extended_above_50d_pct: float = _field(
+        25, Category.SCORING, "Red flag: close more than this % above the 50-day SMA", gt=0
+    )
+    wide_loose_weekly_range_pct: float = _field(
+        15,
+        Category.SCORING,
+        "Red flag (wide and loose): a week in the base with a range above this %, closing low",
+        gt=0,
+    )
+    distribution_volume_multiple: float = _field(
+        1.5,
+        Category.SCORING,
+        "Red flag (distribution): a down day on at least this × average volume",
+        gt=0,
+    )
+    distribution_days_in_base: int = _field(
+        3,
+        Category.SCORING,
+        "Red flag (distribution): this many heavy down days in the base",
+        ge=1,
+    )
+    climax_gain_pct: float = _field(
+        70, Category.SCORING, "Red flag (climax run): a gain of at least this %", gt=0
+    )
+    climax_max_weeks: float = _field(
+        3, Category.SCORING, "Red flag (climax run): within this many weeks", gt=0
+    )
+
     # --- Market regime (spec §6.1) ------------------------------------------------------------
     distribution_day_min_drop_pct: float = _field(
         0.2, Category.MARKET, "Distribution day: index down at least (%)", gt=0
@@ -419,6 +542,30 @@ class AppSettings(BaseModel):
     max_stop_loss_pct: float = _field(
         8, Category.RISK, "Maximum stop distance from entry (%)", gt=0, le=50
     )
+    entry_offset_amount: float = _field(
+        0.10, Category.RISK, "Entry: this many dollars above the pivot", ge=0
+    )
+    entry_offset_pct: float = _field(
+        0.1, Category.RISK, "Entry for high-priced stocks: this % above the pivot", ge=0
+    )
+    entry_offset_pct_from_price: float = _field(
+        100, Category.RISK, "High-priced stocks: pivot at or above this price", gt=0
+    )
+    stop_buffer_pct: float = _field(
+        0.1, Category.RISK, "Stop: this % below the base's logical low", ge=0, le=5
+    )
+    profit_take_min_pct: float = _field(
+        20, Category.RISK, "Suggest taking partial profits from this % gain", gt=0
+    )
+    profit_take_max_pct: float = _field(
+        25, Category.RISK, "Suggest taking partial profits up to this % gain", gt=0
+    )
+    breakeven_after_r: float = _field(
+        2, Category.RISK, "Raise the stop to breakeven once up this many R", gt=0
+    )
+    breakeven_after_gain_pct: float = _field(
+        10, Category.RISK, "Or raise it to breakeven once up this % (whichever first)", gt=0
+    )
 
     # --- Alerts (spec §7.3) -------------------------------------------------------------------
     alert_cooldown_minutes: int = _field(
@@ -454,6 +601,7 @@ class AppSettings(BaseModel):
             ("eps_growth_q_min", "eps_growth_q_strong"),
             ("sales_growth_q_min", "sales_growth_q_strong"),
             ("eps_growth_annual_min", "eps_growth_annual_strong"),
+            ("profit_take_min_pct", "profit_take_max_pct"),
         ):
             if getattr(self, low) > getattr(self, high):
                 raise ValueError(f"{low} must not exceed {high}")
