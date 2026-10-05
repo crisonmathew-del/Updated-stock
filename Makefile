@@ -8,7 +8,7 @@ RUN_WEB := $(COMPOSE) run --rm -T --no-deps web
 .DEFAULT_GOAL := help
 .PHONY: help dev down logs ps restart test test-api test-web lint lint-api lint-web fmt \
         migrate migration seed create-user universe backfill eod-update data-quality scan-now \
-        fundamentals \
+        fundamentals patterns \
         shell-api shell-db
 
 help: ## Show this help
@@ -86,6 +86,10 @@ scan-now: ## Recompute analytics from stored prices. Options: full=1 date=YYYY-M
 
 fundamentals: ## Load statements, earnings dates, insider trades. Options: full=1 symbols=AAPL,MSFT
 	$(RUN_API) python -m app.cli fundamentals $(if $(full),--full) \
+		$(if $(symbols),--symbols $(symbols))
+
+patterns: ## Grades + pattern detection as of a date. Options: date=YYYY-MM-DD symbols=NVDA,SMCI
+	$(RUN_API) python -m app.cli patterns $(if $(date),--date $(date)) \
 		$(if $(symbols),--symbols $(symbols))
 
 shell-api: ## Open a shell in the api container

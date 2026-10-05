@@ -10,6 +10,8 @@ from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
+from sqlalchemy import func, select
+
 from app.core.calendar import MARKET_TZ, last_completed_session
 from app.core.db import get_sessionmaker
 from app.core.jobs import Trigger, job_lock, track_job
@@ -29,6 +31,7 @@ from app.fundamentals.ingest import (
     quarters_back,
     refresh_companies,
 )
+from app.models import IndicatorDaily, Ticker
 from app.providers import registry
 from app.providers.base import (
     FilingsProvider,
@@ -37,6 +40,7 @@ from app.providers.base import (
     ProviderNotConfiguredError,
     ReferenceProvider,
 )
+from app.scanner.detection import run_detection
 from app.scanner.eod_scan import run_analytics
 from app.settings import store
 
@@ -258,3 +262,52 @@ async def fundamentals_job(
             await fundamentals.aclose()
             await filings.aclose()
         return stats
+
+
+async def patterns_job(
+    trigger: Trigger, *, as_of: date | None = None, symbols: Sequence[str] | None = None
+) -> dict[str, Any]:
+    """Fundamentals Grade and pattern detection as of a session (default: the latest with
+    analytics), for the liquid universe or just the named stocks (filters ignored). With
+    symbols, the stats list every detection: the tool for checking known historical
+    breakouts. Detections are stored like the nightly run's (an older date never overwrites a
+    newer detection of the same base)."""
+    async with track_job("patterns", trigger) as run, job_lock(get_redis(), INGEST_LOCK):
+        async with get_sessionmaker()() as session:
+            settings = await store.load(session)
+            target = as_of or latest_session()
+            day = await session.scalar(
+                select(func.max(IndicatorDaily.date)).where(IndicatorDaily.date <= target)
+            )
+            if day is None:
+                run.stats["skipped"] = "No analytics computed yet: run `make scan-now` first."
+                return run.stats
+            names: dict[int, str] = {}
+            ids: list[int] | None = None
+            if symbols:
+                wanted = sorted({s.strip().upper() for s in symbols if s.strip()})
+                rows = await session.execute(
+                    select(Ticker.id, Ticker.symbol).where(Ticker.active, Ticker.symbol.in_(wanted))
+                )
+                names = {int(tid): str(symbol) for tid, symbol in rows.all()}
+                ids = list(names)
+                missing = sorted(set(wanted) - set(names.values()))
+                if missing:
+                    run.stats["unknown_symbols"] = missing
+            stats, patterns = await run_detection(session, settings, day, ids)
+            run.stats.update(stats)
+            if symbols:
+                run.stats["detections"] = [
+                    {
+                        "symbol": names.get(tid, str(tid)),
+                        "type": str(m.type),
+                        "start": m.start.isoformat(),
+                        "end": m.end.isoformat(),
+                        "pivot": round(m.pivot, 2),
+                        "depth_pct": None if m.depth_pct is None else round(m.depth_pct, 1),
+                        "status": str(m.status),
+                        "quality": m.quality,
+                    }
+                    for tid, m in patterns.matches
+                ]
+        return run.stats

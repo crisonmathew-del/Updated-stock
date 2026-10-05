@@ -1,6 +1,7 @@
-"""End-of-day analytics pipeline (the Phase 2 stages of the spec §7.1 EOD scan):
+"""End-of-day analytics pipeline (spec §7.1 EOD scan, Phases 2-3):
 
     bars → indicators + RS Rating → industry groups → breadth → group ranks → market regime
+         → Fundamentals Grade → pattern detection (as of the latest session)
 
 Three ways to bring `indicators_daily` up to date:
 - Full rebuild (first run, or many tickers changed): every ticker's whole history. RS raw is
@@ -46,6 +47,7 @@ from app.models import (
     Ticker,
     TickerType,
 )
+from app.scanner.detection import run_detection
 from app.scoring.trend_template import add_sma200_ago, evaluate_trend_template
 from app.settings.schema import AppSettings
 
@@ -112,6 +114,7 @@ class AnalyticsResult:
     rows_written: int = 0
     groups: int = 0
     market_state: str | None = None
+    detection: dict[str, Any] = field(default_factory=dict)
     seconds: float = 0.0
 
     def stats(self) -> dict[str, Any]:
@@ -123,6 +126,7 @@ class AnalyticsResult:
             "rows_written": self.rows_written,
             "groups": self.groups,
             "market_state": self.market_state,
+            **self.detection,
             "seconds": round(self.seconds, 1),
         }
 
@@ -597,6 +601,11 @@ async def run_analytics(
 
     market = await update_regime(session, settings, through)
     result.market_state = LABELS[market.state] if market else None
+    latest = await session.scalar(
+        select(func.max(IndicatorDaily.date)).where(IndicatorDaily.date <= through)
+    )
+    if latest is not None:
+        result.detection, _ = await run_detection(session, settings, latest)
     result.seconds = time.perf_counter() - started
     log.info("analytics.done", **result.stats())
     if stats is not None:

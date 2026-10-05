@@ -9,6 +9,7 @@ eod-update    Fetch the latest session's bars, then run the data-quality checks
 data-quality  Run the data-quality checks only
 scan          Recompute analytics (indicators, RS, groups, breadth, regime); --full for all history
 fundamentals  Load statements, earnings dates and insider trades (nightly; --full for everyone)
+patterns      Grades and pattern detection as of a date (--date), optionally for --symbols only
 """
 
 import argparse
@@ -125,6 +126,12 @@ async def cmd_fundamentals(args: argparse.Namespace) -> int:
     return await _run_job(jobs.fundamentals_job("cli", full=args.full, symbols=symbols))
 
 
+async def cmd_patterns(args: argparse.Namespace) -> int:
+    as_of = date.fromisoformat(args.date) if args.date else None
+    symbols = [s.strip() for s in args.symbols.split(",")] if args.symbols else None
+    return await _run_job(jobs.patterns_job("cli", as_of=as_of, symbols=symbols))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m app.cli",
@@ -172,6 +179,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--full", action="store_true", help="Refresh every company")
     p.add_argument("--symbols", help="Comma-separated symbols (refresh just these)")
     p.set_defaults(handler=cmd_fundamentals)
+
+    p = sub.add_parser("patterns", help="Grades and pattern detection as of a date")
+    p.add_argument("--date", help="As of this session YYYY-MM-DD (default: the latest)")
+    p.add_argument("--symbols", help="Comma-separated symbols (default: the liquid universe)")
+    p.set_defaults(handler=cmd_patterns)
     return parser
 
 
