@@ -7,7 +7,7 @@ server-side; the web app talks exclusively to this API.
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import SecretStr, model_validator
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEV_SESSION_SECRET = "dev-only-insecure-session-secret-change-me"
@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_format: Literal["json", "console"] = "json"
     market_timezone: str = "America/New_York"
+    # Processes for pattern detection in the EOD scan: 0 = one per CPU core but one, 1 = none.
+    pattern_workers: int = Field(0, ge=0, le=64)
 
     # --- Infrastructure ------------------------------------------------------------------------
     database_url: str = "postgresql+asyncpg://breakout:breakout@localhost:5432/breakout"

@@ -15,6 +15,7 @@ from app.data.backfill import run_backfill
 from app.data.bars import upsert_bars
 from app.data.universe import plan_universe, sync_tickers
 from app.models import FundamentalGrade, FundamentalsAnnual, FundamentalsQuarterly, Pattern, Ticker
+from app.patterns.scan import detect_stocks
 from app.providers.base import Bar, PriceHistory
 from app.scanner.detection import run_detection
 from app.scanner.eod_scan import run_analytics
@@ -232,3 +233,16 @@ async def test_patterns_job_lists_detections_for_named_stocks(db: AsyncSession) 
             "quality": vcp[0]["quality"],
         }
     ]
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("clean_redis")
+async def test_detection_in_worker_processes_matches_the_inline_run(db: AsyncSession) -> None:
+    ids = await seed(db, VCP)
+    day0 = DAYS[332]
+    await run_analytics(db, SETTINGS, through=day0)
+    tickers = sorted(ids.values())
+    inline = await detect_stocks(SETTINGS, day0, tickers, workers=1)
+    parallel = await detect_stocks(SETTINGS, day0, tickers, workers=2, chunk=1)
+    assert any(m.type == "vcp" for _, m in inline[0])
+    assert parallel == inline

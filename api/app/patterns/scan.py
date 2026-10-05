@@ -8,18 +8,24 @@ Storage rules (see app.models.patterns):
 - Events (pocket pivots, earnings gaps) are kept as detected; they don't expire.
 """
 
+import asyncio
+import multiprocessing
+import os
 import time
 from collections import defaultdict
 from collections.abc import Sequence
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
+import polars as pl
 from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.calendar import ends_week, sessions_back
+from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.data.loaders import read_frame
 from app.models import Pattern
@@ -34,6 +40,7 @@ log = get_logger(__name__)
 # lookback and the left-side check, with room to spare.
 PATTERN_SESSIONS = 600
 CHUNK = 250
+PARALLEL_MIN_STOCKS = 300  # below this, detection runs in the scan's own process
 
 
 @dataclass
@@ -80,41 +87,101 @@ async def _releases(ids: str, as_of: date) -> dict[int, list[tuple[date, str]]]:
     return out
 
 
-async def detect_stocks(
-    settings: AppSettings, as_of: date, ticker_ids: Sequence[int]
+def _detect_frame(
+    frame: pl.DataFrame,
+    as_of: date,
+    settings: AppSettings,
+    corrections: set[date],
+    week_complete: bool,
+    releases: dict[int, list[tuple[date, str]]],
 ) -> tuple[list[tuple[int, PatternMatch]], dict[int, float]]:
-    """Detections as of `as_of` for stocks with a bar that day, plus their closes."""
+    """Detections for every stock in `frame` (bars + indicators through `as_of`). Runs in a
+    worker process, so it takes and returns only picklable values."""
+    found: list[tuple[int, PatternMatch]] = []
+    closes: dict[int, float] = {}
+    for (tid,), rows in frame.partition_by("ticker_id", as_dict=True).items():
+        bars = Bars.from_frame(rows, corrections)
+        if not len(bars) or bars.dates[-1] != as_of:
+            continue
+        ticker = int(tid)
+        closes[ticker] = float(bars.close[-1])
+        for match in detect_patterns(
+            bars, settings, last_week_complete=week_complete, releases=releases.get(ticker, [])
+        ):
+            found.append((ticker, match))
+    return found, closes
+
+
+def pattern_workers(stocks: int) -> int:
+    """Processes to use for `stocks` stocks: none for a handful (start-up costs more)."""
+    if stocks < PARALLEL_MIN_STOCKS:
+        return 1
+    configured = get_settings().pattern_workers
+    return configured or max(1, (os.cpu_count() or 2) - 1)
+
+
+def _pool(workers: int) -> ProcessPoolExecutor:
+    # forkserver, not fork: the scan runs inside an asyncio process with connectorx threads,
+    # and forking a threaded process can deadlock. The server preloads the heavy imports once.
+    context = multiprocessing.get_context("forkserver")
+    context.set_forkserver_preload(["app.patterns.detect", "polars", "numpy"])
+    return ProcessPoolExecutor(max_workers=workers, mp_context=context)
+
+
+async def detect_stocks(
+    settings: AppSettings,
+    as_of: date,
+    ticker_ids: Sequence[int],
+    *,
+    workers: int | None = None,
+    chunk: int = CHUNK,
+) -> tuple[list[tuple[int, PatternMatch]], dict[int, float]]:
+    """Detections as of `as_of` for stocks with a bar that day, plus their closes. Chunks are
+    read here and detected in `workers` processes (default: pattern_workers) while the next
+    chunk loads; results are sorted, so they don't depend on which process finished first."""
     corrections = await _correction_dates(as_of)
     week_complete = ends_week(as_of)
     start = sessions_back(as_of, PATTERN_SESSIONS)
     columns = ", ".join(f"i.{c}" for c in INDICATORS)
+    count = workers if workers is not None else pattern_workers(len(ticker_ids))
     found: list[tuple[int, PatternMatch]] = []
     closes: dict[int, float] = {}
-    for first in range(0, len(ticker_ids), CHUNK):
-        ids = ",".join(str(int(t)) for t in ticker_ids[first : first + CHUNK])
-        frame = await read_frame(
-            "SELECT b.ticker_id, b.date, b.open, b.high, b.low, b.close, b.volume, "
-            f"{columns} FROM daily_bars b JOIN indicators_daily i "
-            "ON i.ticker_id = b.ticker_id AND i.date = b.date "
-            f"WHERE b.ticker_id IN ({ids}) AND b.date BETWEEN '{start.isoformat()}' "
-            f"AND '{as_of.isoformat()}' ORDER BY b.ticker_id, b.date"
-        )
-        if frame.is_empty():
-            continue
-        releases = await _releases(ids, as_of)
-        for (tid,), rows in frame.partition_by("ticker_id", as_dict=True).items():
-            bars = Bars.from_frame(rows, corrections)
-            if not len(bars) or bars.dates[-1] != as_of:
+
+    def collect(result: tuple[list[tuple[int, PatternMatch]], dict[int, float]]) -> None:
+        found.extend(result[0])
+        closes.update(result[1])
+
+    pool = _pool(count) if count > 1 else None
+    loop = asyncio.get_running_loop()
+    pending: set[asyncio.Future[tuple[list[tuple[int, PatternMatch]], dict[int, float]]]] = set()
+    try:
+        for first in range(0, len(ticker_ids), chunk):
+            ids = ",".join(str(int(t)) for t in ticker_ids[first : first + chunk])
+            frame = await read_frame(
+                "SELECT b.ticker_id, b.date, b.open, b.high, b.low, b.close, b.volume, "
+                f"{columns} FROM daily_bars b JOIN indicators_daily i "
+                "ON i.ticker_id = b.ticker_id AND i.date = b.date "
+                f"WHERE b.ticker_id IN ({ids}) AND b.date BETWEEN '{start.isoformat()}' "
+                f"AND '{as_of.isoformat()}' ORDER BY b.ticker_id, b.date"
+            )
+            if frame.is_empty():
                 continue
-            ticker = int(tid)
-            closes[ticker] = float(bars.close[-1])
-            for match in detect_patterns(
-                bars,
-                settings,
-                last_week_complete=week_complete,
-                releases=releases.get(ticker, []),
-            ):
-                found.append((ticker, match))
+            releases = await _releases(ids, as_of)
+            args = (frame, as_of, settings, corrections, week_complete, releases)
+            if pool is None:
+                collect(_detect_frame(*args))
+                continue
+            pending.add(loop.run_in_executor(pool, _detect_frame, *args))
+            if len(pending) >= 2 * count:  # bound the frames held in memory
+                done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+                for future in done:
+                    collect(future.result())
+        for future in asyncio.as_completed(pending):
+            collect(await future)
+    finally:
+        if pool is not None:
+            pool.shutdown(wait=True, cancel_futures=True)
+    found.sort(key=lambda tm: (tm[0], str(tm[1].type), tm[1].timeframe, tm[1].start))
     return found, closes
 
 
