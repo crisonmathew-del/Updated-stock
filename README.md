@@ -55,8 +55,9 @@ containers.
 | 0 | Scaffold | ✅ done |
 | 1 | Data foundation | ✅ built (live acceptance pending data access) |
 | 2 | Indicators, regime, RS, groups | ✅ built (live acceptance pending data access) |
-| 3 | Fundamentals & patterns | ✅ built, in review |
-| 4–8 | Scoring → UI → real-time → backtests → polish | planned |
+| 3 | Fundamentals & patterns | ✅ built (live acceptance pending data access) |
+| 4 | Scoring, lifecycle, trade plans, scanner | planning |
+| 5–8 | UI → real-time → backtests → polish | planned |
 
 ![Pattern review page](docs/screenshots/phase3-patterns.png)
 

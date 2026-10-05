@@ -15,11 +15,11 @@ Trend Template + VCP / pocket pivots / episodic pivots). **The full build spec i
   the owner names 5 tickers + their charting platform to compare Trend Template values on
   `/admin/inspect`, and the follow-through / distribution-day dates the regime engine should
   reproduce.
-- **Phase 3 (Fundamentals & patterns): built, awaiting the owner's review.** Acceptance needs
-  real data: the owner's well-known historical breakouts (`make patterns date=… symbols=…`)
-  and a reviewed random sample of 20 detections on `/admin/patterns`.
-- **Next: Phase 4 (Scoring, lifecycle, trade plans, scanner).** Plan first, as for every phase
-  (spec §0.2).
+- **Phase 3 (Fundamentals & patterns):** built and approved. Its live acceptance needs real
+  data: the owner's well-known historical breakouts (`make patterns date=… symbols=…`) and a
+  reviewed random sample of 20 detections on `/admin/patterns`.
+- **Next: Phase 4 (Scoring, lifecycle, trade plans, scanner).** Plan written and waiting for
+  the owner's approval. Don't build until it's approved (spec §0.2).
 
 ## Owner decisions (answers to spec §0.3)
 
