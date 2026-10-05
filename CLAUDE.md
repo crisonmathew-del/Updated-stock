@@ -15,8 +15,11 @@ Trend Template + VCP / pocket pivots / episodic pivots). **The full build spec i
   the owner names 5 tickers + their charting platform to compare Trend Template values on
   `/admin/inspect`, and the follow-through / distribution-day dates the regime engine should
   reproduce.
-- **Next: Phase 3 (Fundamentals & patterns).** Plan written and waiting for the owner's
-  approval. Don't build until it's approved (spec §0.2).
+- **Phase 3 (Fundamentals & patterns): built, awaiting the owner's review.** Acceptance needs
+  real data: the owner's well-known historical breakouts (`make patterns date=… symbols=…`)
+  and a reviewed random sample of 20 detections on `/admin/patterns`.
+- **Next: Phase 4 (Scoring, lifecycle, trade plans, scanner).** Plan first, as for every phase
+  (spec §0.2).
 
 ## Owner decisions (answers to spec §0.3)
 
@@ -29,6 +32,7 @@ Trend Template + VCP / pocket pivots / episodic pivots). **The full build spec i
 | Auth | Single user, **email + password** (`make create-user`), built in Phase 1. |
 | ADRs | **Included** in the universe (stored as `type=adr`); the `include_adrs` setting filters them at scan time. |
 | Phase 2 defaults | Build Phase 2 before the Phase 1 live acceptance; overall market = **weaker of SPY and QQQ** (+IWM in small-cap mode); follow-through threshold **1.25%** (spec; IBD now uses ~1.7%, a setting); industry groups from **SEC SIC codes**. |
+| Phase 3 defaults | Grade points/cutoffs as in `fundamentals/grade.py` (EPS growth 25, acceleration 10, sales 15, 3-year EPS 20, ROE 10, margins 10, accumulation 10, insider cluster +5; A ≥ 80, B ≥ 65, C ≥ 50, D ≥ 35); insider Form 4 now, **13F deferred** to a paid provider; next earnings date **estimated** from last year; review charts **server-rendered** (matplotlib). |
 
 ## Non-negotiables (spec §0, §2)
 
@@ -54,18 +58,28 @@ api/                 Python 3.12 · FastAPI · uv (non-packaged app; run command
                      jobs (job_runs tracking + Redis locks), queue (enqueue from the API)
   app/models/        SQLAlchemy models (one module per area)
   app/settings/      AppSettings (every spec §14 threshold, typed + bounded) and its store
-  app/providers/     base.py interfaces + registry; nasdaq_trader, sec_edgar, yfinance_dev
+  app/providers/     base.py interfaces + registry; nasdaq_trader, sec_edgar (+ sec_facts,
+                     sec_filings parsers), yfinance_dev
   app/data/          classify (security types), universe, bars (bulk upserts), backfill,
                      eod_update, market_cap, quality (checks + issue register), loaders
                      (read: connectorx → Polars; write: Polars → ADBC binary COPY),
                      jobs (entry points for worker/CLI)
   app/indicators/    pure Polars indicator functions (MAs, ATR, volatility, volume, 52-week
                      ranges, relative strength, stage); compute.py applies them all
+  app/fundamentals/  ingest (statements, earnings calendar, insider trades → DB), earnings
+                     (next-date estimate), grade (Fundamentals Grade A-E, pure), scan (grade
+                     every stock as of a date)
+  app/patterns/      bars (NumPy arrays + weekly bars), swings (ZigZag), context (shared
+                     building blocks and score parts), bases (VCP, flat, cup, ascending, HTF),
+                     weekly (3WT), events (pocket pivot, earnings gap), detect (all), scan
+                     (many stocks → `patterns` table), chart (review PNG)
   app/scoring/       trend_template.py (8 checks + checklist text)
   app/market/        regime.py (distribution days, rally/FTD state machine), breadth.py
   app/groups/        classification.py (SIC → groups/sectors), industry_rank.py
-  app/scanner/       eod_scan.py: the analytics pipeline (full / stale / incremental)
-  app/api/routes/    health, auth, settings, admin, market, stocks
+  app/scanner/       eod_scan.py: the analytics pipeline (full / stale / incremental);
+                     detection.py: grades + patterns stage; universe_filter.py: point-in-time
+                     liquidity filter
+  app/api/routes/    health, auth, settings, admin, market, stocks, patterns (review)
   app/worker.py      arq worker: `arq app.worker.WorkerSettings`
   app/scheduler.py   APScheduler (US/Eastern): `python -m app.scheduler`
   app/streamer.py    live feed (Phase 6): `python -m app.streamer`
@@ -74,10 +88,11 @@ api/                 Python 3.12 · FastAPI · uv (non-packaged app; run command
                      real-shaped directory and SEC files
 web/                 Next.js 16 App Router · React 19 · TS strict · Tailwind 4 · pnpm
   proxy.ts           sends signed-out visitors to /login (cookie presence only)
-  app/(app)/         signed-in pages with the header: / (status), /admin/data, /admin/inspect
+  app/(app)/         signed-in pages with the header: / (status), /admin/data, /admin/inspect,
+                     /admin/patterns (false-positive review)
   app/login/         sign-in page (no header)
   components/        UI components (+ colocated *.test.tsx); admin/ = data page panels,
-                     inspect/ = analytics inspection panels
+                     inspect/ = analytics inspection panels, patterns/ = review board + card
   lib/api.ts         typed API client: CSRF header on writes, 401 → /login, response types
   lib/format.ts      number/date/duration formatters, safeNext() redirect guard
   test-utils.tsx     renderWithClient, mockApi (fetch stub keyed by "METHOD /path")
@@ -110,7 +125,9 @@ Only Docker is required; `make` targets run inside containers.
 | `make backfill [years=10] [symbols=A,B] [force=1]` | Load history (resumable) |
 | `make eod-update [date=YYYY-MM-DD]` | Latest session's bars + quality checks |
 | `make data-quality` | Quality checks only |
-| `make scan-now [full=1] [date=…]` | Recompute analytics from stored prices (`full=1` after changing stage or Trend Template settings) |
+| `make scan-now [full=1] [date=…]` | Recompute analytics from stored prices, then grades + patterns (`full=1` after changing stage or Trend Template settings) |
+| `make fundamentals [full=1] [symbols=A,B]` | Statements, earnings dates, insider trades (nightly mode by default) |
+| `make patterns [date=…] [symbols=A,B]` | Grades + pattern detection as of a date; with symbols, lists the detections (acceptance checks) |
 | `make shell-api` / `make shell-db` | bash in api container / psql |
 
 Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost):
@@ -151,6 +168,17 @@ Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost)
   ranked per date across stocks (common + ADR, not benchmarks). Breadth and group ranks are
   stored per date; the regime history is recomputed every run so it follows the settings.
   Tests prove incremental == full rebuild and the spec §12 lookahead guard.
+- **Fundamentals:** statements are versioned by filing date (`reported_date`); never overwrite a
+  version, add one. Read them through `grade.as_known(rows, as_of, splits)` (latest version per
+  period by then, EPS adjusted for later splits). The grade is a pure function; its components
+  carry the numbers shown in the UI. Earnings release semantics (8-K item 2.02) stay inside the
+  SEC adapter (`CompanyFilings.releases`).
+- **Patterns:** detectors are pure functions of `Bars` cut at the as-of session; never pass
+  data after it. Each detector documents its hard rules in its docstring; everything else is
+  score. Every threshold is a setting. New detectors get a textbook synthetic chart, a
+  near-miss per rule, and join the no-lookahead/scale property tests (`tests/test_patterns.py`).
+  Bases report while forming or within 3 sessions of a breakout; the scan retires rows that
+  stop matching (`failed` / `expired`); an older as-of run never overwrites a newer row.
 - **Regime definitions** are in `market/regime.py`'s docstring (DD count restarts at a
   follow-through; the below-50-day rules apply only after the index reclaimed its 50-day since
   the follow-through). Every state change and day carries human-readable reasons.
@@ -209,6 +237,13 @@ Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost)
   still builds and data health shows a warning. ADR market caps are left empty on purpose:
   SEC share counts are ordinary shares, not ADSs.
 - In web tests, Next's route announcer also has `role="alert"`; scope alert queries to the form.
+- **SEC acceptance times** in the submissions API end in "Z" but are US/Eastern clock times; the
+  parser treats them as Eastern (verified by `test_providers_live.py` once SEC is reachable).
+- **Review charts** use matplotlib's object API (`Figure`, no pyplot) so rendering is safe in
+  threads; the web shows them with `next/image` `unoptimized` (they need the session cookie).
+  The app is dark-only for now, so the cards request `?theme=dark`.
+- Pattern tests that compare float prices across scales multiply by 8 (exact in binary
+  floating point); ×10 can flip a comparison that sits exactly on a threshold.
 - The Docker image installs uv from PyPI (pinned `0.12.23`; keep in sync with CI and local).
 - **Claude Code cloud sandbox only:**
   - The Docker daemon isn't running by default; start it with `dockerd &`.

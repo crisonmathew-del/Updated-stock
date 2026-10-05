@@ -309,7 +309,9 @@ def detect_cup_with_handle(
     cup_min_bottom_share_pct of the cup's closes in its bottom third; the right side recovers
     into the upper half without exceeding the lip; the handle is handle_min..handle_max_depth_pct
     deep, at least handle_min_days long, entirely in the upper half of the cup and below its own
-    high; cup_min..cup_max_weeks in all; a prior uptrend into the lip. Pivot = the handle high."""
+    high; cup_min..cup_max_weeks in all; a prior uptrend into the lip. Pivot = the handle high.
+    The bear-market depth applies only if the market was in correction between the lip and the
+    cup's low (the decline happened in a bear market)."""
     s = settings
     t = bars.last
     lips = []
@@ -345,7 +347,8 @@ def _cup_candidate(
         return None
     bottom = float(bars.low[b])
     depth = pct(bottom, lip)
-    bear = bool(bars.market_correction[a : r + 1].any())
+    # The deeper limit applies when the market was in correction while the cup was falling.
+    bear = bool(bars.market_correction[a : b + 1].any())
     max_depth = s.cup_bear_market_max_depth_pct if bear else s.cup_max_depth_pct
     if not s.cup_min_depth_pct <= depth <= max_depth:
         return None

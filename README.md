@@ -25,7 +25,11 @@ make create-user email=you@example.com     # your login (prompts for a password)
 On first start the scheduler builds the universe (~5,000 US stocks and ADRs) and backfills 10
 years of daily bars. With the free development sources that takes roughly 30–60 minutes; it is
 resumable (`make backfill`). After that, prices update automatically 20 minutes after each
-close. No API keys are needed for development: the universe comes from the Nasdaq Trader symbol
+close, followed by analytics, Fundamentals Grades and pattern detection. Fundamentals
+(statements, earnings dates, insider trades) load nightly from SEC EDGAR; run
+`make fundamentals full=1` once after the first backfill to load them straight away.
+
+No API keys are needed for development: the universe comes from the Nasdaq Trader symbol
 directory, company data from SEC EDGAR, and prices from yfinance (development only; switch
 `PRICE_PROVIDER` to a paid feed before relying on it).
 
@@ -51,11 +55,14 @@ containers.
 | 0 | Scaffold | ✅ done |
 | 1 | Data foundation | ✅ built (live acceptance pending data access) |
 | 2 | Indicators, regime, RS, groups | ✅ built (live acceptance pending data access) |
-| 3 | Fundamentals & patterns | planning |
+| 3 | Fundamentals & patterns | ✅ built, in review |
 | 4–8 | Scoring → UI → real-time → backtests → polish | planned |
 
-![Analytics inspection page](docs/screenshots/phase2-inspect.png)
+![Pattern review page](docs/screenshots/phase3-patterns.png)
 
-_The analytics inspection page (Trend Template checklist, market regime with reasons, group and
-sector leadership), shown with a synthetic demo market. The [data page](docs/screenshots/phase1-data.png)
-covers the universe, backfill and data health._
+_The pattern review page: false-positive rate per pattern type and a seeded random sample of
+detections, each with its chart (swing points, contraction depths, pivot, base low), quality
+breakdown and a verdict. Shown with a synthetic demo market. The
+[inspection page](docs/screenshots/phase3-inspect.png) adds the Fundamentals Grade, quarters as
+reported, earnings dates, insider trades and the stock's detections; the
+[data page](docs/screenshots/phase1-data.png) covers the universe, backfill and data health._

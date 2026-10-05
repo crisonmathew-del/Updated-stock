@@ -78,7 +78,10 @@ describe("ReviewBoard", () => {
         .getByText(/quality/)
         .closest("p"),
     ).toHaveTextContent("Forming · quality 72/100");
-    expect(within(card).getByRole("img")).toHaveAttribute("src", "/api/admin/patterns/7/chart.png");
+    expect(within(card).getByRole("img")).toHaveAttribute(
+      "src",
+      "/api/admin/patterns/7/chart.png?theme=dark",
+    );
     expect(within(card).getByText(/24.8% deep · pivot 92.46 · base 1/)).toBeInTheDocument();
   });
 

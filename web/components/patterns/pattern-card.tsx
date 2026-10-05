@@ -5,6 +5,9 @@ import type { Pattern } from "@/lib/api";
 import { formatPrice, patternStatus } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
+// The app uses its dark theme everywhere for now (app/layout.tsx); the chart matches it.
+const CHART_THEME = "dark";
+
 const STATUS_CLASS: Record<Pattern["status"], string> = {
   forming: "text-foreground",
   broken_out: "text-ok",
@@ -48,7 +51,7 @@ export function PatternCard({
       <p className="tabular text-sm text-muted">{facts.join(" · ")}</p>
       {showChart && (
         <Image
-          src={`/api/admin/patterns/${p.id}/chart.png`}
+          src={`/api/admin/patterns/${p.id}/chart.png?theme=${CHART_THEME}`}
           alt={`Chart of ${p.symbol}: ${p.type_label} from ${p.start_date} to ${p.end_date}, pivot ${formatPrice(p.pivot)}`}
           width={1000}
           height={600}

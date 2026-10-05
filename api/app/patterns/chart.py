@@ -113,29 +113,15 @@ def render_pattern_chart(
     # Base shading, pivot and base low.
     price.axvspan(start - 0.5, end + 0.5, color=t.shade, zorder=0)
     pivot = float(pattern["pivot"])
-    right = min(n - 1, end + 8)
+    right = n - 1
     price.hlines(pivot, start, right, colors=t.ink, linestyles="--", linewidth=1.0, zorder=3)
-    price.annotate(
-        f"Pivot {pivot:,.2f}",
-        (right, pivot),
-        xytext=(4, 0),
-        textcoords="offset points",
-        va="center",
-        fontsize=8,
-        color=t.ink,
-    )
+    # Right-edge labels (pivot, base low, averages) are placed together at the end, so they
+    # never overprint each other.
+    labels: list[tuple[float, str, str, int]] = [(pivot, f"Pivot {pivot:,.2f}", t.ink, 8)]
     if pattern.get("base_low") is not None:
         base_low = float(pattern["base_low"])
         price.hlines(base_low, start, right, colors=t.secondary, linestyles=":", linewidth=1.0)
-        price.annotate(
-            f"Base low {base_low:,.2f}",
-            (right, base_low),
-            xytext=(4, 0),
-            textcoords="offset points",
-            va="center",
-            fontsize=8,
-            color=t.secondary,
-        )
+        labels.append((base_low, f"Base low {base_low:,.2f}", t.secondary, 8))
 
     # Candles: wick lines, then bodies (hollow up, filled down).
     price.vlines(x, lo, h, colors=t.secondary, linewidth=0.7, zorder=2)
@@ -172,14 +158,20 @@ def render_pattern_chart(
             continue
         price.plot(x, values, color=colour, linewidth=1.5, label=label, zorder=4)
         last = int(np.flatnonzero(~np.isnan(values))[-1])
+        labels.append((float(values[last]), label, t.secondary, 7))
+    span = float(np.nanmax(h) - np.nanmin(lo)) or 1.0
+    previous: float | None = None
+    for value, text_label, colour, size in sorted(labels):
+        y = value if previous is None else max(value, previous + 0.04 * span)
+        previous = y
         price.annotate(
-            label,
-            (last, values[last]),
-            xytext=(4, 0),
+            text_label,
+            (n - 1, y),
+            xytext=(6, 0),
             textcoords="offset points",
             va="center",
-            fontsize=7,
-            color=t.secondary,
+            fontsize=size,
+            color=colour,
         )
 
     # Swing points and contraction depths.
