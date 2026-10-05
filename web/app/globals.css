@@ -10,6 +10,7 @@
   --muted: #6b6b6b;
   --border: #e4e4e4;
   --ok: #1a7f5a;
+  --warn: #a15c07;
   --fail: #b42318;
 }
 
@@ -19,6 +20,7 @@
   --muted: #8a8f98;
   --border: #23262d;
   --ok: #4cc38a;
+  --warn: #f5b546;
   --fail: #f97066;
 }
 
@@ -28,6 +30,7 @@
   --color-muted: var(--muted);
   --color-border: var(--border);
   --color-ok: var(--ok);
+  --color-warn: var(--warn);
   --color-fail: var(--fail);
   --font-sans:
     ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
