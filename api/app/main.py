@@ -11,6 +11,7 @@ from starlette.middleware.gzip import GZipMiddleware
 from app import __version__
 from app.api.routes import (
     admin,
+    ai,
     alerts,
     auth,
     backtests,
@@ -97,6 +98,7 @@ def create_app() -> FastAPI:
     api.include_router(live.router)
     api.include_router(backtests.router)
     api.include_router(performance.router)
+    api.include_router(ai.router)
     app.include_router(api)
     return app
 

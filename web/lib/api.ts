@@ -1115,3 +1115,18 @@ export type Performance = {
   total: PerformanceStats;
   types: PerformanceType[];
 };
+
+// --- AI summary (Phase 7) --------------------------------------------------------------------
+
+export type AiSummary = {
+  thesis: string;
+  catalyst: string;
+  risks: string[];
+  unverified: string[];
+  model: string;
+  generated_at: string;
+  as_of: string | null;
+  cached: boolean;
+};
+
+export type AiSummaryState = { enabled: boolean; model: string; summary: AiSummary | null };

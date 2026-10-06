@@ -16,6 +16,7 @@ import {
 } from "./panels";
 import { PlanCard, ScoreCard } from "./score-plan";
 import { Section } from "@/components/ui/section";
+import { AiSummaryPanel } from "./ai-summary";
 import { StockHeader } from "./stock-header";
 import { stockQueries } from "./queries";
 
@@ -72,6 +73,7 @@ export function StockPage({ symbol }: { symbol: string }) {
             <>
               <ScoreCard setup={detail} />
               <PlanCard key={detail.id} setup={detail} />
+              <AiSummaryPanel symbol={symbol} />
             </>
           ) : (
             <Section title="Setup">
@@ -82,6 +84,7 @@ export function StockPage({ symbol }: { symbol: string }) {
               </p>
             </Section>
           )}
+          {!detail && <AiSummaryPanel symbol={symbol} />}
         </div>
       </div>
       {s && (
