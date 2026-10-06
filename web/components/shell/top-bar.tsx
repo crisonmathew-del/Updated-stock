@@ -27,6 +27,7 @@ const LINKS = [
   { href: "/backtests", label: "Backtests" },
 ];
 const ADMIN = [
+  { href: "/settings", label: "Settings" },
   { href: "/admin/status", label: "Status" },
   { href: "/admin/data", label: "Data" },
   { href: "/admin/inspect", label: "Inspect" },

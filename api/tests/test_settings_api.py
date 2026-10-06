@@ -50,3 +50,33 @@ async def test_unknown_keys_are_a_400(signed_in: httpx.AsyncClient) -> None:
     response = await signed_in.patch("/api/settings", json={"changes": {"bogus": 1}})
     assert response.status_code == 400
     assert response.json() == {"detail": "Unknown setting: bogus"}
+
+
+@pytest.mark.integration
+async def test_key_status_says_configured_or_missing_never_the_key(
+    signed_in: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from pydantic import SecretStr
+
+    from app.core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "anthropic_api_key", SecretStr("sk-ant-very-secret"))
+    monkeypatch.setattr(get_settings(), "alpaca_api_key_id", SecretStr("AK123"))
+    response = await signed_in.get("/api/settings/keys")
+    assert response.status_code == 200
+    assert "very-secret" not in response.text
+    assert "AK123" not in response.text
+    body = response.json()
+    assert body["providers"]["prices"] == "yfinance"
+    keys = {k["name"]: k for k in body["keys"]}
+    assert (keys["Anthropic"]["configured"], keys["Anthropic"]["in_use"]) == (True, True)
+    # Alpaca needs both halves of the key pair.
+    assert keys["Alpaca"]["configured"] is False
+    assert keys["Alpaca"]["env"] == ["ALPACA_API_KEY_ID", "ALPACA_API_SECRET_KEY"]
+
+
+@pytest.mark.integration
+async def test_choices_carry_their_options(signed_in: httpx.AsyncClient) -> None:
+    items = {i["key"]: i for i in (await signed_in.get("/api/settings")).json()["items"]}
+    assert items["backtest_trailing_exit"]["constraints"]["enum"] == ["sma50", "ema21", "none"]
+    assert items["backtest_trailing_exit"]["category"] == "backtest"

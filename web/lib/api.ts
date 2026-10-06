@@ -1130,3 +1130,32 @@ export type AiSummary = {
 };
 
 export type AiSummaryState = { enabled: boolean; model: string; summary: AiSummary | null };
+
+// --- Settings page (Phase 7) -----------------------------------------------------------------
+
+export type SettingItem = {
+  key: string;
+  category: string;
+  description: string;
+  value: unknown;
+  default: unknown;
+  constraints: {
+    type?: string;
+    minimum?: number;
+    maximum?: number;
+    exclusiveMinimum?: number;
+    exclusiveMaximum?: number;
+    pattern?: string;
+    enum?: (string | number)[];
+  };
+};
+
+export type KeyStatus = {
+  name: string;
+  env: string[];
+  configured: boolean;
+  in_use: boolean;
+  purpose: string;
+};
+
+export type ProvidersStatus = { providers: Record<string, string>; keys: KeyStatus[] };
