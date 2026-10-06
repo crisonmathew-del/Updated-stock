@@ -21,13 +21,15 @@ Trend Template + VCP / pocket pivots / episodic pivots). **The full build spec i
 - **Phase 4 (Scoring, lifecycle, trade plans, scanner):** built and approved. Its acceptance
   (EOD < 5 min: 52 s for 6,000 stocks; explainable setups; signals logged) was checked on a
   synthetic market; the live run needs real data.
-- **Phase 5 (Core UI):** design plan approved; built (⌘K search, stock page with the full chart
+- **Phase 5 (Core UI):** built and approved (⌘K search, stock page with the full chart
   overlays, dashboard, screener with presets/builder/saved screens, watchlists, phone layout,
-  Playwright e2e) and waiting for the owner's approval. Spec §10 targets measured on a synthetic
+  Playwright e2e). Spec §10 targets measured on a synthetic
   6,000-stock market (production build): search p95 52 ms, stock page first paint ~110 ms with
   the chart drawn at ~640 ms, screener scroll 60 fps, dashboard Lighthouse 95 mobile / 100
   desktop. Deferred by the owner: intraday chart, holdings, alert bell, screen → alert and the
   live setups board (Phase 6); news and the AI summary (Phase 7 / when keys arrive).
+- **Next: Phase 6 (Real-time & alerts).** Plan proposed to the owner; no Phase 6 code until
+  it's approved.
 
 ## Owner decisions (answers to spec §0.3)
 

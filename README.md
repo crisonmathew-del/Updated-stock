@@ -61,7 +61,7 @@ containers; `make e2e` runs the Playwright journeys (natively; see the Makefile)
 | 2 | Indicators, regime, RS, groups | ✅ built (live acceptance pending data access) |
 | 3 | Fundamentals & patterns | ✅ built (live acceptance pending data access) |
 | 4 | Scoring, lifecycle, trade plans, scanner | ✅ built (live acceptance pending data access) |
-| 5 | Core UI | ✅ built (awaiting approval) |
+| 5 | Core UI | ✅ done |
 | 6–8 | Real-time → backtests → polish | planned |
 
 ![Stock page](docs/screenshots/phase5-stock.png)
