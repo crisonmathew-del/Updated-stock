@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 import { useState } from "react";
 import { api, type SetupDetail } from "@/lib/api";
 import { formatNumber, formatPrice } from "@/lib/format";
@@ -159,6 +160,28 @@ export function PlanCard({ setup }: { setup: SetupDetail }) {
           <span aria-hidden>⚠ </span>The stop is {sized.riskPct}% below the entry, wider than the{" "}
           {s?.max_stop_loss_pct}% maximum loss.
         </p>
+      )}
+      {sized && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+          <Link
+            href={`/holdings?${new URLSearchParams({
+              symbol: setup.symbol,
+              entry: entry,
+              stop: stop,
+              shares: String(sized.shares),
+              setup: String(setup.id),
+            }).toString()}`}
+            className="text-tide-ink hover:underline"
+          >
+            I bought this
+          </Link>
+          <Link
+            href={`/alerts?tab=rules&symbol=${setup.symbol}`}
+            className="text-tide-ink hover:underline"
+          >
+            Set an alert
+          </Link>
+        </div>
       )}
       {!edited &&
         plan.notes.map((n) => (

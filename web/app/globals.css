@@ -109,3 +109,18 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* A price that just changed on the live board: a brief tint (none under reduced motion). */
+@keyframes live-flash {
+  from {
+    background-color: color-mix(in srgb, var(--tide) 28%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .live-flash {
+    animation: live-flash 1.2s ease-out;
+  }
+}

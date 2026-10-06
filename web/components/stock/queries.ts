@@ -23,7 +23,7 @@ export function chartQuery(symbol: string, timeframe: string, sessions: number) 
 
 export const SETTINGS_QUERY = { key: ["settings"], path: "/api/settings" } as const;
 
-/** Chart ranges on keys 1-5 (spec §8.1). Intraday arrives with real-time data in Phase 6. */
+/** Chart ranges on keys 1-5 (spec §8.1); intraday bars on 6 and 7. */
 export const RANGES = [
   { key: "1", label: "6M", timeframe: "daily", sessions: 504, visible: 126 },
   { key: "2", label: "1Y", timeframe: "daily", sessions: 504, visible: 252 },
@@ -34,3 +34,16 @@ export const RANGES = [
 
 /** 1Y daily: what a first visit shows. */
 export const DEFAULT_RANGE = RANGES[1];
+
+/** Today's (or the latest recorded) session in 1- or 5-minute bars, on keys 6 and 7. */
+export const INTRADAY = [
+  { key: "6", label: "1D 1m", interval: 1 },
+  { key: "7", label: "1D 5m", interval: 5 },
+] as const;
+
+export function intradayQuery(symbol: string, interval: number) {
+  return {
+    key: ["stock", symbol, "intraday", interval],
+    path: `/api/stocks/${symbol}/intraday?interval=${interval}`,
+  };
+}

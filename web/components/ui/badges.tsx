@@ -58,17 +58,23 @@ export function StageBadge({
 export function Change({
   value,
   suffix = "%",
+  prefix = "",
   digits = 2,
   className,
 }: {
   value: number | null | undefined;
   suffix?: string;
+  /** After the sign: "$" gives ▲ +$600. */
+  prefix?: string;
   digits?: number;
   className?: string;
 }) {
   if (value == null) return <span className={cn("text-muted", className)}>—</span>;
-  const shown = Math.abs(value).toFixed(digits);
-  const zero = Number(shown) === 0;
+  const shown = Math.abs(value).toLocaleString("en-US", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
+  const zero = Number(Math.abs(value).toFixed(digits)) === 0;
   const up = value > 0 && !zero;
   const down = value < 0 && !zero;
   return (
@@ -76,6 +82,7 @@ export function Change({
       className={cn("tabular whitespace-nowrap", up && "text-rise", down && "text-fall", className)}
     >
       <span aria-hidden>{up ? "▲" : down ? "▼" : "–"}</span> {up ? "+" : down ? "−" : ""}
+      {prefix}
       {shown}
       {suffix}
     </span>
