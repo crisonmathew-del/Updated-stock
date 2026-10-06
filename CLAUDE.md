@@ -34,8 +34,8 @@ Trend Template + VCP / pocket pivots / episodic pivots). **The full build spec i
   WebSocket → Next.js proxy → browser; SMTP to Mailpit): toast 73–158 ms and email 129–138 ms
   after the triggering print; the close confirmed it (and rejects a fading one,
   `tests/test_watcher.py`). The live run needs Alpaca keys.
-- **Next: Phase 7 (backtest lab, signal performance, AI summary, deployment, backups).** Plan
-  proposed to the owner; no Phase 7 code until it's approved.
+- **Phase 7 (backtest lab, signal performance, AI summary, deployment, backups):** in progress
+  (the owner said to go ahead on the recommended defaults without reviewing the plan).
 
 ## Owner decisions (answers to spec §0.3)
 
@@ -50,6 +50,7 @@ Trend Template + VCP / pocket pivots / episodic pivots). **The full build spec i
 | Phase 2 defaults | Build Phase 2 before the Phase 1 live acceptance; overall market = **weaker of SPY and QQQ** (+IWM in small-cap mode); follow-through threshold **1.25%** (spec; IBD now uses ~1.7%, a setting); industry groups from **SEC SIC codes**. |
 | Phase 4 defaults | Setup Score: trend 20, RS 20, fundamentals 20, pattern 20, group 10, accumulation 10; a part without data (e.g. no Fundamentals Grade) is left out and the rest scaled up; × regime 1.0 / 0.8 / 0.5; red-flag penalties extended, late stage, climax −10, wide-and-loose, distribution −5, earnings risk 0; A+ ≥ 90, A ≥ 80, B ≥ 70, C ≥ 60. Breakouts confirmed **at the close** (≥ 140% volume, close in the top third) until real-time data (Phase 6). Outcomes measured from the signal session's close, plus R from the plan. **Plain admin pages** until the Phase 5 design. |
 | Phase 6 | **Option A**: build the Alpaca live adapter now (free keys later switch it on); IEX volume stays provisional until the close. Alerts in-app + email (Resend/SMTP; Mailpit in dev); digests 17:30 ET daily and Sunday 18:00 ET weekly; cooldown 390 min (once a session); setup alerts on stocks you don't hold or watch need grade ≥ A (a setting). Confirmed with the results: stream cap 30 (holdings → near pivot → broken out → rule targets → basing → watchlists); holdings warnings: stop, close below the 50-day (high) / 21-day (normal), breakeven at 2R or +10%, profit zone 20–25%, earnings within 5 sessions. |
+| Phase 7 | Owner: "go ahead" on the recommendations. Hosting: one Docker VPS behind Caddy (automatic HTTPS); the owner supplies server, domain and Let's Encrypt email, and deploys with `make deploy` / `docs/deploy.md`. Backups: nightly `pg_dump` 02:30 ET, 14 daily + 8 weekly, optional S3-compatible off-site copy. Backtest defaults: $100k, 1% risk, 25% max position, max 10 positions, slippage 0.1%, $0 commission, buy-stop at the trigger the next session (fill at the open inside the buy zone, skip above it), exits: stop, close below the 50-day (21-day optional), time stop < +5% after 15 sessions, sell ⅓ at +20%, breakeven at 2R/+10%; 70/30 in/out-of-sample; sensitivity breakout volume 100–200% × VCP final contraction 6–14%. Survivorship bias (no delisted names in free data) is labelled in every report. AI summary built now, off until `ANTHROPIC_API_KEY`. Settings page included. |
 | Phase 3 defaults | Grade points/cutoffs as in `fundamentals/grade.py` (EPS growth 25, acceleration 10, sales 15, 3-year EPS 20, ROE 10, margins 10, accumulation 10, insider cluster +5; A ≥ 80, B ≥ 65, C ≥ 50, D ≥ 35); insider Form 4 now, **13F deferred** to a paid provider; next earnings date **estimated** from last year; review charts **server-rendered** (matplotlib). |
 
 ## Non-negotiables (spec §0, §2)
