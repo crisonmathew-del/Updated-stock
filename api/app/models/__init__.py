@@ -1,6 +1,7 @@
 """ORM models. Importing this package registers every table on `Base.metadata` (Alembic relies
 on that for autogenerate)."""
 
+from app.models.alerts import Alert, AlertRule, Holding
 from app.models.analytics import (
     GroupRankDaily,
     IndicatorDaily,
@@ -15,6 +16,7 @@ from app.models.fundamentals import (
     FundamentalsQuarterly,
     InsiderTransaction,
 )
+from app.models.intraday import IntradayBar, VolumeProfile
 from app.models.market_data import CorporateAction, DailyBar, SharesOutstanding
 from app.models.ops import DataQualityIssue, JobRun
 from app.models.patterns import Pattern, PatternReview
@@ -25,6 +27,8 @@ from app.models.user import User
 from app.models.workspace import SavedScreen, StockNote, Watchlist, WatchlistItem
 
 __all__ = [
+    "Alert",
+    "AlertRule",
     "CorporateAction",
     "DailyBar",
     "DataQualityIssue",
@@ -33,9 +37,11 @@ __all__ = [
     "FundamentalsAnnual",
     "FundamentalsQuarterly",
     "GroupRankDaily",
+    "Holding",
     "IndicatorDaily",
     "IndustryGroup",
     "InsiderTransaction",
+    "IntradayBar",
     "JobRun",
     "MarketBreadthDaily",
     "MarketRegimeDaily",
@@ -53,6 +59,7 @@ __all__ = [
     "Ticker",
     "TickerType",
     "User",
+    "VolumeProfile",
     "Watchlist",
     "WatchlistItem",
 ]

@@ -8,7 +8,7 @@ Not to be confused with `app.core.config.Settings`, which is environment/infrast
 """
 
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -23,6 +23,7 @@ class Category(StrEnum):
     SCORING = "scoring"
     MARKET = "market"
     RISK = "risk"
+    INTRADAY = "intraday"
     ALERTS = "alerts"
     DATA = "data"
 
@@ -567,9 +568,92 @@ class AppSettings(BaseModel):
         10, Category.RISK, "Or raise it to breakeven once up this % (whichever first)", gt=0
     )
 
-    # --- Alerts (spec §7.3) -------------------------------------------------------------------
+    # --- Intraday watcher and scans (spec §6.8, §7.1) -----------------------------------------
+    stream_max_symbols: int = _field(
+        30,
+        Category.INTRADAY,
+        "Most symbols the intraday watcher streams (holdings first, then setups closest to "
+        "their pivot, watchlists and alert rules). Alpaca's free plan allows 30",
+        ge=1,
+        le=10000,
+    )
+    breakout_volume_strong_pct_of_avg: float = _field(
+        200, Category.INTRADAY, "A breakout on at least this % of average volume is 'strong'", gt=0
+    )
+    intraday_projection_min_minutes: int = _field(
+        5,
+        Category.INTRADAY,
+        "Minutes after the open before projected volume can confirm an intraday breakout",
+        ge=0,
+        le=120,
+    )
+    volume_curve_min_sessions: int = _field(
+        20,
+        Category.INTRADAY,
+        "Sessions of stored minute bars needed before the learned time-of-day volume curve "
+        "replaces the standard one",
+        ge=1,
+        le=250,
+    )
+    premarket_gap_min_pct: float = _field(
+        4, Category.INTRADAY, "Pre-market scan: a gap of at least this % from the close", gt=0
+    )
+    premarket_volume_min_pct_of_avg: float = _field(
+        3,
+        Category.INTRADAY,
+        "Pre-market scan: pre-market volume at least this % of the 50-day average",
+        ge=0,
+    )
+    sweep_volume_ratio_min: float = _field(
+        2,
+        Category.INTRADAY,
+        "Intraday sweep: projected volume at least this multiple of the 50-day average",
+        gt=0,
+    )
+    sweep_min_change_pct: float = _field(
+        3, Category.INTRADAY, "Intraday sweep: and a move of at least this % on the day", ge=0
+    )
+
+    # --- Alerts (spec §7.2-7.3) ---------------------------------------------------------------
     alert_cooldown_minutes: int = _field(
         390, Category.ALERTS, "Minimum minutes between repeats of the same alert", ge=0
+    )
+    alert_min_grade: Literal["A+", "A", "B", "C"] = _field(
+        "A",
+        Category.ALERTS,
+        "Setup alerts (near pivot, breakouts, pocket pivots, gaps, RS highs) for stocks you "
+        "don't hold or watch: only at this grade or better",
+    )
+    alerts_email_enabled: bool = _field(True, Category.ALERTS, "Send alerts by email")
+    alert_email_immediate_priority: Literal["high", "normal"] = _field(
+        "high",
+        Category.ALERTS,
+        "Email alerts of this priority or higher straight away; the rest go in the digest",
+    )
+    quiet_hours_start: str = _field(
+        "",
+        Category.ALERTS,
+        "No immediate emails from this time (US/Eastern, HH:MM; empty = no quiet hours). "
+        "Held alerts go in the next digest",
+        pattern=r"^$|^([01]\d|2[0-3]):[0-5]\d$",
+    )
+    quiet_hours_end: str = _field(
+        "",
+        Category.ALERTS,
+        "Quiet hours end (US/Eastern, HH:MM)",
+        pattern=r"^$|^([01]\d|2[0-3]):[0-5]\d$",
+    )
+    daily_digest_enabled: bool = _field(
+        True, Category.ALERTS, "Email a digest of the day's alerts and setups after the close"
+    )
+    daily_digest_time: str = _field(
+        "17:30",
+        Category.ALERTS,
+        "When the daily digest goes out (US/Eastern, HH:MM)",
+        pattern=r"^([01]\d|2[0-3]):[0-5]\d$",
+    )
+    weekly_digest_enabled: bool = _field(
+        True, Category.ALERTS, "Email a weekly review on Sunday evening"
     )
 
     # --- Data (spec §5.5) ---------------------------------------------------------------------
@@ -605,6 +689,12 @@ class AppSettings(BaseModel):
         ):
             if getattr(self, low) > getattr(self, high):
                 raise ValueError(f"{low} must not exceed {high}")
+        if bool(self.quiet_hours_start) != bool(self.quiet_hours_end):
+            raise ValueError("Set both quiet_hours_start and quiet_hours_end, or neither")
+        if self.breakout_volume_min_pct_of_avg > self.breakout_volume_strong_pct_of_avg:
+            raise ValueError(
+                "breakout_volume_min_pct_of_avg must not exceed breakout_volume_strong_pct_of_avg"
+            )
         if not (
             self.regime_confirmed_max_distribution_days
             < self.regime_pressure_distribution_days
