@@ -21,8 +21,13 @@ Trend Template + VCP / pocket pivots / episodic pivots). **The full build spec i
 - **Phase 4 (Scoring, lifecycle, trade plans, scanner):** built and approved. Its acceptance
   (EOD < 5 min: 52 s for 6,000 stocks; explainable setups; signals logged) was checked on a
   synthetic market; the live run needs real data.
-- **Next: Phase 5 (Core UI).** Design plan (palette, typeface, stock-page wireframe) proposed
-  and waiting for the owner's approval. No UI work until it's approved (spec §9).
+- **Phase 5 (Core UI):** design plan approved; built (⌘K search, stock page with the full chart
+  overlays, dashboard, screener with presets/builder/saved screens, watchlists, phone layout,
+  Playwright e2e) and waiting for the owner's approval. Spec §10 targets measured on a synthetic
+  6,000-stock market (production build): search p95 52 ms, stock page first paint ~110 ms with
+  the chart drawn at ~640 ms, screener scroll 60 fps, dashboard Lighthouse 95 mobile / 100
+  desktop. Deferred by the owner: intraday chart, holdings, alert bell, screen → alert and the
+  live setups board (Phase 6); news and the AI summary (Phase 7 / when keys arrive).
 
 ## Owner decisions (answers to spec §0.3)
 
@@ -83,34 +88,46 @@ api/                 Python 3.12 · FastAPI · uv (non-packaged app; run command
   app/risk/          trade_plan.py (entry, stop, size, targets, management)
   app/market/        regime.py (distribution days, rally/FTD state machine), breadth.py
   app/groups/        classification.py (SIC → groups/sectors), industry_rank.py
-  app/scanner/       eod_scan.py: the analytics pipeline (full / stale / incremental);
+  app/scanner/       snapshot.py: indicators + Trend Template for every stock on a date
+                     (screener, setups); eod_scan.py: the analytics pipeline (full / stale /
+                     incremental);
                      daily.py: per-session stages in order (detection.py: grades + patterns;
                      setups.py: load/store around evaluate.py, the pure per-stock setup rules;
                      outcomes.py); universe_filter.py: point-in-time liquidity filter
-  app/api/routes/    health, auth, settings, admin, market, stocks, patterns (review), setups
-                     (setups, signals, a stock's setup)
+  app/api/routes/    health, auth, settings, admin, market (+ index quotes), stocks (summary,
+                     peers, note, watchlist membership), stock_chart (chart series + overlay),
+                     search (ranked trigram search), screener (cached columnar snapshot + saved
+                     screens), watchlists, patterns (review), setups (setups, signals)
   app/worker.py      arq worker: `arq app.worker.WorkerSettings`
   app/scheduler.py   APScheduler (US/Eastern): `python -m app.scheduler`
   app/streamer.py    live feed (Phase 6): `python -m app.streamer`
   alembic/           async migrations; URL comes from app settings, never alembic.ini
   tests/             pytest; fakes.py has in-memory providers; fixtures/providers/ has
-                     real-shaped directory and SEC files
+                     real-shaped directory and SEC files; e2e_seed.py seeds the web e2e database
 web/                 Next.js 16 App Router · React 19 · TS strict · Tailwind 4 · pnpm
   proxy.ts           sends signed-out visitors to /login (cookie presence only)
-  app/(app)/         signed-in pages with the header: / (status), /admin/data, /admin/inspect,
-                     /admin/patterns (false-positive review), /admin/setups, /admin/signals
-  app/login/         sign-in page (no header)
-  components/        UI components (+ colocated *.test.tsx); admin/ = data page panels,
-                     inspect/ = analytics inspection panels, patterns/ = review board + card,
-                     setups/ = setups board, setup detail, signal log
+  app/(app)/         signed-in pages with the top bar: / (dashboard), /stocks/[symbol],
+                     /screener, /watchlists; /admin/{status,data,inspect,patterns,setups,signals}
+  app/login/         sign-in page (no top bar)
+  app/globals.css    design tokens (approved Phase 5 palette) for dark (default) and .light
+  components/        UI components (+ colocated *.test.tsx): shell/ (top bar, ⌘K palette,
+                     shortcuts, toasts), ui/ (badges, button, section, stock-link), stock/
+                     (chart, base overlay, panels, score + plan), dashboard/, screener/,
+                     watchlists/; admin pages: admin/, inspect/, patterns/, setups/
   lib/api.ts         typed API client: CSRF header on writes, 401 → /login, response types
   lib/format.ts      number/date/duration formatters, safeNext() redirect guard
+  lib/screener.ts    screener field catalogue, presets, filters, sorting keys, CSV (pure)
+  lib/sizing.ts      client trade-plan sizing (mirrors risk/trade_plan.py fixtures)
+  lib/theme.ts       theme cookie + tokens for canvas code; stages.ts, keys.ts, use-*.ts
+  lib/server-api.ts  server components: fetch from the API with the visitor's cookie, prefetch
+                     into a QueryClient for HydrationBoundary (components/*/queries.ts share keys)
+  stores/            Zustand: list.ts (the list `[`/`]` flip through), toast.ts
   test-utils.tsx     renderWithClient, mockApi (fetch stub keyed by "METHOD /path")
-  stores/            Zustand stores (empty so far)
+  e2e/ + playwright.config.ts   Playwright journeys against a production build (`make e2e`)
 infra/docker-compose.yml   web, api, worker, scheduler, streamer, migrate (one-shot), postgres, redis
 docs/spec.md         the build specification
 .github/workflows/ci.yml   api (ruff, mypy, pytest + services), web (lint, prettier, tsc,
-                           vitest, build), prod Docker image builds
+                           vitest, build), e2e (Playwright), prod Docker image builds
 ```
 
 The spec's planned backend modules (`providers/`, `data/`, `indicators/`, `patterns/`, `market/`,
@@ -119,7 +136,7 @@ added under `api/app/` as their phases arrive. Follow spec §4 for names.
 
 ## Commands
 
-Only Docker is required; `make` targets run inside containers.
+Only Docker is required; `make` targets run inside containers (except `make e2e`).
 
 | Command | What it does |
 |---|---|
@@ -140,6 +157,7 @@ Only Docker is required; `make` targets run inside containers.
 | `make patterns [date=…] [symbols=A,B]` | Grades + pattern detection as of a date; with symbols, lists the detections (acceptance checks) |
 | `make setups [date=…]` | Scores, lifecycle and signals for every session not processed yet (re-scores the latest after a settings change) |
 | `make outcomes` | Update signal outcomes (also runs after each scan and at 17:00 ET) |
+| `make e2e` | Playwright end-to-end tests, run natively: needs `make dev` (Postgres/Redis), uv, pnpm and `pnpm exec playwright install chromium`; seeds its own `breakout_e2e` |
 | `make shell-api` / `make shell-db` | bash in api container / psql |
 
 Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost):
@@ -205,6 +223,10 @@ Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost)
   follow-through; the below-50-day rules apply only after the index reclaimed its 50-day since
   the follow-through). Every state change and day carries human-readable reasons.
 - **Numerics (from Phase 2):** Polars first, NumPy second, pandas only where a library forces it.
+- **Reads into Polars:** jobs and the pipeline use `read_frame` (connectorx: fast for bulk, but a
+  new connection per call, ~20 ms). Request handlers use `query_frame(session, sql)` (the pooled
+  connection; same frame shape, tested against connectorx). Functions shared by both take a
+  `read` callable (see `fundamentals.scan.load_grade_inputs`).
 - **Tests:** `tests/conftest.py` points `DATABASE_URL` at `<db>_test` and `REDIS_URL` at Redis
   DB 15 *before* the app is imported, so tests never touch dev data. Fixtures: `db` (empty,
   migrated database), `clean_redis`, `client` (sends the CSRF header), `user`, `signed_in`.
@@ -213,9 +235,28 @@ Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost)
 - **Migrations:** one Alembic revision per schema change; never edit an applied revision.
   TimescaleDB internal schemas are excluded from autogenerate (`alembic/env.py`).
 - **Web:** Server Components by default, `"use client"` only where needed. All API calls go
-  through `lib/api.ts` (`api.get/post/patch`). Component tests use `test-utils.tsx`. Colours come from CSS tokens in `app/globals.css` (the real palette arrives
-  with the Phase 5 design plan, which needs owner approval before any UI work). Numbers use the
-  `tabular` class. Pair colour with a symbol (✓/✕, ▲/▼) for colour-blind users.
+  through `lib/api.ts` (`api.get/post/patch/put/delete`) and TanStack Query. Component tests use
+  `test-utils.tsx`; journeys go in `e2e/`.
+  - **Design (approved Phase 5 plan):** colours only from the tokens in `app/globals.css` (Ink,
+    Slate, Paper; Rise blue = up/pass/breakout, Fall orange = down/fail/stop, Tide teal = pivot,
+    buy zone, focus); IBM Plex Sans; dark by default, light via the `breakout_theme` cookie
+    (`lib/theme.ts`; canvas code reads tokens with `token()` and redraws on theme change).
+    Numbers use `tabular`. Colour always comes with a symbol or label (▲/▼, ✓/✕, stage icons):
+    use `Change`, `GradeBadge`, `StageBadge`, `StatusMark`. Validate new colours with the
+    dataviz palette script (protan/deutan, contrast) before adding tokens.
+  - **Lists and keys:** rows that open a stock use `StockLink` (sets the `[`/`]` list in
+    `stores/list.ts`, marks the row for `j`/`k`). Global keys live in `shell/shortcuts.tsx`; a view
+    with its own key handling (the virtualised screener) listens in the capture phase and calls
+    `preventDefault()` so the globals stand down. Big tables are virtualised (TanStack Table v8 +
+    Virtual) and sort/filter client-side; the screener snapshot is one cached request.
+  - **First paint:** pages where it matters (dashboard, stock page) are server components that
+    prefetch their above-the-fold queries (`lib/server-api.ts` → `HydrationBoundary`), so they
+    render with data and nothing shifts (CLS 0). Define each page's queries once
+    (`components/<area>/queries.ts`, plain modules) and use those keys in the components. Don't
+    inline big payloads (the chart series): they slow the first paint on slow connections.
+  - **Charts:** Lightweight Charts v5 on the stock page (`stock/price-chart.tsx`, base overlay as
+    a series primitive); dashboard bars are plain SVG/divs in a table. State that must survive
+    reloads (chart range, MAs) goes in `localStorage`, read after mount.
 - **Copy:** plain and specific; errors say what went wrong and how to fix it.
 - **Git:** small commits with clear messages; run lint, types and tests before each commit.
   Develop on the branch named for the session; never push elsewhere without asking.
@@ -235,7 +276,7 @@ Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost)
   backfill. Backfill progress lives in Redis (`backfill:progress`); the admin page polls it.
 - Worker, scheduler and streamer each write `heartbeat:<service>` to Redis every 10 s (TTL 30 s).
   `GET /api/health/ready` checks Postgres, TimescaleDB, Redis and those heartbeats and returns 503
-  if anything is down; the home page renders it. `GET /api/health` is plain liveness.
+  if anything is down; `/admin/status` renders it. `GET /api/health` is plain liveness.
 - `HealthNoiseFilter` (core/logging.py) drops successful health probes and heartbeat-job logs;
   failures always log.
 
@@ -263,8 +304,25 @@ Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost)
 - **SEC acceptance times** in the submissions API end in "Z" but are US/Eastern clock times; the
   parser treats them as Eastern (verified by `test_providers_live.py` once SEC is reachable).
 - **Review charts** use matplotlib's object API (`Figure`, no pyplot) so rendering is safe in
-  threads; the web shows them with `next/image` `unoptimized` (they need the session cookie).
-  The app is dark-only for now, so the cards request `?theme=dark`.
+  threads; the web shows them with `next/image` `unoptimized` (they need the session cookie) and
+  requests the current theme (`?theme=dark|light`).
+- **Lightweight Charts:** pin `localization.locale` ("en-US"): some browsers report locale
+  tags `Intl` rejects (e.g. `en-US@posix`) and the chart throws on creation.
+- **Web test environment (jsdom):** cmdk needs the `ResizeObserver` stub in `vitest.setup.ts`;
+  TanStack Virtual measures `offsetHeight`/`offsetWidth`, so tests of virtualised tables stub
+  them (see `screener.test.tsx`). `@tanstack/react-table` is pinned to v8 (v9 is a different API).
+- **Radix popovers:** a closing popover returns focus to its trigger, which counts as an outside
+  interaction for another popover opening at the same moment (it closes again). Prevent
+  `onCloseAutoFocus` when one popover hands over to another (see `screener/filter-bar.tsx`).
+- **cmdk** keeps the highlighted item across result changes; the palette controls `value` so the
+  top hit is highlighted when new results arrive (Enter opens it).
+- **`output: "standalone"`:** serve production builds with `node .next/standalone/server.js`
+  after copying `.next/static` (as the Dockerfile and `playwright.config.ts` do), not
+  `next start`. The server renames its process to `next-server`, so `pkill -f server.js` misses
+  it (free the port with `fuser -k <port>/tcp`). API_URL is needed at build time (rewrites) and
+  at runtime (server-side prefetch).
+- **Server components importing from `"use client"` modules** get client references, not values:
+  keep constants both sides need (chart ranges, query keys) in plain modules.
 - Pattern tests that compare float prices across scales multiply by 8 (exact in binary
   floating point); ×10 can flip a comparison that sits exactly on a threshold.
 - **Pattern detection runs in a forkserver process pool** (`PATTERN_WORKERS`, 0 = cores − 1;
