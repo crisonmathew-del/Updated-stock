@@ -137,63 +137,108 @@ function AccountMenu() {
   );
 }
 
+const TABS = [
+  { href: "/", label: "Dashboard", icon: "⌂" },
+  { href: "/screener", label: "Screener", icon: "▤" },
+  { href: "/watchlists", label: "Watchlists", icon: "★" },
+];
+
+/** Phones: the main destinations and search as a tab bar along the bottom (spec §9). */
+function TabBar({ pathname, onSearch }: { pathname: string | null; onSearch: () => void }) {
+  const item = "flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px]";
+  return (
+    <nav
+      aria-label="Main"
+      className="fixed inset-x-0 bottom-0 z-20 flex border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden"
+    >
+      {TABS.map(({ href, label, icon }) => {
+        const active = href === "/" ? pathname === "/" : pathname?.startsWith(href);
+        return (
+          <Link
+            key={href}
+            href={href}
+            aria-current={active ? "page" : undefined}
+            className={cn(item, active ? "text-foreground" : "text-muted")}
+          >
+            <span aria-hidden className="text-base leading-none">
+              {icon}
+            </span>
+            {label}
+          </Link>
+        );
+      })}
+      <button type="button" onClick={onSearch} className={cn(item, "text-muted")}>
+        <span aria-hidden className="text-base leading-none">
+          ⌕
+        </span>
+        Search
+      </button>
+    </nav>
+  );
+}
+
 export function TopBar() {
   const pathname = usePathname();
   const theme = useTheme();
   const [paletteOpen, setPaletteOpen] = useState(false);
+  // The tab bar, toasts and palette sit outside <header>: its backdrop-filter would make it the
+  // containing block for their `position: fixed`.
   return (
-    <header className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur">
-      <div className="mx-auto flex h-12 max-w-[1600px] items-center gap-4 px-4">
-        <Link href="/" className="font-semibold tracking-tight">
-          Breakout
-        </Link>
-        <nav className="hidden gap-1 text-sm sm:flex" aria-label="Main">
-          {LINKS.map(({ href, label }) => {
-            const active = href === "/" ? pathname === "/" : pathname?.startsWith(href);
-            return (
-              <Link
-                key={href}
-                href={href}
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "rounded-md px-2 py-1",
-                  active ? "text-foreground" : "text-muted hover:text-foreground",
-                )}
-              >
-                {label}
-              </Link>
-            );
-          })}
-        </nav>
-        <button
-          type="button"
-          onClick={() => setPaletteOpen(true)}
-          className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md border border-border bg-surface px-2.5 text-sm text-muted hover:border-muted sm:max-w-xs"
-        >
-          <span aria-hidden>⌕</span>
-          <span className="truncate">Search ticker or company</span>
-          <span className="ml-auto hidden sm:inline">
-            <Kbd>⌘K</Kbd>
-          </span>
-        </button>
-        <div className="ml-auto flex items-center gap-3">
-          <RegimePill />
-          <Quotes />
+    <>
+      <header className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur">
+        <div className="mx-auto flex h-12 max-w-[1600px] items-center gap-4 px-4">
+          <Link href="/" className="font-semibold tracking-tight">
+            Breakout
+          </Link>
+          <nav className="hidden gap-1 text-sm sm:flex" aria-label="Main">
+            {LINKS.map(({ href, label }) => {
+              const active = href === "/" ? pathname === "/" : pathname?.startsWith(href);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "rounded-md px-2 py-1",
+                    active ? "text-foreground" : "text-muted hover:text-foreground",
+                  )}
+                >
+                  {label}
+                </Link>
+              );
+            })}
+          </nav>
           <button
             type="button"
-            onClick={() => applyTheme(theme === "dark" ? "light" : "dark")}
-            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
-            title={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
-            className="rounded-md px-1.5 py-1 text-muted hover:text-foreground"
+            onClick={() => setPaletteOpen(true)}
+            className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md border border-border bg-surface px-2.5 text-sm text-muted hover:border-muted sm:max-w-xs"
           >
-            <span aria-hidden>◐</span>
+            <span aria-hidden>⌕</span>
+            <span className="truncate">Search ticker or company</span>
+            <span className="ml-auto hidden sm:inline">
+              <Kbd>⌘K</Kbd>
+            </span>
           </button>
-          <AccountMenu />
+          <div className="ml-auto flex items-center gap-3">
+            <RegimePill />
+            <Quotes />
+            <button
+              type="button"
+              onClick={() => applyTheme(theme === "dark" ? "light" : "dark")}
+              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+              title={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+              className="rounded-md px-1.5 py-1 text-muted hover:text-foreground"
+            >
+              <span aria-hidden>◐</span>
+            </button>
+            <AccountMenu />
+          </div>
         </div>
-      </div>
+      </header>
+      <TabBar pathname={pathname} onSearch={() => setPaletteOpen(true)} />
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       <Shortcuts />
       <Toaster />
-    </header>
+    </>
   );
 }

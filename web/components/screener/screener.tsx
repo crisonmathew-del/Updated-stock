@@ -340,7 +340,7 @@ export function Screener() {
     presetDef?.description ?? (active.kind === "preset" ? ALL_STOCKS.description : null);
 
   return (
-    <main className="mx-auto flex h-[calc(100dvh-3.0625rem)] min-h-[36rem] w-full max-w-[1920px] gap-4 px-4 py-4">
+    <main className="mx-auto flex h-[calc(100dvh-7rem)] min-h-[36rem] w-full max-w-[1920px] gap-4 px-4 py-4 sm:h-[calc(100dvh-3.0625rem)]">
       <nav
         aria-label="Screens"
         className="hidden w-56 shrink-0 flex-col gap-4 overflow-y-auto lg:flex"

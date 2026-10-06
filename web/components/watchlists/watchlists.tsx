@@ -31,9 +31,10 @@ import { useToasts } from "@/stores/toast";
 
 const KEY = ["watchlists"];
 
-/** Columns: handle, symbol, price, change, RS, setup, stage, to pivot, note, remove. */
+/** Columns: handle, symbol, price, change, RS, setup, stage, to pivot, note, remove. Phones keep
+ * handle, symbol, price, change and remove, with the note on its own line below. */
 const GRID =
-  "grid grid-cols-[1.5rem_minmax(7rem,1fr)_4.5rem_5rem_minmax(8rem,2fr)_2rem] md:grid-cols-[1.5rem_minmax(8rem,1.2fr)_5rem_5.5rem_2.5rem_4.5rem_6.5rem_6.5rem_minmax(10rem,2fr)_2rem] items-center gap-x-2";
+  "grid grid-cols-[1.5rem_minmax(0,1fr)_4.5rem_5.5rem_2rem] md:grid-cols-[1.5rem_minmax(8rem,1.2fr)_5rem_5.5rem_2.5rem_4.5rem_6.5rem_6.5rem_minmax(10rem,2fr)_2rem] items-center gap-x-2";
 const WIDE = "hidden md:block";
 
 function useReplaceList() {
@@ -141,7 +142,9 @@ function ItemRow({
       <span className={cn(WIDE, "tabular truncate text-right text-xs")}>
         {item.readiness_pct == null ? "—" : formatReadiness(item.readiness_pct)}
       </span>
-      <NoteField key={item.note ?? ""} symbol={item.symbol} value={item.note} onSave={onNote} />
+      <div className="order-last col-span-4 col-start-2 md:order-none md:col-span-1 md:col-start-auto">
+        <NoteField key={item.note ?? ""} symbol={item.symbol} value={item.note} onSave={onNote} />
+      </div>
       <button
         type="button"
         aria-label={`Remove ${item.symbol} from the list`}
@@ -378,7 +381,7 @@ function ListView({ watchlist, onDeleted }: { watchlist: Watchlist; onDeleted: (
             <span className={WIDE}>Setup</span>
             <span className={WIDE}>Stage</span>
             <span className={cn(WIDE, "text-right")}>To pivot</span>
-            <span>Note</span>
+            <span className={WIDE}>Note</span>
             <span />
           </div>
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
