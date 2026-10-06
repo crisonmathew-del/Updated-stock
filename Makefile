@@ -7,6 +7,7 @@ RUN_WEB := $(COMPOSE) run --rm -T --no-deps web
 
 .DEFAULT_GOAL := help
 .PHONY: help dev down logs ps restart test test-api test-web e2e lint lint-api lint-web fmt \
+        digests replay export-recording volume-curve \
         migrate migration seed create-user universe backfill eod-update data-quality scan-now \
         fundamentals patterns setups outcomes \
         shell-api shell-db
@@ -103,6 +104,18 @@ setups: ## Scores, lifecycle, signals for sessions not processed yet (re-scores 
 
 outcomes: ## Update signal outcomes (returns after 1-60 sessions, stop/2R/+20% hit dates)
 	$(RUN_API) python -m app.cli outcomes
+
+digests: ## Send the daily or weekly digest now if one is due (the scheduler does this every 5 minutes)
+	$(RUN_API) python -m app.cli digests
+
+replay: ## Replay a recorded session through the watcher. file=recordings/x.csv.gz [speed=60] [start=09:55] [close=0]
+	$(RUN_API) python -m app.cli replay --file $(file) $(if $(speed),--speed $(speed)) $(if $(start),--start $(start)) $(if $(filter 0,$(close)),--no-close)
+
+export-recording: ## Save a stored session's minute bars as a recording. date=YYYY-MM-DD out=recordings/x.csv.gz [symbols=A,B]
+	$(RUN_API) python -m app.cli export-recording --date $(date) --out $(out) $(if $(symbols),--symbols $(symbols))
+
+volume-curve: ## Learn the time-of-day volume curve from stored minute bars
+	$(RUN_API) python -m app.cli volume-curve
 
 shell-api: ## Open a shell in the api container
 	$(COMPOSE) exec api bash

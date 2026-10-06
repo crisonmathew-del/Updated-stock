@@ -14,7 +14,8 @@ Rules, all on regular-session prices (thin pre-market prints never trigger them)
   or below its stop.
 - **Your rules**: price or a moving average crossed (from the previous print, or the previous
   close at the first print), change on the day, projected volume × average.
-Each event fires once per session (`fired` keys); the alerts engine adds its cooldown.
+Each event fires once per session (`fired` keys: per setup, holding, or rule and stock); the
+alerts engine adds its cooldown.
 """
 
 from dataclasses import dataclass, field
@@ -257,7 +258,7 @@ def evaluate(
         emit(
             "rule",
             rule.priority,
-            f"rule:{rule.rule_id}",
+            f"rule:{rule.rule_id}:{ctx.symbol}",
             f"{ctx.symbol}: {rule.name}",
             hit,
             rule_id=rule.rule_id,

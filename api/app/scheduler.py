@@ -10,6 +10,7 @@ Owns the clock (US/Eastern) and enqueues jobs for the worker; it never does the 
   (spec §5.5 nightly), and a full refresh of every company on Sundays at 06:00.
 - Digests: every 5 minutes, the digests job sends the daily digest (trading days, at the
   `daily_digest_time` setting) or the weekly review (Sundays 18:00) once it is due.
+- Volume curve: weekdays 20:30, relearn the time-of-day volume curve from the stored minutes.
 - First boot: if there are no tickers at all, build the universe and backfill.
 The pre-market scan and the intraday sweep run in the streamer, on the live feed's clock.
 """
@@ -79,6 +80,11 @@ async def enqueue_outcomes(pool: ArqRedis) -> None:
 async def enqueue_digests(pool: ArqRedis) -> None:
     tick = datetime.now().strftime("%Y-%m-%dT%H:%M")
     await pool.enqueue_job("digests", "schedule", _job_id=f"digests:{tick}")
+
+
+async def enqueue_volume_curve(pool: ArqRedis) -> None:
+    day = datetime.now().date().isoformat()
+    await pool.enqueue_job("volume_curve", "schedule", _job_id=f"volume_curve:{day}")
 
 
 async def bootstrap(pool: ArqRedis) -> None:
@@ -159,6 +165,17 @@ async def main() -> None:
         args=[pool],
         minute="*/5",
         id="digests",
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        enqueue_volume_curve,
+        "cron",
+        args=[pool],
+        day_of_week="mon-fri",
+        hour=20,
+        minute=30,
+        id="volume_curve",
         max_instances=1,
         coalesce=True,
     )

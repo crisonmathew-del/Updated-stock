@@ -18,8 +18,8 @@ from pathlib import Path
 from typing import ClassVar
 
 from app.intraday.day import DayState
-from app.intraday.session import at, session_date
-from app.providers.base import MinuteBar, Snapshot, StreamProvider, Trade
+from app.intraday.session import Phase, at, phase, session_date
+from app.providers.base import Bar, MinuteBar, Snapshot, StreamProvider, Trade
 
 COLUMNS = ("symbol", "ts", "open", "high", "low", "close", "volume")
 OFFSETS = (0, 15, 30, 45)  # seconds into the minute of the four prints
@@ -81,6 +81,28 @@ def write_recording(bars: Iterable[MinuteBar], path: Path) -> None:
     path.write_bytes(data)
 
 
+def daily_bars(bars: Iterable[MinuteBar]) -> dict[str, Bar]:
+    """Each symbol's regular-session daily bar from a recording (pre-market left out, as in
+    end-of-day data). One session per recording."""
+    out: dict[str, Bar] = {}
+    for b in sorted(bars, key=lambda b: (b.symbol, b.ts)):
+        if phase(b.ts) is not Phase.REGULAR:
+            continue
+        day = out.get(b.symbol)
+        if day is None:
+            out[b.symbol] = Bar(session_date(b.ts), b.open, b.high, b.low, b.close, b.volume)
+        else:
+            out[b.symbol] = Bar(
+                day.date,
+                day.open,
+                max(day.high, b.high),
+                min(day.low, b.low),
+                b.close,
+                day.volume + b.volume,
+            )
+    return out
+
+
 class ReplayStream(StreamProvider):
     """Plays `bars` back. `speed` is how many times faster than real time (0 = as fast as
     possible); `start` ("HH:MM" US/Eastern) skips quickly through everything before it."""
@@ -97,6 +119,7 @@ class ReplayStream(StreamProvider):
     ) -> None:
         if not bars:
             raise ValueError("The recording has no bars.")
+        self.bars = sorted(bars, key=lambda b: (b.ts, b.symbol))
         self._ticks = sorted(
             (t for b in bars for t in ticks_from_bar(b)), key=lambda t: (t.timestamp, t.symbol)
         )

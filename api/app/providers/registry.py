@@ -1,6 +1,6 @@
 """Pick the configured adapter for each provider role (`*_PROVIDER` settings)."""
 
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.providers.base import (
     FilingsProvider,
     FundamentalsProvider,
@@ -51,10 +51,10 @@ def filings_provider() -> FilingsProvider:
     return SecFilingsProvider()
 
 
-def live_stream_provider() -> StreamProvider | None:
+def live_stream_provider(settings: Settings | None = None) -> StreamProvider | None:
     """The live feed (STREAM_PROVIDER=alpaca), or None. Replay (STREAM_PROVIDER=replay) is
     built by the streamer, which knows the session's previous closes."""
-    settings = get_settings()
+    settings = settings or get_settings()
     if settings.stream_provider != "alpaca":
         return None
     if settings.alpaca_api_key_id is None or settings.alpaca_api_secret_key is None:

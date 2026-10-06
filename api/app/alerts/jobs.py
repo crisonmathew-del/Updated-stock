@@ -9,7 +9,8 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.alerts.delivery import send_alert_emails, send_due_digests
-from app.alerts.email import email_route, sender_from_config
+from app.alerts.email import EmailSender, email_route, sender_from_config
+from app.alerts.engine import EmailRoute
 from app.alerts.eod import session_alerts
 from app.core.config import get_settings
 from app.core.db import get_sessionmaker
@@ -21,27 +22,43 @@ from app.settings.schema import AppSettings
 DIGEST_LOCK = "digests"
 
 
-async def email_alerts(session: AsyncSession, alert_ids: Sequence[int]) -> dict[str, int]:
+async def email_alerts(
+    session: AsyncSession, alert_ids: Sequence[int], sender: EmailSender | None = None
+) -> dict[str, int]:
+    """Email the queued alerts, with `sender` or the configured one."""
     if not alert_ids:
         return {}
     config = get_settings()
-    sender = sender_from_config(config)
+    own = sender is None
+    sender = sender_from_config(config) if own else sender
     try:
         counts = await send_alert_emails(
             session, sender, alert_ids, public_url=config.public_url, email_to=config.email_to
         )
     finally:
-        if sender is not None:
+        if own and sender is not None:
             await sender.aclose()
     return dict(counts)
 
 
-async def eod_alerts(session: AsyncSession, settings: AppSettings, day: date) -> dict[str, Any]:
+async def eod_alerts(
+    session: AsyncSession,
+    settings: AppSettings,
+    day: date,
+    *,
+    sender: EmailSender | None = None,
+    route: EmailRoute | None = None,
+) -> dict[str, Any]:
     """The alerts stage for a session the EOD scan just processed."""
     stats, queued = await session_alerts(
-        session, get_redis(), settings, day, datetime.now(UTC), email_route(get_settings())
+        session,
+        get_redis(),
+        settings,
+        day,
+        datetime.now(UTC),
+        route or email_route(get_settings()),
     )
-    stats["emails"] = await email_alerts(session, queued)
+    stats["emails"] = await email_alerts(session, queued, sender)
     return stats
 
 

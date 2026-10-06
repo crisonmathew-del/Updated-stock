@@ -12,6 +12,10 @@ fundamentals  Load statements, earnings dates and insider trades (nightly; --ful
 patterns      Grades and pattern detection as of a date (--date), optionally for --symbols only
 setups        Scores, lifecycle and signals for every session not processed yet (through --date)
 outcomes      Update signal outcomes (returns after 1-60 sessions, stop/2R/+20% dates)
+digests       Send the daily or weekly digest if one is due
+replay        Play a recorded session through the intraday watcher (alerts, then the close)
+export-recording  Write a stored session's minute bars as a recording (CSV, .gz to compress)
+volume-curve  Learn the time-of-day volume curve from stored minute bars
 """
 
 import argparse
@@ -22,6 +26,7 @@ import os
 import sys
 from collections.abc import Awaitable, Callable
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 from app.alerts import jobs as alert_jobs
@@ -38,6 +43,7 @@ from app.core.security import (
     set_password,
 )
 from app.data import jobs
+from app.intraday.service import export_recording, run_replay, volume_curve_job
 from app.providers.base import ProviderError
 from app.settings import store
 
@@ -148,6 +154,31 @@ async def cmd_digests(_: argparse.Namespace) -> int:
     return await _run_job(alert_jobs.digests_job("cli"))
 
 
+async def cmd_replay(args: argparse.Namespace) -> int:
+    try:
+        stats = await run_replay(
+            Path(args.file), speed=args.speed, start=args.start, close=not args.no_close
+        )
+    except ProviderError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    return _print_stats(stats)
+
+
+async def cmd_export_recording(args: argparse.Namespace) -> int:
+    symbols = [s.strip().upper() for s in args.symbols.split(",")] if args.symbols else None
+    count = await export_recording(date.fromisoformat(args.date), Path(args.out), symbols)
+    if not count:
+        print(f"No minute bars stored for {args.date}.", file=sys.stderr)
+        return 1
+    print(f"Wrote {count} minute bars to {args.out}.")
+    return 0
+
+
+async def cmd_volume_curve(_: argparse.Namespace) -> int:
+    return await _run_job(volume_curve_job("cli"))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m app.cli",
@@ -210,6 +241,22 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("outcomes", help="Update signal outcomes")
     p.set_defaults(handler=cmd_outcomes)
+
+    p = sub.add_parser("replay", help="Replay a recorded session through the intraday watcher")
+    p.add_argument("--file", required=True, help="Recording (CSV of minute bars, or .csv.gz)")
+    p.add_argument("--speed", type=float, default=60, help="× real time (0 = as fast as possible)")
+    p.add_argument("--start", help="Skip quickly to this time (HH:MM US/Eastern)")
+    p.add_argument("--no-close", action="store_true", help="Don't run the close at the end")
+    p.set_defaults(handler=cmd_replay)
+
+    p = sub.add_parser("export-recording", help="Write a stored session's minute bars to a file")
+    p.add_argument("--date", required=True, help="Session YYYY-MM-DD")
+    p.add_argument("--out", required=True, help="Output path (.csv or .csv.gz)")
+    p.add_argument("--symbols", help="Comma-separated symbols (default: all stored)")
+    p.set_defaults(handler=cmd_export_recording)
+
+    p = sub.add_parser("volume-curve", help="Learn the time-of-day volume curve")
+    p.set_defaults(handler=cmd_volume_curve)
     return parser
 
 
