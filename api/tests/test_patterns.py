@@ -13,7 +13,7 @@ import pytest
 
 from app.core.calendar import ends_week
 from app.patterns.bars import Bars
-from app.patterns.detect import detect_patterns
+from app.patterns.detect import detect_patterns, detect_variants
 from app.patterns.types import PatternMatch, PatternType, Status
 from app.settings.schema import DEFAULTS
 from tests.pattern_fixtures import chart, sessions
@@ -369,3 +369,19 @@ def test_detection_does_not_depend_on_the_price_level(name: str) -> None:
         (m.type, m.start, m.status, m.quality) for m in plain
     ]
     assert [m.pivot for m in scaled] == pytest.approx([m.pivot * 8 for m in plain])
+
+
+def test_detect_variants_equals_one_call_per_vcp_limit() -> None:
+    # The backtest's sensitivity grid detects once per VCP final-contraction limit, sharing
+    # everything else. The VCP's final contraction is 4.0%: a 3% limit finds no VCP.
+    bars = chart(VCP, volumes=VCP_VOLUME)
+    variants = [
+        DEFAULTS.model_copy(update={"vcp_final_contraction_max_pct": v}) for v in (3, 6, 14)
+    ]
+    week = ends_week(bars.dates[-1])
+    together = detect_variants(bars, variants, last_week_complete=week)
+    for variant, found in zip(variants, together, strict=True):
+        alone = detect_patterns(bars, variant, last_week_complete=week)
+        assert [m.as_row() for m in found] == [m.as_row() for m in alone]
+    vcps = [[m for m in found if m.type == PatternType.VCP] for found in together]
+    assert [len(v) for v in vcps] == [0, 1, 1]
