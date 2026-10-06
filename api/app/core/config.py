@@ -35,7 +35,7 @@ class Settings(BaseSettings):
 
     # --- Provider selection (see providers/base.py) --------------------------------------------
     price_provider: Literal["yfinance", "massive"] = "yfinance"
-    stream_provider: Literal["none", "alpaca"] = "none"
+    stream_provider: Literal["none", "alpaca", "replay"] = "none"
     fundamentals_provider: Literal["sec_edgar", "fmp"] = "sec_edgar"
     news_provider: Literal["none", "finnhub"] = "none"
 
@@ -45,6 +45,12 @@ class Settings(BaseSettings):
     alpaca_api_key_id: SecretStr | None = None
     alpaca_api_secret_key: SecretStr | None = None
     alpaca_feed: Literal["iex", "sip"] = "iex"
+    # Replay mode (STREAM_PROVIDER=replay): a recorded session played back as the live feed.
+    replay_file: str | None = None
+    replay_speed: float = Field(60, ge=0)  # × real time; 0 = as fast as possible
+    replay_start: str | None = Field(None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    # At the end of a replay, store the day's bars and run the close (confirm or reject).
+    replay_close: bool = True
     fmp_api_key: SecretStr | None = None
     finnhub_api_key: SecretStr | None = None
     sec_user_agent: str | None = None
@@ -54,14 +60,20 @@ class Settings(BaseSettings):
     anthropic_model: str | None = None
 
     # --- Notifications -------------------------------------------------------------------------
+    # The web address alerts link to (stock pages, the alerts centre).
+    public_url: str = "http://localhost:3000"
     email_provider: Literal["resend", "smtp"] = "resend"
     resend_api_key: SecretStr | None = None
     smtp_host: str | None = None
     smtp_port: int = 587
     smtp_username: str | None = None
     smtp_password: SecretStr | None = None
+    smtp_security: Literal["starttls", "ssl", "none"] = "starttls"
     email_from: str | None = None
     email_to: str | None = None
+    # Set by docker-compose for development: with no email provider configured, alerts are
+    # mailed to this SMTP catcher (Mailpit, web UI on :8025) instead of nowhere.
+    mail_catcher_host: str | None = None
     telegram_bot_token: SecretStr | None = None
     telegram_chat_id: str | None = None
     vapid_public_key: str | None = None

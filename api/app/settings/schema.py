@@ -580,6 +580,14 @@ class AppSettings(BaseModel):
     breakout_volume_strong_pct_of_avg: float = _field(
         200, Category.INTRADAY, "A breakout on at least this % of average volume is 'strong'", gt=0
     )
+    partial_feed_volume_share_pct: float = _field(
+        2.5,
+        Category.INTRADAY,
+        "With an IEX-only feed (Alpaca's free plan), the share of the market's volume it sees "
+        "(%); intraday volume is scaled up by it and stays provisional until the close",
+        gt=0,
+        le=100,
+    )
     intraday_projection_min_minutes: int = _field(
         5,
         Category.INTRADAY,

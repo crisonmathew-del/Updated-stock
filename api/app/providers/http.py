@@ -15,9 +15,11 @@ log = get_logger(__name__)
 RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
 
 
-def new_client(user_agent: str, timeout: float = 30.0) -> httpx.AsyncClient:
+def new_client(
+    user_agent: str, timeout: float = 30.0, headers: dict[str, str] | None = None
+) -> httpx.AsyncClient:
     return httpx.AsyncClient(
-        headers={"User-Agent": user_agent, "Accept-Encoding": "gzip, deflate"},
+        headers={"User-Agent": user_agent, "Accept-Encoding": "gzip, deflate", **(headers or {})},
         timeout=httpx.Timeout(timeout, connect=10.0),
         follow_redirects=True,
     )

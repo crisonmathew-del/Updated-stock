@@ -212,10 +212,42 @@ class InsiderTransaction:
 
 @dataclass(frozen=True, slots=True)
 class Trade:
+    """One print from the live feed (or a replayed one). `timestamp` is timezone-aware."""
+
     symbol: str
     timestamp: datetime
     price: float
     size: int
+
+
+@dataclass(frozen=True, slots=True)
+class MinuteBar:
+    """A one-minute bar; `ts` is the minute's start, timezone-aware."""
+
+    symbol: str
+    ts: datetime
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: int
+
+
+@dataclass(frozen=True, slots=True)
+class Snapshot:
+    """A stock's state right now: the last trade, today's regular-session open/high/low and
+    volume so far, pre-market volume, and the previous close (spec §7.1 scans). Volumes are as
+    the feed reports them (an IEX-only feed sees a small share of the market's volume)."""
+
+    symbol: str
+    ts: datetime | None
+    last: float | None
+    prev_close: float | None
+    open: float | None = None
+    high: float | None = None
+    low: float | None = None
+    volume: int = 0
+    premarket_volume: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -284,12 +316,34 @@ class FundamentalsProvider(ABC):
 
 
 class StreamProvider(ABC):
-    """Real-time trades (Phase 6)."""
+    """The live feed (spec §5.1): trades for a changing set of symbols, and snapshots for the
+    scans. `now()` is the feed's clock: wall time when live, the replayed moment in replay.
+
+    `volume_share` is the share of the market's (consolidated) volume this feed reports: 1 for
+    full SIP data and replays of it, a few % for IEX-only feeds. Intraday volume from a partial
+    feed is scaled by it and every intraday volume check stays provisional until the close."""
 
     name: ClassVar[str]
+    volume_share: float = 1.0
+    partial_volume: bool = False
 
     @abstractmethod
-    def trades(self, symbols: Sequence[str]) -> AsyncIterator[Trade]: ...
+    def trades(self) -> AsyncIterator[Trade]:
+        """Prints for the subscribed symbols, until the feed ends (replay) or is closed."""
+
+    @abstractmethod
+    async def subscribe(self, symbols: Sequence[str]) -> None:
+        """Replace the set of symbols whose trades `trades()` yields."""
+
+    @abstractmethod
+    async def snapshots(self, symbols: Sequence[str]) -> dict[str, Snapshot]:
+        """The current snapshot of each symbol the feed knows."""
+
+    @abstractmethod
+    def now(self) -> datetime: ...
+
+    async def aclose(self) -> None:  # noqa: B027  (optional hook)
+        """Release connections."""
 
 
 class NewsProvider(ABC):
