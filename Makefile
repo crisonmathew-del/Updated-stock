@@ -6,7 +6,7 @@ RUN_API := $(COMPOSE) run --rm -T api
 RUN_WEB := $(COMPOSE) run --rm -T --no-deps web
 
 .DEFAULT_GOAL := help
-.PHONY: help dev down logs ps restart test test-api test-web lint lint-api lint-web fmt \
+.PHONY: help dev down logs ps restart test test-api test-web e2e lint lint-api lint-web fmt \
         migrate migration seed create-user universe backfill eod-update data-quality scan-now \
         fundamentals patterns setups outcomes \
         shell-api shell-db
@@ -42,6 +42,12 @@ test-api: ## Backend tests, including integration tests against Postgres and Red
 
 test-web: ## Frontend unit tests
 	$(RUN_WEB) pnpm test
+
+# The one native command: it drives a real browser against a production build. Needs `make dev`
+# running (for Postgres and Redis on localhost), uv, pnpm and `pnpm exec playwright install
+# chromium` once. It seeds its own `breakout_e2e` database; dev data is never touched.
+e2e: ## End-to-end browser tests (native; see the comment in the Makefile)
+	cd web && pnpm exec playwright test
 
 lint: lint-api lint-web ## Lint, format-check and type-check everything
 

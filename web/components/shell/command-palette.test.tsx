@@ -58,6 +58,31 @@ describe("CommandPalette", () => {
     expect(push).toHaveBeenCalledWith("/stocks/SPOT");
   });
 
+  it("highlights the best match when results arrive, so Enter opens it", async () => {
+    mockApi({ "GET /api/search?q=spotify": { body: [SPOT] } });
+    renderWithClient(<Harness initial />);
+    const input = await screen.findByPlaceholderText(/Search a ticker/);
+    expect(screen.getByRole("option", { name: "Go to Dashboard" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    fireEvent.change(input, { target: { value: "spotify" } });
+    const option = await screen.findByRole("option", { name: /SPOT/ });
+    await waitFor(() => expect(option).toHaveAttribute("aria-selected", "true"));
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(push).toHaveBeenCalledWith("/stocks/SPOT");
+  });
+
+  it("opens the best match when Enter comes before the results", async () => {
+    mockApi({ "GET /api/search?q=spotify": { body: [SPOT] } });
+    renderWithClient(<Harness initial />);
+    const input = await screen.findByPlaceholderText(/Search a ticker/);
+    fireEvent.change(input, { target: { value: "spotify" } });
+    fireEvent.keyDown(input, { key: "Enter" }); // inside the 100 ms debounce
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/stocks/SPOT"));
+    expect(push).toHaveBeenCalledTimes(1);
+  });
+
   it("says what to try when nothing matches", async () => {
     mockApi({ "GET /api/search?q=zzz": { body: [] } });
     renderWithClient(<Harness initial />);

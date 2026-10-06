@@ -91,13 +91,32 @@ export function CommandPalette({
   const hits = term ? (results.data ?? []) : [];
   const theme = open ? currentTheme() : "dark";
 
+  // The highlighted item. New results highlight the best match, so Enter opens it; a choice
+  // made with the arrow keys holds until the results change.
+  const hitsKey = `${term}|${hits.map((h) => h.symbol).join(",")}`;
+  const [chosen, setChosen] = useState<{ key: string; value: string } | null>(null);
+  const selected =
+    chosen?.key === hitsKey ? chosen.value : hits[0] ? `stock:${hits[0].symbol}` : "go:/";
+
+  /** Enter before the results for what was typed have arrived: fetch them, open the best. */
+  async function openBestMatch(q: string) {
+    const best = await client.fetchQuery({
+      queryKey: ["search", q],
+      queryFn: () => api.get<SearchHit[]>(`/api/search?q=${encodeURIComponent(q)}`),
+      staleTime: 60_000,
+    });
+    if (best[0]) go(`/stocks/${best[0].symbol}`);
+  }
+
   return (
     <Command.Dialog
       open={open}
       onOpenChange={(next) => (next ? onOpenChange(true) : close())}
       shouldFilter={false}
       label="Search stocks and commands"
+      value={selected}
       onValueChange={(value) => {
+        setChosen({ key: hitsKey, value });
         if (value.startsWith("stock:")) prefetch(value.slice(6));
       }}
       overlayClassName="fixed inset-0 z-40 bg-black/50"
@@ -110,6 +129,13 @@ export function CommandPalette({
         <Command.Input
           value={query}
           onValueChange={setQuery}
+          onKeyDown={(event) => {
+            const q = query.trim();
+            if (event.key === "Enter" && q && (q !== term || results.isFetching)) {
+              event.preventDefault(); // cmdk then leaves Enter alone
+              void openBestMatch(q);
+            }
+          }}
           placeholder="Search a ticker or company…"
           className="h-12 w-full bg-transparent text-base outline-none placeholder:text-muted"
         />
