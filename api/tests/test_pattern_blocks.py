@@ -5,11 +5,13 @@ from datetime import date
 from itertools import pairwise
 
 import numpy as np
+import polars as pl
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from app.patterns.bars import weekly
+from app.indicators.atr import add_atr
+from app.patterns.bars import weekly, wilder_atr
 from app.patterns.context import (
     base_number,
     breakout_status,
@@ -160,3 +162,37 @@ def test_weekly_bars_follow_iso_weeks() -> None:
     assert weeks.high[1] == pytest.approx(bars.high[3:8].max())
     assert weeks.volume[0] == pytest.approx(3_000_000)
     assert list(weekly(bars, last_week_complete=False).complete) == [True, True, False]
+
+
+@settings(max_examples=60, deadline=None)
+@given(
+    st.lists(st.floats(-0.08, 0.08), min_size=1, max_size=120),
+    st.lists(st.floats(0, 0.05), min_size=120, max_size=120),
+)
+def test_wilder_atr_is_bit_identical_to_the_indicator(
+    steps: list[float], spread: list[float]
+) -> None:
+    # The weekly ATR skips the Polars round trip for speed; swings compare against it, so it
+    # must be the same number to the last bit, not just close.
+    close = 50 * np.exp(np.cumsum(steps))
+    high = close * (1 + np.array(spread[: len(close)]))
+    low = close * (1 - np.array(spread[::-1][: len(close)]))
+    frame = pl.DataFrame({"ticker_id": 0, "high": high, "low": low, "close": close})
+    expected = add_atr(frame, 14)["atr14"].fill_null(np.nan).to_numpy()
+    assert np.array_equal(wilder_atr(high, low, close, 14), expected, equal_nan=True)
+
+
+def test_weekly_bars_match_iso_calendar_weeks_across_years_and_windows() -> None:
+    bars = chart([(0, 100), (400, 140), (700, 120)])
+    for lo in (0, 3, 251, 254):  # windows starting mid-week and around new year
+        window = bars.slice(lo, len(bars))
+        keys = [d.isocalendar()[:2] for d in window.dates]
+        firsts = [i for i in range(len(keys)) if i == 0 or keys[i] != keys[i - 1]]
+        lasts = [i - 1 for i in firsts[1:]] + [len(keys) - 1]
+        weeks = weekly(window, last_week_complete=True)
+        assert list(weeks.first) == firsts
+        assert list(weeks.last) == lasts
+        assert weeks.dates == [window.dates[i] for i in lasts]
+        spans = list(zip(firsts, lasts, strict=True))
+        assert list(weeks.high) == [window.high[a : b + 1].max() for a, b in spans]
+        assert list(weeks.low) == [window.low[a : b + 1].min() for a, b in spans]

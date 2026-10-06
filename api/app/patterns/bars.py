@@ -6,12 +6,11 @@ much faster than per-row Polars access. `Bars.until` cuts everything at the as-o
 
 from dataclasses import dataclass, fields, replace
 from datetime import date
+from functools import cached_property
 
 import numpy as np
 import numpy.typing as npt
 import polars as pl
-
-from app.indicators.atr import add_atr
 
 Floats = npt.NDArray[np.float64]
 
@@ -57,18 +56,28 @@ class Bars:
     def last(self) -> int:
         return len(self.dates) - 1
 
+    @cached_property
+    def days(self) -> npt.NDArray[np.datetime64]:
+        """`dates` as a datetime64[D] array (for searching)."""
+        return np.array(self.dates, dtype="datetime64[D]")
+
     def until(self, as_of: date) -> "Bars":
         """Every array cut after the last session on or before `as_of`."""
-        n = int(
-            np.searchsorted(
-                np.array(self.dates, dtype="datetime64[D]"), np.datetime64(as_of), side="right"
-            )
-        )
-        values = {}
-        for f in fields(self):
-            value = getattr(self, f.name)
-            values[f.name] = value[:n]
-        return replace(self, **values)
+        return self.slice(0, int(np.searchsorted(self.days, np.datetime64(as_of), side="right")))
+
+    def window(self, start: date, end: date) -> "Bars":
+        """The sessions from `start` through `end` (both inclusive)."""
+        lo = int(np.searchsorted(self.days, np.datetime64(start), side="left"))
+        hi = int(np.searchsorted(self.days, np.datetime64(end), side="right"))
+        return self.slice(lo, hi)
+
+    def slice(self, lo: int, hi: int) -> "Bars":
+        """Sessions `lo` up to (not including) `hi`: views of the arrays, no copies."""
+        if lo == 0 and hi >= len(self.dates):
+            return self
+        out = replace(self, **{f.name: getattr(self, f.name)[lo:hi] for f in fields(self)})
+        out.__dict__["days"] = self.days[lo:hi]  # a view: windows of one history share it
+        return out
 
     @classmethod
     def from_frame(cls, frame: pl.DataFrame, correction_dates: set[date] | None = None) -> "Bars":
@@ -143,27 +152,41 @@ def weekly(bars: Bars, last_week_complete: bool) -> WeeklyBars:
         return WeeklyBars(
             [], empty, empty, empty, empty, empty, empty, ints, ints, np.array([], dtype=np.bool_)
         )
-    keys = [d.isocalendar()[:2] for d in bars.dates]
-    starts = [0] + [i for i in range(1, len(keys)) if keys[i] != keys[i - 1]]
-    ends = [*(s - 1 for s in starts[1:]), len(keys) - 1]
-    first = np.array(starts, dtype=np.int64)
-    last = np.array(ends, dtype=np.int64)
-    high = np.array([bars.high[a : b + 1].max() for a, b in zip(starts, ends, strict=True)])
-    low = np.array([bars.low[a : b + 1].min() for a, b in zip(starts, ends, strict=True)])
-    volume = np.array([bars.volume[a : b + 1].sum() for a, b in zip(starts, ends, strict=True)])
-    complete = np.ones(len(starts), dtype=np.bool_)
+    # Monday-based week number (1970-01-01 was a Thursday): equal within an ISO week.
+    week = (bars.days.astype(np.int64) + 3) // 7
+    first = np.flatnonzero(np.concatenate(([True], week[1:] != week[:-1]))).astype(np.int64)
+    last = np.concatenate((first[1:] - 1, [len(week) - 1])).astype(np.int64)
+    high = np.maximum.reduceat(bars.high, first)
+    low = np.minimum.reduceat(bars.low, first)
+    close = bars.close[last]
+    complete = np.ones(len(first), dtype=np.bool_)
     complete[-1] = last_week_complete
-    frame = pl.DataFrame({"ticker_id": 0, "high": high, "low": low, "close": bars.close[last]})
-    atr = add_atr(frame, 14)["atr14"].fill_null(np.nan).to_numpy().astype(np.float64)
     return WeeklyBars(
-        dates=[bars.dates[i] for i in ends],
+        dates=[bars.dates[i] for i in last],
         open=bars.open[first],
         high=high,
         low=low,
-        close=bars.close[last],
-        volume=volume,
-        atr14=atr,
+        close=close,
+        volume=np.add.reduceat(bars.volume, first),
+        atr14=wilder_atr(high, low, close, 14),
         first=first,
         last=last,
         complete=complete,
     )
+
+
+def wilder_atr(high: Floats, low: Floats, close: Floats, n: int) -> Floats:
+    """Wilder's ATR over a few hundred bars, identical to app.indicators.atr.add_atr (same
+    seed and the same `v + alpha * (x - v)` step, so the same bits) without a Polars round trip."""
+    out = np.full(len(high), np.nan)
+    if len(high) < n:
+        return out
+    prev = np.concatenate(([np.nan], close[:-1]))
+    true_range = np.fmax(high - low, np.fmax(np.abs(high - prev), np.abs(low - prev)))
+    value = float(np.sum(true_range[:n])) / n
+    out[n - 1] = value
+    alpha = 1 / n
+    for i, x in enumerate(true_range[n:].tolist(), start=n):
+        value = value + alpha * (x - value)
+        out[i] = value
+    return out
