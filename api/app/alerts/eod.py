@@ -6,7 +6,8 @@
    close). Either way an alert says so.
 2. **Signals → alerts.** Every signal of the session that has not alerted yet becomes an alert
    (the grade filter and dedupe are the engine's). Re-running a session alerts nothing twice.
-3. **Holdings (sell rules, spec §6.6).** For each open position at the close: at or below the
+3. **Saved screens promoted to alerts**: stocks that newly match (app.alerts.screens).
+4. **Holdings (sell rules, spec §6.6).** For each open position at the close: at or below the
    stop, a close below the 50-day SMA (high) or the 21-day EMA (on the day it crosses), earnings
    within `earnings_warning_days`, time to raise the stop to breakeven, the profit-taking zone.
    Each warning fires once per position (the stop once per stop level, earnings once per
@@ -24,6 +25,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.alerts.engine import AlertDraft, EmailRoute, raise_alerts
+from app.alerts.screens import screen_drafts
 from app.core.calendar import previous_session, sessions_between
 from app.core.logging import get_logger
 from app.fundamentals.earnings import estimate_next_release
@@ -414,7 +416,11 @@ async def session_alerts(
     """Close confirmation, then alerts for the session's signals and holdings. Returns stats
     and the ids of alerts to email now."""
     confirmation = await confirm_provisional(session, day)
-    drafts = [*await signal_drafts(session, day), *await holding_drafts(session, day, settings)]
+    drafts = [
+        *await signal_drafts(session, day),
+        *await holding_drafts(session, day, settings),
+        *await screen_drafts(session, redis, day),
+    ]
     alerts = await raise_alerts(session, redis, drafts, settings, now, route)
     queued = [a.id for a in alerts if a.delivery.get("email") == "queued"]
     stats = {

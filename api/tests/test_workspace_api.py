@@ -8,8 +8,8 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.routes.screener import FIELDS, SPARK_POINTS
 from app.scanner.eod_scan import run_analytics
+from app.scanner.screener_rows import FIELDS, SPARK_POINTS
 from app.settings.schema import AppSettings
 from tests.test_detection_pipeline import DAYS
 from tests.test_setups_api import breakout_market

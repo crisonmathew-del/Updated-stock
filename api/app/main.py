@@ -11,8 +11,11 @@ from starlette.middleware.gzip import GZipMiddleware
 from app import __version__
 from app.api.routes import (
     admin,
+    alerts,
     auth,
     health,
+    holdings,
+    live,
     market,
     patterns,
     screener,
@@ -87,6 +90,9 @@ def create_app() -> FastAPI:
     api.include_router(stock_chart.router)
     api.include_router(screener.router)
     api.include_router(watchlists.router)
+    api.include_router(alerts.router)
+    api.include_router(holdings.router)
+    api.include_router(live.router)
     app.include_router(api)
     return app
 

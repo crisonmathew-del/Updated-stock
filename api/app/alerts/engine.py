@@ -63,6 +63,25 @@ SETUP_KINDS = frozenset(
 )
 
 
+# How the alerts centre names each kind (signal kinds use app.scanner.evaluate.SIGNAL_LABELS).
+KIND_LABELS = {
+    "breakout_provisional": "Breakout (provisional)",
+    "breakout_extended": "Past the buy zone",
+    "setup_stop": "Stop hit",
+    "holding_stop": "Holding stop",
+    "holding_below_50": "Below the 50-day",
+    "holding_below_21": "Below the 21-day",
+    "holding_breakeven": "Raise stop to breakeven",
+    "holding_profit_zone": "Profit-taking zone",
+    "holding_earnings": "Earnings ahead",
+    "rule": "Your rule",
+    "screen_match": "Screen match",
+    "premarket_gap": "Pre-market gap",
+    "sweep": "Volume surge",
+    "test": "Test",
+}
+
+
 @dataclass(frozen=True)
 class AlertDraft:
     kind: str
