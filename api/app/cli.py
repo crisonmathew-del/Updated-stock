@@ -16,6 +16,7 @@ digests       Send the daily or weekly digest if one is due
 replay        Play a recorded session through the intraday watcher (alerts, then the close)
 export-recording  Write a stored session's minute bars as a recording (CSV, .gz to compress)
 volume-curve  Learn the time-of-day volume curve from stored minute bars
+backtest      Run a backtest of the default rules (--start/--end, --sensitivity for the grid)
 """
 
 import argparse
@@ -179,6 +180,50 @@ async def cmd_volume_curve(_: argparse.Namespace) -> int:
     return await _run_job(volume_curve_job("cli"))
 
 
+async def cmd_backtest(args: argparse.Namespace) -> int:
+    from sqlalchemy import func, select
+
+    from app.api.routes.backtests import _describe, default_start
+    from app.backtest.engine import BacktestParams
+    from app.backtest.jobs import backtest_job
+    from app.models import BacktestRun, IndicatorDaily, User
+
+    async with get_sessionmaker()() as session:
+        user = await session.scalar(select(User).order_by(User.id).limit(1))
+        if user is None:
+            print("Error: create the login user first (make create-user).", file=sys.stderr)
+            return 1
+        first, last = (
+            await session.execute(
+                select(func.min(IndicatorDaily.date), func.max(IndicatorDaily.date))
+            )
+        ).one()
+        if last is None:
+            print("Error: no analytics yet: backfill prices and run the scan.", file=sys.stderr)
+            return 1
+        settings = await store.load(session)
+        end = date.fromisoformat(args.end) if args.end else last
+        start = (
+            date.fromisoformat(args.start)
+            if args.start
+            else default_start(first, end, settings.backtest_years)
+        )
+        params = BacktestParams.defaults(settings, start, end).model_copy(
+            update={"sensitivity": args.sensitivity}
+        )
+        run = BacktestRun(
+            user_id=user.id,
+            name=_describe(params),
+            status="queued",
+            params=params.model_dump(mode="json"),
+            progress={"stage": "queued"},
+        )
+        session.add(run)
+        await session.commit()
+        run_id = run.id
+    return await _run_job(backtest_job("cli", run_id))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m app.cli",
@@ -257,6 +302,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("volume-curve", help="Learn the time-of-day volume curve")
     p.set_defaults(handler=cmd_volume_curve)
+
+    p = sub.add_parser("backtest", help="Run a backtest of the default rules")
+    p.add_argument("--start", help="First session YYYY-MM-DD (default: backtest_years back)")
+    p.add_argument("--end", help="Last session YYYY-MM-DD (default: the latest)")
+    p.add_argument("--sensitivity", action="store_true", help="Also run the sensitivity grid")
+    p.set_defaults(handler=cmd_backtest)
     return parser
 
 

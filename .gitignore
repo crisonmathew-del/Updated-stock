@@ -30,3 +30,6 @@ test-results/
 
 # Replay recordings (minute bars; `make export-recording`)
 api/recordings/
+
+# Backtest tape cache (Parquet; rebuilt on demand)
+api/var/

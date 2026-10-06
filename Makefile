@@ -7,7 +7,7 @@ RUN_WEB := $(COMPOSE) run --rm -T --no-deps web
 
 .DEFAULT_GOAL := help
 .PHONY: help dev down logs ps restart test test-api test-web e2e lint lint-api lint-web fmt \
-        digests replay export-recording volume-curve \
+        digests replay export-recording volume-curve backtest \
         migrate migration seed create-user universe backfill eod-update data-quality scan-now \
         fundamentals patterns setups outcomes \
         shell-api shell-db
@@ -116,6 +116,9 @@ export-recording: ## Save a stored session's minute bars as a recording. date=YY
 
 volume-curve: ## Learn the time-of-day volume curve from stored minute bars
 	$(RUN_API) python -m app.cli volume-curve
+
+backtest: ## Backtest the default rules (also in the web lab). [start=YYYY-MM-DD] [end=…] [sensitivity=1]
+	$(RUN_API) python -m app.cli backtest $(if $(start),--start $(start)) $(if $(end),--end $(end)) $(if $(sensitivity),--sensitivity)
 
 shell-api: ## Open a shell in the api container
 	$(COMPOSE) exec api bash

@@ -12,6 +12,7 @@ from arq import cron, func
 from arq.connections import RedisSettings
 
 from app.alerts import jobs as alert_jobs
+from app.backtest.jobs import backtest_job
 from app.core.config import get_settings
 from app.core.heartbeat import beat
 from app.core.jobs import Trigger
@@ -109,6 +110,10 @@ async def volume_curve(_: dict[str, Any], trigger: Trigger = "schedule") -> dict
     return await volume_curve_job(trigger)
 
 
+async def backtest(_: dict[str, Any], trigger: Trigger = "api", run_id: int = 0) -> dict[str, Any]:
+    return await backtest_job(trigger, run_id)
+
+
 async def startup(ctx: dict[str, Any]) -> None:
     settings = get_settings()
     configure_logging(settings.log_level, settings.log_format)
@@ -134,6 +139,7 @@ class WorkerSettings:
         _task(outcomes, HOUR),
         _task(digests, 600),
         _task(volume_curve, 600),
+        _task(backtest, 8 * HOUR),  # a sensitivity grid on the full universe takes ~1 hour
     ]
     cron_jobs: ClassVar[list[Any]] = [
         cron(heartbeat, second={0, 10, 20, 30, 40, 50}, run_at_startup=False, timeout=5)

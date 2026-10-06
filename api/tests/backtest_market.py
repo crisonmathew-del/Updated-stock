@@ -1,7 +1,9 @@
 """A small synthetic market for the backtest tests, drawn so the rules have something to do:
 
 - SPOT: a VCP (tests.test_patterns) that breaks out on 2× volume at session 333 and runs up;
-- A: the same VCP at half the price that breaks out, then collapses through its stop;
+- A: the same VCP at half the price that breaks out on lighter volume (1.3M shares, ~151% of
+  its 50-day average: confirmed at a 140% threshold, not at 160%), then collapses through its
+  stop;
 - GOOG: a cup with handle that breaks out at session 386;
 - O: the VCP at 13% of the price: it dips under the $10 minimum in its first contraction (out
   of the scan), then comes back;
@@ -30,6 +32,7 @@ from tests.test_universe import listed
 LAST = 400
 BREAKOUT = [*VCP, (333, 93.6), (345, 99.0), (360, 104.0), (375, 97.0), (LAST, 108.0)]
 BREAKOUT_VOLUME = [*VCP_VOLUME, (333, 2.0), (334, 1.0)]
+LIGHT_BREAKOUT_VOLUME = [*VCP_VOLUME, (333, 1.3), (334, 1.0)]
 FAILED = [*VCP, (333, 93.6), (334, 92.0), (338, 80.0), (LAST, 78.0)]
 CUP_BREAKOUT = [*CUP, (385, 92.5), (386, 99.0), (395, 103.0), (LAST, 105.0)]
 CUP_VOLUME = [(0, 1.0), (386, 2.5), (387, 1.2)]
@@ -51,7 +54,7 @@ async def seed_market(db: AsyncSession) -> dict[str, int]:
     histories["AAPL"] = make_history("AAPL", START, last, first_close=150, step=0.15)
     histories["PDD"] = make_history("PDD", START, last, first_close=60, step=0.08)
     histories["SPOT"] = drawn("SPOT", BREAKOUT, BREAKOUT_VOLUME)
-    histories["A"] = drawn("A", scaled(FAILED, 0.5), BREAKOUT_VOLUME)
+    histories["A"] = drawn("A", scaled(FAILED, 0.5), LIGHT_BREAKOUT_VOLUME)
     histories["GOOG"] = drawn("GOOG", CUP_BREAKOUT, CUP_VOLUME)
     histories["O"] = drawn("O", scaled(BREAKOUT, 0.13), [(0, 30.0), (333, 60.0), (334, 30.0)])
     await run_backfill(db, FakePrices(histories), get_redis(), today=last, end=last, years=3)

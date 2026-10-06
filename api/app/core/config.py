@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     market_timezone: str = "America/New_York"
     # Processes for pattern detection in the EOD scan: 0 = one per CPU core but one, 1 = none.
     pattern_workers: int = Field(0, ge=0, le=64)
+    # Where backtest candidate tapes are cached (Parquet; safe to delete, rebuilt on demand).
+    backtest_dir: str = "var/backtests"
 
     # --- Infrastructure ------------------------------------------------------------------------
     database_url: str = "postgresql+asyncpg://breakout:breakout@localhost:5432/breakout"

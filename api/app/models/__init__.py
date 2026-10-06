@@ -9,6 +9,7 @@ from app.models.analytics import (
     MarketBreadthDaily,
     MarketRegimeDaily,
 )
+from app.models.backtests import BacktestRun, BacktestTape
 from app.models.fundamentals import (
     EarningsEvent,
     FundamentalGrade,
@@ -29,6 +30,8 @@ from app.models.workspace import SavedScreen, StockNote, Watchlist, WatchlistIte
 __all__ = [
     "Alert",
     "AlertRule",
+    "BacktestRun",
+    "BacktestTape",
     "CorporateAction",
     "DailyBar",
     "DataQualityIssue",

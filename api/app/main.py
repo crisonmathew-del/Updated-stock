@@ -13,6 +13,7 @@ from app.api.routes import (
     admin,
     alerts,
     auth,
+    backtests,
     health,
     holdings,
     live,
@@ -93,6 +94,7 @@ def create_app() -> FastAPI:
     api.include_router(alerts.router)
     api.include_router(holdings.router)
     api.include_router(live.router)
+    api.include_router(backtests.router)
     app.include_router(api)
     return app
 
