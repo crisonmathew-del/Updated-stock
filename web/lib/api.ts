@@ -861,3 +861,223 @@ export type LiveEvent =
 
 export type LiveMessage =
   { type: "hello"; unread: number } | { type: "batch"; events: LiveEvent[] } | { type: "pong" };
+
+// --- Backtest lab (Phase 7) ------------------------------------------------------------------
+
+export type SetupGrade = "A+" | "A" | "B" | "C";
+
+export type BacktestRules = {
+  min_grade: SetupGrade | null;
+  patterns: string[];
+  near_pivot_only: boolean;
+  skip_risk_too_wide: boolean;
+  skip_correction: boolean;
+  screen_id: number | null;
+  screen_name: string | null;
+  screen_filters: ScreenFilter[];
+};
+
+export type BacktestPortfolio = {
+  initial_capital: number;
+  risk_pct: number;
+  max_position_pct: number;
+  max_positions: number;
+  slippage_pct: number;
+  commission: number;
+};
+
+export type BacktestExits = {
+  sell_unconfirmed: boolean;
+  trailing: "sma50" | "ema21" | "none";
+  time_stop_sessions: number;
+  time_stop_min_gain_pct: number;
+  partial_profit_pct: number;
+  partial_fraction_pct: number;
+  breakeven_r: number;
+  breakeven_gain_pct: number;
+};
+
+export type BacktestParams = {
+  start: string;
+  end: string;
+  rules: BacktestRules;
+  portfolio: BacktestPortfolio;
+  exits: BacktestExits;
+  buy_zone_pct: number;
+  in_sample_pct: number;
+  sensitivity: boolean;
+};
+
+export type BacktestOptions = {
+  defaults: BacktestParams;
+  first_date: string | null;
+  last_date: string | null;
+  patterns: { value: string; label: string }[];
+  screens: { id: number; name: string }[];
+  grid: { vcp: number[]; volume: number[] };
+  running: number | null;
+};
+
+export type BacktestInput = {
+  name?: string | null;
+  start: string;
+  end: string;
+  rules: Omit<BacktestRules, "screen_id" | "screen_name" | "screen_filters">;
+  portfolio: BacktestPortfolio;
+  exits: BacktestExits;
+  sensitivity: boolean;
+  screen_id: number | null;
+};
+
+export type BacktestHeadline = {
+  total_return_pct: number | null;
+  cagr_pct: number | null;
+  max_drawdown_pct: number | null;
+  sharpe: number | null;
+  trades: number;
+  win_rate_pct: number | null;
+  expectancy_r: number | null;
+  profit_factor: number | null;
+  benchmark_cagr_pct: number | null;
+};
+
+export type BacktestProgress = { stage?: string; done?: number; total?: number };
+
+export type BacktestRun = {
+  id: number;
+  name: string;
+  status: "queued" | "running" | "done" | "failed";
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  start: string;
+  end: string;
+  sensitivity: boolean;
+  screen: string | null;
+  summary: BacktestHeadline | null;
+  progress: BacktestProgress;
+  error: string | null;
+};
+
+export type BacktestMetrics = BacktestHeadline & {
+  start?: string | null;
+  end?: string | null;
+  start_equity: number | null;
+  end_equity: number | null;
+  max_drawdown_peak: string | null;
+  max_drawdown_trough: string | null;
+  sortino: number | null;
+  volatility_pct: number | null;
+  exposure_pct: number | null;
+  wins: number;
+  losses: number;
+  avg_win_pct: number | null;
+  avg_loss_pct: number | null;
+  payoff_ratio: number | null;
+  avg_win_r: number | null;
+  avg_loss_r: number | null;
+  net_profit: number | null;
+  avg_sessions: number | null;
+  best_pct: number | null;
+  worst_pct: number | null;
+  stopped_pct: number | null;
+  partial_pct: number | null;
+  benchmark_total_return_pct?: number | null;
+  benchmark_max_drawdown_pct?: number | null;
+};
+
+export type BreakdownRow = {
+  key: string;
+  trades: number;
+  win_rate_pct: number | null;
+  expectancy_r: number | null;
+  avg_win_pct: number | null;
+  avg_loss_pct: number | null;
+  profit_factor: number | null;
+  net_profit: number | null;
+};
+
+export type HeatmapCell = {
+  cagr_pct: number | null;
+  max_drawdown_pct: number | null;
+  trades: number;
+  win_rate_pct: number | null;
+  expectancy_r: number | null;
+  profit_factor: number | null;
+};
+
+export type BacktestReport = {
+  hypothetical: boolean;
+  labels: { hypothetical: string; survivorship: string };
+  assumptions: string[];
+  period: { start: string | null; end: string | null; sessions: number; split: string | null };
+  summary: BacktestMetrics;
+  equity: {
+    dates: string[];
+    equity: number[];
+    benchmark: (number | null)[];
+    drawdown: number[];
+    positions: number[];
+    exposure: number[];
+  };
+  samples: { split_pct: number; in: BacktestMetrics; out: BacktestMetrics };
+  by_regime: BreakdownRow[];
+  by_pattern: BreakdownRow[];
+  by_grade: BreakdownRow[];
+  by_exit: BreakdownRow[];
+  by_year: BreakdownRow[];
+  orders: Record<string, number>;
+  signals: Record<string, number>;
+  tape: Record<string, number | boolean>;
+  heatmap: {
+    vcp: number[];
+    volume: number[];
+    base: { vcp: number; volume: number };
+    cells: (HeatmapCell | null)[][];
+  } | null;
+};
+
+export type BacktestFill = { date: string; price: number; shares: number; reason: string };
+
+export type BacktestTrade = {
+  n: number;
+  ticker_id: number;
+  symbol: string;
+  setup: number;
+  pattern: string | null;
+  grade: string | null;
+  score: number | null;
+  regime: string | null;
+  signal_date: string;
+  entry_date: string;
+  entry_price: number;
+  stop: number;
+  shares: number;
+  exit_date: string | null;
+  exit_price: number | null;
+  exit_reason: string | null;
+  partial: boolean;
+  exits: BacktestFill[];
+  pnl: number;
+  pnl_pct: number;
+  r: number;
+  sessions: number;
+  sample: "in" | "out";
+};
+
+export type BacktestDetail = BacktestRun & {
+  params: BacktestParams;
+  report: BacktestReport | null;
+  trades: BacktestTrade[];
+};
+
+export type TradeChart = {
+  symbol: string;
+  time: string[];
+  open: number[];
+  high: number[];
+  low: number[];
+  close: number[];
+  sma50: (number | null)[];
+  trade: BacktestTrade;
+};
