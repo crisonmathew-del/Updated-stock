@@ -4,8 +4,8 @@ import { E2E_EMAIL, E2E_PASSWORD } from "../playwright.config";
 /**
  * The core journey (spec §12): search → stock page → add to watchlist, plus the screener and
  * the dashboard, on the seeded market: SPOT drew a four-contraction VCP and broke out above its
- * 92.46 pivot (entry 92.56, stop 88.71); AAPL trends steadily. (The alert-rule step arrives
- * with alerts in Phase 6.)
+ * 92.46 pivot (entry 92.56, stop 88.71); AAPL trends steadily. Setting an alert is in
+ * live.spec.ts.
  */
 
 async function signIn(page: Page, next = "/") {
