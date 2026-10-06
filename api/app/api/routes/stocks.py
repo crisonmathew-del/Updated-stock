@@ -2,6 +2,7 @@
 
 import datetime as dt
 from datetime import date, datetime
+from functools import partial
 from typing import Any
 
 import polars as pl
@@ -12,7 +13,7 @@ from sqlalchemy import func, select
 from app.api.deps import AuthUser, DbSession, current_user
 from app.api.routes.patterns import PatternOut, pattern_query, to_out
 from app.core.calendar import sessions_between
-from app.data.loaders import read_frame
+from app.data.loaders import query_frame
 from app.fundamentals.grade import YEAR_AGO, StatementRow, as_known, find_period, growth
 from app.fundamentals.scan import load_grade_inputs
 from app.indicators.compute import INDICATOR_COLUMNS
@@ -102,12 +103,15 @@ async def _ticker(db: DbSession, symbol: str) -> Ticker:
     return ticker
 
 
-async def _indicator_frame(ticker_id: int, through: date | None, sessions: int) -> pl.DataFrame:
+async def _indicator_frame(
+    db: DbSession, ticker_id: int, through: date | None, sessions: int
+) -> pl.DataFrame:
     cutoff = f"AND i.date <= '{through}'" if through else ""
-    frame = await read_frame(
+    frame = await query_frame(
+        db,
         "SELECT i.*, b.close, b.high, b.low, b.volume FROM indicators_daily i "
         "JOIN daily_bars b ON b.ticker_id = i.ticker_id AND b.date = i.date "
-        f"WHERE i.ticker_id = {int(ticker_id)} {cutoff} ORDER BY i.date DESC LIMIT {int(sessions)}"
+        f"WHERE i.ticker_id = {int(ticker_id)} {cutoff} ORDER BY i.date DESC LIMIT {int(sessions)}",
     )
     return frame.sort("date")
 
@@ -116,7 +120,7 @@ async def _indicator_frame(ticker_id: int, through: date | None, sessions: int) 
 async def stock_summary(db: DbSession, symbol: str, on: date | None = None) -> StockSummary:
     ticker = await _ticker(db, symbol)
     settings = await store.load(db)
-    frame = await _indicator_frame(ticker.id, on, settings.ma200_uptrend_lookback_days + 1)
+    frame = await _indicator_frame(db, ticker.id, on, settings.ma200_uptrend_lookback_days + 1)
     row: dict[str, Any] | None = None
     checks: list[CheckOut] = []
     if not frame.is_empty():
@@ -209,7 +213,7 @@ async def stock_indicators(
     db: DbSession, symbol: str, days: int = Query(260, ge=1, le=5000)
 ) -> list[dict[str, Any]]:
     ticker = await _ticker(db, symbol)
-    frame = await _indicator_frame(ticker.id, None, days)
+    frame = await _indicator_frame(db, ticker.id, None, days)
     return [
         {
             k: (v.isoformat() if isinstance(v, date) else v)
@@ -328,7 +332,9 @@ async def stock_fundamentals(db: DbSession, symbol: str, on: date | None = None)
     quarters: list[PeriodOut] = []
     years: list[PeriodOut] = []
     if as_of is not None:
-        inputs = (await load_grade_inputs([ticker.id], as_of, settings))[ticker.id]
+        inputs = (
+            await load_grade_inputs([ticker.id], as_of, settings, read=partial(query_frame, db))
+        )[ticker.id]
         result = inputs.grade(as_of, settings)
         grade = GradeOut(
             date=as_of,
@@ -431,7 +437,8 @@ async def stock_peers(
     latest = await db.scalar(select(func.max(IndicatorDaily.date)))
     if latest is None:
         return []
-    frame = await read_frame(
+    frame = await query_frame(
+        db,
         "SELECT t.id, t.symbol, t.name, b.close, p.close AS prev_close, i.rs_rating, i.stage, "
         "s.grade, s.score, s.state FROM tickers t "
         "JOIN indicators_daily i ON i.ticker_id = t.id "
@@ -443,7 +450,7 @@ async def stock_peers(
         f"WHERE t.active AND NOT t.is_benchmark AND t.industry_group_id = "
         f"{int(ticker.industry_group_id)} "
         "ORDER BY s.score DESC NULLS LAST, i.rs_rating DESC NULLS LAST, t.symbol "
-        f"LIMIT {int(limit)}"
+        f"LIMIT {int(limit)}",
     )
     out = []
     for r in frame.iter_rows(named=True):

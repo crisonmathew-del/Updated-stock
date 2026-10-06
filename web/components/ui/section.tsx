@@ -51,7 +51,11 @@ export function StatusMark({
     no_data: ["–", "text-muted", "no data"],
   }[s];
   return (
-    <span className={cn("inline-block w-4 shrink-0 text-center", look[1])} aria-label={look[2]}>
+    <span
+      role="img"
+      className={cn("inline-block w-4 shrink-0 text-center", look[1])}
+      aria-label={look[2]}
+    >
       {look[0]}
     </span>
   );

@@ -21,6 +21,7 @@ export function GradeBadge({
   const tone = grade ? GRADE_TONE[grade] : undefined;
   return (
     <span
+      role="img"
       className={cn(
         "tabular inline-flex items-baseline gap-1.5 rounded border px-1.5",
         size === "lg" ? "py-1 text-lg" : "py-px text-xs",

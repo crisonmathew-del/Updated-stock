@@ -11,6 +11,7 @@ import { formatPrice, formatReadiness } from "@/lib/format";
 import { patternLabel } from "@/lib/stages";
 import { cn } from "@/lib/utils";
 import { shortDate } from "./market-panel";
+import { DASHBOARD, DASHBOARD_STALE_MS } from "./queries";
 
 const ROW =
   "grid items-center gap-x-3 rounded px-2 py-1.5 text-sm hover:bg-surface-2 focus-visible:bg-surface-2";
@@ -52,10 +53,9 @@ function Name({ symbol, name }: { symbol: string; name: string | null }) {
 /** Actionable setups (basing, near pivot, just broken out), best Setup Score first. */
 export function TopSetups({ className }: { className?: string }) {
   const q = useQuery({
-    queryKey: ["setups", "dashboard", "top"],
-    queryFn: () =>
-      api.get<SetupList>("/api/setups?state=basing,near_pivot,breakout&sort=score&limit=10"),
-    staleTime: 5 * 60_000,
+    queryKey: DASHBOARD.topSetups.key,
+    queryFn: () => api.get<SetupList>(DASHBOARD.topSetups.path),
+    staleTime: DASHBOARD_STALE_MS,
   });
   const items = q.data?.items ?? [];
   const list = { source: "Top setups", symbols: items.map((s) => s.symbol) };
@@ -98,9 +98,9 @@ export function TopSetups({ className }: { className?: string }) {
 /** Setups near their pivot, closest first: the names that could break out next. */
 export function NearPivot({ className }: { className?: string }) {
   const q = useQuery({
-    queryKey: ["setups", "dashboard", "near"],
-    queryFn: () => api.get<SetupList>("/api/setups?state=near_pivot&sort=readiness&limit=10"),
-    staleTime: 5 * 60_000,
+    queryKey: DASHBOARD.nearPivot.key,
+    queryFn: () => api.get<SetupList>(DASHBOARD.nearPivot.path),
+    staleTime: DASHBOARD_STALE_MS,
   });
   const items = q.data?.items ?? [];
   const list = { source: "About to break out", symbols: items.map((s) => s.symbol) };
@@ -155,9 +155,9 @@ export function latestReturn(signal: SignalEntry): [number, string] | null {
 /** Recent breakouts (confirmed at the close) and where each setup stands now. */
 export function Breakouts({ className }: { className?: string }) {
   const q = useQuery({
-    queryKey: ["signals", "dashboard", "breakouts"],
-    queryFn: () => api.get<SignalList>("/api/signals?type=breakout&limit=10"),
-    staleTime: 5 * 60_000,
+    queryKey: DASHBOARD.breakouts.key,
+    queryFn: () => api.get<SignalList>(DASHBOARD.breakouts.path),
+    staleTime: DASHBOARD_STALE_MS,
   });
   const items = (q.data?.items ?? []).filter((s) => s.symbol);
   const latest = items[0]?.date;
@@ -215,9 +215,9 @@ export function Breakouts({ className }: { className?: string }) {
 /** The latest signals of every kind, newest first (live in Phase 6). */
 export function SignalFeed({ className }: { className?: string }) {
   const q = useQuery({
-    queryKey: ["signals", "dashboard", "feed"],
-    queryFn: () => api.get<SignalList>("/api/signals?limit=12"),
-    staleTime: 5 * 60_000,
+    queryKey: DASHBOARD.signals.key,
+    queryFn: () => api.get<SignalList>(DASHBOARD.signals.path),
+    staleTime: DASHBOARD_STALE_MS,
   });
   const items = q.data?.items ?? [];
   const list = {

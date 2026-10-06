@@ -27,10 +27,13 @@ COPY . .
 RUN pnpm build
 
 FROM ${NODE_IMAGE} AS prod
+# Server components also call the API directly at request time (lib/server-api.ts).
+ARG API_URL=http://api:8000
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     HOSTNAME=0.0.0.0 \
-    PORT=3000
+    PORT=3000 \
+    API_URL=${API_URL}
 WORKDIR /app
 COPY --from=build --chown=node:node /app/public ./public
 COPY --from=build --chown=node:node /app/.next/standalone ./

@@ -204,7 +204,8 @@ export function PriceChart({
       candles,
       data.markers.map((m) => ({
         time: m.time as Time,
-        text: m.label,
+        // A small chart keeps the shapes; the labels would crowd it.
+        text: compact ? undefined : m.label,
         size: 0.8,
         ...MARKER[m.kind],
       })),

@@ -6,6 +6,7 @@ import { api, type Groups, type SectorRow } from "@/lib/api";
 import { formatChange } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { shortDate } from "./market-panel";
+import { DASHBOARD, DASHBOARD_STALE_MS } from "./queries";
 
 /** A rank change over 4 weeks with an arrow, so it never relies on colour: ▲ 3, ▼ 2, –. */
 export function RankTrend({ change }: { change: number | null }) {
@@ -14,6 +15,7 @@ export function RankTrend({ change }: { change: number | null }) {
   const down = change < 0;
   return (
     <span
+      role="img"
       className={cn(
         "tabular whitespace-nowrap",
         up ? "text-rise" : down ? "text-fall" : "text-muted",
@@ -28,9 +30,9 @@ export function RankTrend({ change }: { change: number | null }) {
 
 const useGroups = () =>
   useQuery({
-    queryKey: ["groups", 10],
-    queryFn: () => api.get<Groups>("/api/groups?limit=10"),
-    staleTime: 5 * 60_000,
+    queryKey: DASHBOARD.groups.key,
+    queryFn: () => api.get<Groups>(DASHBOARD.groups.path),
+    staleTime: DASHBOARD_STALE_MS,
   });
 
 /** The top 10 industry groups by rank, with their 4-week rank trend. */

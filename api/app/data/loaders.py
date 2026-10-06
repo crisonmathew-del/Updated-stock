@@ -1,12 +1,18 @@
 """Bulk reads from Postgres into Polars (via connectorx, which streams Arrow without going
-through Python objects). Used by data-quality checks now and the scan pipeline from Phase 2."""
+through Python objects) for the jobs and the scan pipeline, plus `query_frame` for the small
+reads of request handlers."""
 
 import asyncio
+import json
 from collections.abc import Sequence
 from datetime import date
+from decimal import Decimal
+from typing import Any
 
 import polars as pl
+from sqlalchemy import text
 from sqlalchemy.engine import make_url
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 
@@ -33,6 +39,29 @@ def _read(query: str) -> pl.DataFrame:
 async def read_frame(query: str) -> pl.DataFrame:
     """Run a read-only query (no parameters: inline only trusted ints/dates) into Polars."""
     return await asyncio.to_thread(_read, query)
+
+
+def _plain(value: Any) -> Any:
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, dict | list):
+        return json.dumps(value, separators=(",", ":"))  # as connectorx writes it
+    return value
+
+
+async def query_frame(session: AsyncSession, query: str) -> pl.DataFrame:
+    """`read_frame` for the small reads of request handlers: it runs on the session's pooled
+    connection, where connectorx opens a new connection per query (~20 ms each). The frame
+    matches connectorx's: JSON as text, numerics as floats, all-null columns as Float64."""
+    result = await session.execute(text(query))
+    columns = list(result.keys())
+    rows = [tuple(_plain(v) for v in row) for row in result.all()]
+    if not rows:
+        return pl.DataFrame(schema=dict.fromkeys(columns, pl.Float64))
+    frame = pl.DataFrame(rows, schema=columns, orient="row", infer_schema_length=None)
+    return frame.with_columns(
+        pl.col(c).cast(pl.Float64) for c, dtype in frame.schema.items() if dtype == pl.Null
+    )
 
 
 def _append(table: str, frame: pl.DataFrame) -> None:

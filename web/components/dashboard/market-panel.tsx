@@ -6,6 +6,7 @@ import { Section } from "@/components/ui/section";
 import { api, type BreadthDay, type Regime } from "@/lib/api";
 import { formatNumber, formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { DASHBOARD, DASHBOARD_STALE_MS } from "./queries";
 
 export const REGIME_LOOK: Record<string, { icon: string; tone: string }> = {
   confirmed_uptrend: { icon: "▲", tone: "text-rise" },
@@ -18,8 +19,6 @@ const STATE_LABELS: Record<string, string> = {
   uptrend_under_pressure: "Uptrend under pressure",
   correction: "Correction",
 };
-
-const BREADTH_SESSIONS = 20;
 
 /** "2026-09-12" → "Sep 12". */
 export function shortDate(iso: string | null | undefined): string {
@@ -159,14 +158,14 @@ function Breadth({ days }: { days: BreadthDay[] }) {
  */
 export function MarketPanel({ className }: { className?: string }) {
   const regime = useQuery({
-    queryKey: ["market", "regime", 60],
-    queryFn: () => api.get<Regime>("/api/market/regime?days=60"),
-    staleTime: 5 * 60_000,
+    queryKey: DASHBOARD.regime.key,
+    queryFn: () => api.get<Regime>(DASHBOARD.regime.path),
+    staleTime: DASHBOARD_STALE_MS,
   });
   const breadth = useQuery({
-    queryKey: ["market", "breadth", BREADTH_SESSIONS],
-    queryFn: () => api.get<BreadthDay[]>(`/api/market/breadth?days=${BREADTH_SESSIONS}`),
-    staleTime: 5 * 60_000,
+    queryKey: DASHBOARD.breadth.key,
+    queryFn: () => api.get<BreadthDay[]>(DASHBOARD.breadth.path),
+    staleTime: DASHBOARD_STALE_MS,
   });
   const r = regime.data;
   const look = r?.state ? (REGIME_LOOK[r.state] ?? { icon: "•", tone: "text-muted" }) : null;

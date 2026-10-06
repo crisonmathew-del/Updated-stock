@@ -36,7 +36,7 @@ function ScoreBreakdown({ setup }: { setup: SetupDetail }) {
           const s = STATUS[c.status];
           return (
             <li key={c.key} className="flex gap-3 py-1.5">
-              <span className={cn("w-4", s.cls)} aria-label={s.label}>
+              <span role="img" className={cn("w-4", s.cls)} aria-label={s.label}>
                 {s.symbol}
               </span>
               <span className="flex-1">

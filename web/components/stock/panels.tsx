@@ -17,6 +17,7 @@ import { formatCompact, formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useListStore } from "@/stores/list";
 import { Section, StatusMark } from "@/components/ui/section";
+import { stockQueries } from "./queries";
 
 export function TrendTemplatePanel({ summary }: { summary: StockSummary }) {
   return (
@@ -117,8 +118,8 @@ function QuarterBars({
 
 export function FundamentalsPanel({ symbol }: { symbol: string }) {
   const f = useQuery({
-    queryKey: ["stock", symbol, "fundamentals"],
-    queryFn: () => api.get<Fundamentals>(`/api/stocks/${symbol}/fundamentals`),
+    queryKey: stockQueries(symbol).fundamentals.key,
+    queryFn: () => api.get<Fundamentals>(stockQueries(symbol).fundamentals.path),
     staleTime: 10 * 60_000,
   });
   const grade = f.data?.grade;
@@ -223,8 +224,8 @@ export function PatternPanel({ setup }: { setup: SetupDetail | null | undefined 
 export function PeersPanel({ symbol, summary }: { symbol: string; summary: StockSummary }) {
   const setList = useListStore((s) => s.setList);
   const peers = useQuery({
-    queryKey: ["stock", symbol, "peers"],
-    queryFn: () => api.get<Peer[]>(`/api/stocks/${symbol}/peers`),
+    queryKey: stockQueries(symbol).peers.key,
+    queryFn: () => api.get<Peer[]>(stockQueries(symbol).peers.path),
     staleTime: 10 * 60_000,
   });
   const g = summary.group;
@@ -280,8 +281,8 @@ export function PeersPanel({ symbol, summary }: { symbol: string; summary: Stock
 
 export function InsidersPanel({ symbol }: { symbol: string }) {
   const f = useQuery({
-    queryKey: ["stock", symbol, "fundamentals"],
-    queryFn: () => api.get<Fundamentals>(`/api/stocks/${symbol}/fundamentals`),
+    queryKey: stockQueries(symbol).fundamentals.key,
+    queryFn: () => api.get<Fundamentals>(stockQueries(symbol).fundamentals.path),
     staleTime: 10 * 60_000,
   });
   const trades = f.data?.insiders.slice(0, 8) ?? [];
@@ -310,8 +311,8 @@ export function InsidersPanel({ symbol }: { symbol: string }) {
 export function NotesPanel({ symbol }: { symbol: string }) {
   const client = useQueryClient();
   const note = useQuery({
-    queryKey: ["stock", symbol, "note"],
-    queryFn: () => api.get<Note>(`/api/stocks/${symbol}/note`),
+    queryKey: stockQueries(symbol).note.key,
+    queryFn: () => api.get<Note>(stockQueries(symbol).note.path),
   });
   const [draft, setDraft] = useState<string | null>(null);
   const save = useMutation({

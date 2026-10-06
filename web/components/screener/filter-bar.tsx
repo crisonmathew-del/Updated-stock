@@ -208,7 +208,7 @@ function FilterChip({
         type="button"
         aria-label={`Remove filter ${text}`}
         onClick={onRemove}
-        className="rounded-r-md px-1.5 py-1 text-muted hover:bg-surface-2 hover:text-foreground"
+        className="min-w-7 rounded-r-md px-2 py-1 text-muted hover:bg-surface-2 hover:text-foreground"
       >
         ×
       </button>

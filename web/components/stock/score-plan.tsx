@@ -6,6 +6,7 @@ import { api, type SetupDetail } from "@/lib/api";
 import { formatNumber, formatPrice } from "@/lib/format";
 import { size, sizingSettings } from "@/lib/sizing";
 import { Section, StatusMark } from "@/components/ui/section";
+import { SETTINGS_QUERY } from "./queries";
 
 export function ScoreCard({ setup }: { setup: SetupDetail }) {
   return (
@@ -74,8 +75,8 @@ function NumberField({
 export function PlanCard({ setup }: { setup: SetupDetail }) {
   const plan = setup.trade_plan;
   const settings = useQuery({
-    queryKey: ["settings"],
-    queryFn: () => api.get<{ items: { key: string; value: unknown }[] }>("/api/settings"),
+    queryKey: SETTINGS_QUERY.key,
+    queryFn: () => api.get<{ items: { key: string; value: unknown }[] }>(SETTINGS_QUERY.path),
     staleTime: 10 * 60_000,
   });
   const [entry, setEntry] = useState(plan ? plan.entry.toFixed(2) : "");

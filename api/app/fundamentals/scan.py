@@ -6,11 +6,12 @@ up/down volume ratio, recent insider purchases and splits, then writes one
 """
 
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any
 
+import polars as pl
 from sqlalchemy import delete, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,12 +29,17 @@ from app.settings.schema import AppSettings
 CHUNK = 1000
 
 
+Reader = Callable[[str], Awaitable[pl.DataFrame]]
+
+
 def _ids(ticker_ids: Sequence[int]) -> str:
     return ",".join(str(int(t)) for t in ticker_ids)
 
 
-async def _statements(table: str, ids: str, as_of: date) -> dict[int, list[StatementRow]]:
-    frame = await read_frame(
+async def _statements(
+    table: str, ids: str, as_of: date, read: Reader
+) -> dict[int, list[StatementRow]]:
+    frame = await read(
         "SELECT ticker_id, period_end, reported_date, fiscal_year, fiscal_period, "
         "coalesce(eps_diluted, eps_basic) AS eps, revenue, net_income, operating_income, "
         f"equity, derived, currency FROM {table} "
@@ -80,25 +86,26 @@ class GradeInputs:
 
 
 async def load_grade_inputs(
-    ticker_ids: Sequence[int], as_of: date, settings: AppSettings
+    ticker_ids: Sequence[int], as_of: date, settings: AppSettings, read: Reader = read_frame
 ) -> dict[int, GradeInputs]:
-    """Everything the grade needs for these stocks, as known on `as_of`."""
+    """Everything the grade needs for these stocks, as known on `as_of`. Request handlers pass
+    `read=partial(query_frame, session)` (one stock: pooled connection beats connectorx)."""
     out: dict[int, GradeInputs] = defaultdict(GradeInputs)
     if not ticker_ids:
         return out
     ids = _ids(ticker_ids)
-    for tid, rows in (await _statements("fundamentals_quarterly", ids, as_of)).items():
+    for tid, rows in (await _statements("fundamentals_quarterly", ids, as_of, read)).items():
         out[tid].quarterly = rows
-    for tid, rows in (await _statements("fundamentals_annual", ids, as_of)).items():
+    for tid, rows in (await _statements("fundamentals_annual", ids, as_of, read)).items():
         out[tid].annual = rows
-    volume = await read_frame(
+    volume = await read(
         "SELECT ticker_id, up_down_volume_50 FROM indicators_daily "
         f"WHERE ticker_id IN ({ids}) AND date = '{as_of.isoformat()}'"
     )
     for tid, ratio in volume.iter_rows():
         out[int(tid)].up_down_volume = ratio
     window = as_of - timedelta(days=settings.insider_cluster_window_days)
-    trades = await read_frame(
+    trades = await read(
         "SELECT ticker_id, transaction_date, filed_date, insider_cik, insider_name, code, "
         "is_director, is_officer FROM insider_transactions "
         f"WHERE ticker_id IN ({ids}) AND code = 'P' AND filed_date <= '{as_of.isoformat()}' "
@@ -116,7 +123,7 @@ async def load_grade_inputs(
                 bool(r["is_officer"]),
             )
         )
-    actions = await read_frame(
+    actions = await read(
         "SELECT ticker_id, ex_date, value FROM corporate_actions "
         f"WHERE ticker_id IN ({ids}) AND kind = 'split' AND ex_date <= '{as_of.isoformat()}'"
     )

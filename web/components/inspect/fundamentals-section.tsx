@@ -89,7 +89,11 @@ export function FundamentalsSection({ symbol }: { symbol: string }) {
       {grade && (
         <div className="flex flex-col gap-3">
           <div className="flex items-baseline gap-3">
-            <span className="text-3xl font-semibold" aria-label={`Grade ${grade.grade ?? "n/a"}`}>
+            <span
+              role="img"
+              className="text-3xl font-semibold"
+              aria-label={`Grade ${grade.grade ?? "n/a"}`}
+            >
               {grade.grade ?? "n/a"}
             </span>
             <span className="tabular text-sm text-muted">

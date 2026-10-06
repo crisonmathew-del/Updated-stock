@@ -283,7 +283,7 @@ export function ResultsTable({
                       event.stopPropagation();
                       onWatch(row.symbol);
                     }}
-                    className="rounded px-1 text-muted hover:bg-surface hover:text-foreground"
+                    className="flex min-h-7 min-w-7 items-center justify-center rounded text-muted hover:bg-surface hover:text-foreground"
                   >
                     ＋
                   </button>

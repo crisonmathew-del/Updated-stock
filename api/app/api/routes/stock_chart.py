@@ -21,7 +21,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 
 from app.api.deps import DbSession, current_user
-from app.data.loaders import read_frame
+from app.data.loaders import query_frame
 from app.models import Pattern, Setup, Signal, Ticker
 from app.patterns.types import EVENTS, LABELS, PatternType
 from app.scanner.evaluate import SIGNAL_LABELS
@@ -153,10 +153,11 @@ async def _markers(
         return None if mapped is None else mapped.isoformat()
 
     out: list[ChartMarker] = []
-    events = await read_frame(
+    events = await query_frame(
+        db,
         "SELECT type, start_date, details, quality FROM patterns "
         f"WHERE ticker_id = {int(ticker_id)} AND type IN ('pocket_pivot', 'earnings_gap') "
-        f"AND start_date BETWEEN '{first.isoformat()}' AND '{last.isoformat()}'"
+        f"AND start_date BETWEEN '{first.isoformat()}' AND '{last.isoformat()}'",
     )
     for kind, day, _, quality in events.iter_rows():
         time = at(day)
@@ -180,10 +181,11 @@ async def _markers(
                     text=f"Earnings gap (quality {quality:.0f}/100)",
                 )
             )
-    releases = await read_frame(
+    releases = await query_frame(
+        db,
         "SELECT report_date, timing FROM earnings_calendar "
         f"WHERE ticker_id = {int(ticker_id)} AND status = 'reported' "
-        f"AND report_date BETWEEN '{first.isoformat()}' AND '{last.isoformat()}'"
+        f"AND report_date BETWEEN '{first.isoformat()}' AND '{last.isoformat()}'",
     )
     for day, timing in releases.iter_rows():
         time = at(day) or at(_next_known(day, place))
@@ -197,10 +199,11 @@ async def _markers(
                     text=f"Results released {day.isoformat()} ({when})",
                 )
             )
-    highs = await read_frame(
+    highs = await query_frame(
+        db,
         "SELECT date, rs_new_high_ahead FROM indicators_daily "
         f"WHERE ticker_id = {int(ticker_id)} AND date BETWEEN '{first.isoformat()}' "
-        f"AND '{last.isoformat()}' ORDER BY date"
+        f"AND '{last.isoformat()}' ORDER BY date",
     )
     previous = False
     for day, ahead in highs.iter_rows():
@@ -318,11 +321,12 @@ async def stock_chart(
     # Weekly needs 40 extra weeks for its slowest average.
     load = sessions if timeframe == "daily" else sessions + 40 * 5
     frame = (
-        await read_frame(
+        await query_frame(
+            db,
             "SELECT b.date, b.open, b.high, b.low, b.close, b.volume, i.ema10, i.ema21, "
             "i.sma50, i.sma150, i.sma200, i.avg_volume_50, i.rs_line FROM daily_bars b "
             "LEFT JOIN indicators_daily i ON i.ticker_id = b.ticker_id AND i.date = b.date "
-            f"WHERE b.ticker_id = {int(ticker.id)} ORDER BY b.date DESC LIMIT {int(load)}"
+            f"WHERE b.ticker_id = {int(ticker.id)} ORDER BY b.date DESC LIMIT {int(load)}",
         )
     ).sort("date")
     if frame.is_empty():

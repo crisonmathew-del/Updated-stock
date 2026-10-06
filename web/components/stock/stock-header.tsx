@@ -15,14 +15,15 @@ import {
 import { formatCompact, formatPrice, formatRankChange } from "@/lib/format";
 import { useAddToWatchlist } from "@/lib/use-watchlist";
 import { neighbours, useListStore } from "@/stores/list";
+import { stockQueries } from "./queries";
 
 function WatchButton({ symbol }: { symbol: string }) {
   const client = useQueryClient();
   const [open, setOpen] = useState(false);
   const add = useAddToWatchlist();
   const lists = useQuery({
-    queryKey: ["membership", symbol],
-    queryFn: () => api.get<Membership[]>(`/api/stocks/${symbol}/watchlists`),
+    queryKey: stockQueries(symbol).membership.key,
+    queryFn: () => api.get<Membership[]>(stockQueries(symbol).membership.path),
   });
   const toggle = useMutation({
     mutationFn: async (m: Membership): Promise<void> => {

@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
 from app.api.deps import AuthUser, DbSession, current_user
-from app.data.loaders import read_frame
+from app.data.loaders import query_frame
 from app.models import Ticker, Watchlist, WatchlistItem
 
 router = APIRouter(prefix="/watchlists", tags=["watchlists"], dependencies=[Depends(current_user)])
@@ -103,12 +103,13 @@ async def _check_name(db: DbSession, user: AuthUser, name: str, other: int | Non
         )
 
 
-async def _items(ids: list[int]) -> dict[int, list[ItemOut]]:
+async def _items(db: DbSession, ids: list[int]) -> dict[int, list[ItemOut]]:
     """Each list's stocks in order, with the latest close, change and setup."""
     out: dict[int, list[ItemOut]] = {i: [] for i in ids}
     if not ids:
         return out
-    frame = await read_frame(
+    frame = await query_frame(
+        db,
         "SELECT w.watchlist_id, w.position, w.note, w.added_at, t.symbol, t.name, "
         "lb.date, lb.close, lb.prev_close, i.rs_rating, s.grade, s.score, s.state, s.pivot, "
         "s.readiness_pct FROM watchlist_items w JOIN tickers t ON t.id = w.ticker_id "
@@ -118,7 +119,7 @@ async def _items(ids: list[int]) -> dict[int, list[ItemOut]]:
         "LEFT JOIN indicators_daily i ON i.ticker_id = t.id AND i.date = lb.date "
         "LEFT JOIN setups s ON s.ticker_id = t.id AND s.active "
         f"WHERE w.watchlist_id IN ({','.join(str(int(i)) for i in ids)}) "
-        "ORDER BY w.watchlist_id, w.position, w.id"
+        "ORDER BY w.watchlist_id, w.position, w.id",
     )
     for r in frame.iter_rows(named=True):
         prev = r["prev_close"]
@@ -148,7 +149,7 @@ async def _out(db: DbSession, user: AuthUser, only: int | None = None) -> list[W
     if only is not None:
         query = query.where(Watchlist.id == only)
     lists = (await db.scalars(query.order_by(Watchlist.position, Watchlist.id))).all()
-    items = await _items([w.id for w in lists])
+    items = await _items(db, [w.id for w in lists])
     return [
         WatchlistOut(id=w.id, name=w.name, position=w.position, items=items[w.id]) for w in lists
     ]

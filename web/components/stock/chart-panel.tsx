@@ -8,21 +8,13 @@ import { api, type ChartData } from "@/lib/api";
 import { isTyping, plainKey } from "@/lib/keys";
 import { cn } from "@/lib/utils";
 import { MA_STYLE } from "./price-chart";
+import { chartQuery, DEFAULT_RANGE, RANGES } from "./queries";
 
 const PriceChart = dynamic(() => import("./price-chart"), {
   ssr: false,
   // Fills the box ChartPanel sizes to the chart's height.
   loading: () => <div className="h-full animate-pulse rounded bg-surface-2" />,
 });
-
-/** Keys 1-5 (spec §8.1). Intraday arrives with real-time data in Phase 6. */
-export const RANGES = [
-  { key: "1", label: "6M", timeframe: "daily", sessions: 504, visible: 126 },
-  { key: "2", label: "1Y", timeframe: "daily", sessions: 504, visible: 252 },
-  { key: "3", label: "2Y", timeframe: "daily", sessions: 504, visible: 504 },
-  { key: "4", label: "2Y W", timeframe: "weekly", sessions: 1260, visible: 104 },
-  { key: "5", label: "5Y W", timeframe: "weekly", sessions: 1260, visible: 260 },
-] as const;
 
 const RANGE_KEY = "breakout:chart-range";
 const MA_KEY = "breakout:chart-mas";
@@ -46,15 +38,20 @@ export function ChartPanel({
   height?: number;
   compact?: boolean;
 }) {
-  const [rangeKey, setRangeKey] = useState<string>("2");
+  const [rangeKey, setRangeKey] = useState<string>(DEFAULT_RANGE.key);
   const [shown, setShown] = useState<Record<string, boolean>>({});
   useEffect(() => {
     // Remembered choices load after mount (the server can't read localStorage).
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setRangeKey(stored(RANGE_KEY, "2"));
+    setRangeKey(stored(RANGE_KEY, DEFAULT_RANGE.key));
     setShown(stored(MA_KEY, {}));
   }, []);
-  const range = RANGES.find((r) => r.key === rangeKey) ?? RANGES[1];
+  const range = RANGES.find((r) => r.key === rangeKey) ?? DEFAULT_RANGE;
+
+  // Fetch the chart's code while its data loads, rather than after (the chart is the hero).
+  useEffect(() => {
+    void import("./price-chart");
+  }, []);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -70,11 +67,8 @@ export function ChartPanel({
   }, []);
 
   const chart = useQuery({
-    queryKey: ["stock", symbol, "chart", range.timeframe, range.sessions],
-    queryFn: () =>
-      api.get<ChartData>(
-        `/api/stocks/${symbol}/chart?timeframe=${range.timeframe}&sessions=${range.sessions}`,
-      ),
+    queryKey: chartQuery(symbol, range.timeframe, range.sessions).key,
+    queryFn: () => api.get<ChartData>(chartQuery(symbol, range.timeframe, range.sessions).path),
     staleTime: 5 * 60_000,
   });
 

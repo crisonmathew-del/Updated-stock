@@ -17,11 +17,12 @@ import {
 import { PlanCard, ScoreCard } from "./score-plan";
 import { Section } from "@/components/ui/section";
 import { StockHeader } from "./stock-header";
+import { stockQueries } from "./queries";
 
 export function summaryQuery(symbol: string) {
   return {
-    queryKey: ["stock", symbol, "summary"],
-    queryFn: () => api.get<StockSummary>(`/api/stocks/${symbol}`),
+    queryKey: stockQueries(symbol).summary.key,
+    queryFn: () => api.get<StockSummary>(stockQueries(symbol).summary.path),
     staleTime: 60_000,
   };
 }
@@ -32,8 +33,8 @@ export function StockPage({ symbol }: { symbol: string }) {
   const client = useQueryClient();
   const summary = useQuery(summaryQuery(symbol));
   const setup = useQuery({
-    queryKey: ["stock", symbol, "setup"],
-    queryFn: () => api.get<SetupDetail | null>(`/api/stocks/${symbol}/setup`),
+    queryKey: stockQueries(symbol).setup.key,
+    queryFn: () => api.get<SetupDetail | null>(stockQueries(symbol).setup.path),
     staleTime: 60_000,
   });
   const symbols = useListStore((s) => s.symbols);
