@@ -23,13 +23,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select, update
 
 from app.alerts.email import email_route
-from app.alerts.engine import (
-    KIND_LABELS,
-    AlertDraft,
-    alert_json,
-    quiet_now,
-    raise_alerts,
-)
+from app.alerts.engine import AlertDraft, alert_json, kind_label, quiet_now, raise_alerts
 from app.alerts.jobs import email_alerts
 from app.api.deps import AuthUser, DbSession, RedisClient, current_user
 from app.core.calendar import MARKET_TZ
@@ -38,7 +32,6 @@ from app.core.heartbeat import heartbeat_key
 from app.intraday.service import STATUS_KEY
 from app.intraday.watcher import REFRESH_CHANNEL
 from app.models import Alert, AlertRule, SavedScreen, Ticker, Watchlist
-from app.scanner.evaluate import SIGNAL_LABELS
 from app.scanner.intraday_scan import MA_LABELS
 from app.settings import store
 
@@ -59,10 +52,6 @@ MovingAverage = Literal["ema10", "ema21", "sma50", "sma150", "sma200"]
 Channel = Literal["in_app", "email"]
 Priority = Literal["high", "normal"]
 PAGE = 50
-
-
-def kind_label(kind: str) -> str:
-    return KIND_LABELS.get(kind) or SIGNAL_LABELS.get(kind) or kind.replace("_", " ").capitalize()
 
 
 class AlertOut(BaseModel):
@@ -168,8 +157,7 @@ class RuleOut(BaseModel):
 
 
 def _out(alert: Alert) -> AlertOut:
-    body = alert_json(alert)
-    return AlertOut(**{**body, "kind_label": kind_label(alert.kind)})
+    return AlertOut(**alert_json(alert))
 
 
 def describe_rule(

@@ -4,7 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
+import { AlertBell } from "@/components/alerts/alert-bell";
 import { CommandPalette } from "@/components/shell/command-palette";
+import { LiveProvider } from "@/components/shell/live-provider";
 import { Shortcuts } from "@/components/shell/shortcuts";
 import { Toaster } from "@/components/shell/toaster";
 import { Change } from "@/components/ui/badges";
@@ -19,6 +21,8 @@ const LINKS = [
   { href: "/", label: "Dashboard" },
   { href: "/screener", label: "Screener" },
   { href: "/watchlists", label: "Watchlists" },
+  { href: "/live", label: "Live" },
+  { href: "/holdings", label: "Holdings" },
 ];
 const ADMIN = [
   { href: "/admin/status", label: "Status" },
@@ -141,11 +145,13 @@ const TABS = [
   { href: "/", label: "Dashboard", icon: "⌂" },
   { href: "/screener", label: "Screener", icon: "▤" },
   { href: "/watchlists", label: "Watchlists", icon: "★" },
+  { href: "/live", label: "Live", icon: "◉" },
+  { href: "/holdings", label: "Holdings", icon: "◧" },
 ];
 
 /** Phones: the main destinations and search as a tab bar along the bottom (spec §9). */
 function TabBar({ pathname, onSearch }: { pathname: string | null; onSearch: () => void }) {
-  const item = "flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px]";
+  const item = "flex min-w-0 flex-1 flex-col items-center gap-0.5 py-2 text-[11px]";
   return (
     <nav
       aria-label="Main"
@@ -222,6 +228,7 @@ export function TopBar() {
           <div className="ml-auto flex items-center gap-3">
             <RegimePill />
             <Quotes />
+            <AlertBell />
             <button
               type="button"
               onClick={() => applyTheme(theme === "dark" ? "light" : "dark")}
@@ -239,6 +246,7 @@ export function TopBar() {
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       <Shortcuts />
       <Toaster />
+      <LiveProvider />
     </>
   );
 }

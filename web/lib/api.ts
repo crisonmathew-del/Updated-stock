@@ -665,3 +665,198 @@ export type SavedScreen = {
   columns: string[] | null;
   updated_at: string;
 };
+
+// --- Alerts, holdings and live data (Phase 6) -----------------------------------------------
+
+export type AlertPriority = "high" | "normal";
+
+export type Alert = {
+  id: number;
+  created_at: string;
+  session_date: string;
+  kind: string;
+  kind_label: string;
+  priority: AlertPriority;
+  symbol: string | null;
+  title: string;
+  body: string;
+  payload: Record<string, unknown>;
+  /** What each channel did, in words: "sent", "digest", "held: quiet hours", "failed: …". */
+  delivery: { in_app?: string; email?: string };
+  read: boolean;
+};
+
+export type AlertsPage = {
+  items: Alert[];
+  unread: number;
+  kinds: { kind: string; label: string; count: number }[];
+  next_before: number | null;
+};
+
+export type AlertsStatus = {
+  email: { configured: boolean; provider: string | null; detail: string };
+  streamer: {
+    alive: boolean;
+    state: string;
+    provider: string | null;
+    detail: string | null;
+    since: string | null;
+  };
+  quiet_hours_now: boolean;
+};
+
+export type RuleScope = "ticker" | "watchlist" | "holdings" | "screen";
+export type RuleCondition =
+  | "price_above"
+  | "price_below"
+  | "ma_cross_above"
+  | "ma_cross_below"
+  | "change_above"
+  | "change_below"
+  | "volume_ratio_above"
+  | "new_match";
+export type MovingAverage = "ema10" | "ema21" | "sma50" | "sma150" | "sma200";
+export type AlertChannel = "in_app" | "email";
+
+export type AlertRule = {
+  id: number;
+  name: string;
+  enabled: boolean;
+  scope: RuleScope;
+  symbol: string | null;
+  watchlist_id: number | null;
+  watchlist_name: string | null;
+  screen_id: number | null;
+  screen_name: string | null;
+  condition: RuleCondition;
+  value: number | null;
+  ma: MovingAverage | null;
+  channels: AlertChannel[];
+  priority: AlertPriority;
+  description: string;
+  last_fired_at: string | null;
+};
+
+export type AlertRuleInput = {
+  name: string;
+  enabled?: boolean;
+  scope: RuleScope;
+  symbol?: string | null;
+  watchlist_id?: number | null;
+  screen_id?: number | null;
+  condition: RuleCondition;
+  value?: number | null;
+  ma?: MovingAverage | null;
+  channels: AlertChannel[];
+  priority: AlertPriority;
+};
+
+export type HoldingWarning = { rule: string; priority: AlertPriority; title: string; body: string };
+
+export type Holding = {
+  id: number;
+  symbol: string;
+  name: string;
+  setup_id: number | null;
+  opened_on: string;
+  entry_price: number;
+  shares: number;
+  initial_stop: number;
+  stop: number;
+  note: string | null;
+  closed_on: string | null;
+  exit_price: number | null;
+  price: number | null;
+  price_at: string | null;
+  price_source: "live" | "close" | "exit" | null;
+  day_change_pct: number | null;
+  pnl: number | null;
+  pnl_pct: number | null;
+  r: number | null;
+  risk_per_share: number;
+  position_value: number | null;
+  open_risk: number | null;
+  warnings: HoldingWarning[];
+};
+
+export type HoldingInput = {
+  symbol: string;
+  entry_price: number;
+  shares: number;
+  initial_stop: number;
+  stop?: number | null;
+  opened_on?: string | null;
+  note?: string | null;
+  setup_id?: number | null;
+};
+
+export type LiveQuote = {
+  symbol: string;
+  last: number;
+  prev_close: number | null;
+  change_pct: number | null;
+  open: number | null;
+  high: number | null;
+  low: number | null;
+  volume: number;
+  partial_volume: boolean;
+  at: string | null;
+};
+
+export type ScanItem = {
+  scan: "premarket" | "sweep";
+  symbol: string;
+  name: string;
+  at: string;
+  price: number;
+  prev_close: number;
+  change_pct: number;
+  volume: number;
+  volume_pct: number;
+  earnings: boolean;
+  grade: string | null;
+  setup_state: string | null;
+};
+
+export type ScanResult = { at: string; items: ScanItem[] };
+
+export type LiveSnapshot = {
+  session: string;
+  quotes: Record<string, LiveQuote>;
+  premarket: ScanResult | null;
+  sweep: ScanResult | null;
+};
+
+export type SetupEvent = {
+  kind: "breakout_provisional" | "breakout_extended" | "setup_stop";
+  symbol: string;
+  setup_id: number | null;
+  price: number;
+  at: string;
+  title: string;
+};
+
+export type IntradayBars = {
+  symbol: string;
+  date: string | null;
+  interval: number;
+  prev_close: number | null;
+  open_time: number | null;
+  time: number[];
+  open: number[];
+  high: number[];
+  low: number[];
+  close: number[];
+  volume: number[];
+  sessions: string[];
+};
+
+/** What the live socket sends (`/api/ws`). */
+export type LiveEvent =
+  | { type: "alert"; data: Alert }
+  | { type: "quotes"; data: LiveQuote[] }
+  | { type: "setup_event"; data: SetupEvent }
+  | { type: "scan"; scan: "premarket" | "sweep"; data: ScanResult };
+
+export type LiveMessage =
+  { type: "hello"; unread: number } | { type: "batch"; events: LiveEvent[] } | { type: "pong" };

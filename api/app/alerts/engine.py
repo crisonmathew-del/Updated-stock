@@ -30,6 +30,7 @@ from app.core.calendar import MARKET_TZ
 from app.core.logging import get_logger
 from app.intraday.session import in_window
 from app.models import Alert, AlertRule, Holding, User, Watchlist, WatchlistItem
+from app.scanner.evaluate import SIGNAL_LABELS
 from app.settings.schema import AppSettings
 
 log = get_logger(__name__)
@@ -172,6 +173,10 @@ async def followed_tickers(session: AsyncSession, user_ids: Sequence[int]) -> di
     return out
 
 
+def kind_label(kind: str) -> str:
+    return KIND_LABELS.get(kind) or SIGNAL_LABELS.get(kind) or kind.replace("_", " ").capitalize()
+
+
 def alert_json(alert: Alert) -> dict[str, Any]:
     """The alert as the API and the live channel send it."""
     return {
@@ -179,6 +184,7 @@ def alert_json(alert: Alert) -> dict[str, Any]:
         "created_at": alert.created_at.isoformat(),
         "session_date": alert.session_date.isoformat(),
         "kind": alert.kind,
+        "kind_label": kind_label(alert.kind),
         "priority": alert.priority,
         "symbol": alert.symbol,
         "title": alert.title,

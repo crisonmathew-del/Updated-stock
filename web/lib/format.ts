@@ -123,3 +123,26 @@ export function formatReadiness(value: number | null | undefined): string {
   if (value == null) return "—";
   return value >= 0 ? `${value.toFixed(1)}% below` : `${(-value).toFixed(1)}% above`;
 }
+
+/** "just now", "4m ago", "2h ago", then the date and time. */
+export function formatAgo(iso: string | null, now: number = Date.now()): string {
+  if (!iso) return "—";
+  const seconds = Math.max(0, Math.round((now - new Date(iso).getTime()) / 1000));
+  if (seconds < 45) return "just now";
+  if (seconds < 3600) return `${Math.round(seconds / 60)}m ago`;
+  if (seconds < 12 * 3600) return `${Math.round(seconds / 3600)}h ago`;
+  return formatDateTime(iso);
+}
+
+/** A US/Eastern clock time for market events: "10:15:30 ET". */
+export function formatMarketTime(iso: string | null): string {
+  if (!iso) return "—";
+  const time = new Date(iso).toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+    timeZone: "America/New_York",
+  });
+  return `${time} ET`;
+}

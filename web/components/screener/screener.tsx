@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { ScreenAlertButton } from "@/components/alerts/screen-alert-button";
 import { api, type SavedScreen, type ScreenerSnapshot } from "@/lib/api";
 import { isTyping, plainKey } from "@/lib/keys";
 import {
@@ -181,6 +182,9 @@ function SaveControls({
   }
   return (
     <div className="flex items-center gap-2">
+      {active.kind === "saved" && !modified && (
+        <ScreenAlertButton screenId={active.id} name={screen.name} />
+      )}
       {active.kind === "saved" && modified && (
         <Button
           size="sm"
