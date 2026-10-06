@@ -25,6 +25,7 @@ class Category(StrEnum):
     RISK = "risk"
     INTRADAY = "intraday"
     ALERTS = "alerts"
+    BACKTEST = "backtest"
     DATA = "data"
 
 
@@ -662,6 +663,76 @@ class AppSettings(BaseModel):
     )
     weekly_digest_enabled: bool = _field(
         True, Category.ALERTS, "Email a weekly review on Sunday evening"
+    )
+
+    # --- Backtest lab defaults (spec §11; a run can override each) ----------------------------
+    backtest_years: int = _field(
+        5,
+        Category.BACKTEST,
+        "Default backtest length (years, ending at the latest session)",
+        ge=1,
+        le=30,
+    )
+    backtest_max_positions: int = _field(
+        10, Category.BACKTEST, "Most positions open at once", ge=1, le=100
+    )
+    backtest_slippage_pct: float = _field(
+        0.1, Category.BACKTEST, "Slippage on every fill (% of the price)", ge=0, le=5
+    )
+    backtest_commission: float = _field(
+        0, Category.BACKTEST, "Commission per order (account currency)", ge=0
+    )
+    backtest_min_grade: Literal["A+", "A", "B", "C"] = _field(
+        "A", Category.BACKTEST, "Trade setups graded this or better (when the order is placed)"
+    )
+    backtest_skip_risk_too_wide: bool = _field(
+        True, Category.BACKTEST, "Skip setups whose logical stop is wider than the maximum stop"
+    )
+    backtest_skip_correction: bool = _field(
+        False, Category.BACKTEST, "No new entries while the market is in a correction"
+    )
+    backtest_sell_unconfirmed: bool = _field(
+        True,
+        Category.BACKTEST,
+        "Sell at the close of the entry day when the breakout isn't confirmed (volume and close "
+        "in range, as the lifecycle judges it)",
+    )
+    backtest_trailing_exit: Literal["sma50", "ema21", "none"] = _field(
+        "sma50", Category.BACKTEST, "Sell on a close below this average (from the day after entry)"
+    )
+    backtest_time_stop_sessions: int = _field(
+        15, Category.BACKTEST, "Time stop: check after this many sessions (0 = off)", ge=0, le=250
+    )
+    backtest_time_stop_min_gain_pct: float = _field(
+        5, Category.BACKTEST, "Time stop: sell if the close is less than this % above entry", ge=0
+    )
+    backtest_partial_fraction_pct: float = _field(
+        33.33,
+        Category.BACKTEST,
+        "Sell this % of the shares at the partial-profit gain (profit_take_min_pct; 0 = off)",
+        ge=0,
+        le=100,
+    )
+    backtest_in_sample_pct: float = _field(
+        70,
+        Category.BACKTEST,
+        "In-sample share of the period (the rest is out of sample)",
+        gt=0,
+        lt=100,
+    )
+    backtest_grid_volume_pct: list[float] = _field(
+        [100, 120, 140, 160, 180, 200],
+        Category.BACKTEST,
+        "Sensitivity grid: breakout volume thresholds (% of the 50-day average)",
+        min_length=1,
+        max_length=8,
+    )
+    backtest_grid_vcp_final_pct: list[float] = _field(
+        [6, 8, 10, 12, 14],
+        Category.BACKTEST,
+        "Sensitivity grid: VCP maximum final contraction (%)",
+        min_length=1,
+        max_length=8,
     )
 
     # --- Data (spec §5.5) ---------------------------------------------------------------------
