@@ -24,6 +24,7 @@ from collections.abc import Awaitable, Callable
 from datetime import date
 from typing import Any
 
+from app.alerts import jobs as alert_jobs
 from app.core.config import get_settings
 from app.core.db import get_engine, get_sessionmaker
 from app.core.jobs import JobAlreadyRunningError
@@ -143,6 +144,10 @@ async def cmd_outcomes(_: argparse.Namespace) -> int:
     return await _run_job(jobs.outcomes_job("cli"))
 
 
+async def cmd_digests(_: argparse.Namespace) -> int:
+    return await _run_job(alert_jobs.digests_job("cli"))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m app.cli",
@@ -199,6 +204,9 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("setups", help="Scores, lifecycle and signals for new sessions")
     p.add_argument("--date", help="Through this session YYYY-MM-DD (default: the latest)")
     p.set_defaults(handler=cmd_setups)
+
+    p = sub.add_parser("digests", help="Send the daily or weekly digest if one is due")
+    p.set_defaults(handler=cmd_digests)
 
     p = sub.add_parser("outcomes", help="Update signal outcomes")
     p.set_defaults(handler=cmd_outcomes)

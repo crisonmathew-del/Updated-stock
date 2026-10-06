@@ -49,6 +49,7 @@ from app.settings.schema import AppSettings
 SIGNAL_LABELS = {  # every signal type (spec §7.2), as the UI names it
     "new_top_setup": "New A/A+ setup",
     "near_pivot": "Near pivot",
+    "breakout_provisional": "Breakout (provisional)",
     "breakout": "Breakout confirmed",
     "breakout_rejected": "Breakout rejected",
     "extended": "Extended",

@@ -11,6 +11,7 @@ from typing import Any, ClassVar, cast
 from arq import cron, func
 from arq.connections import RedisSettings
 
+from app.alerts import jobs as alert_jobs
 from app.core.config import get_settings
 from app.core.heartbeat import beat
 from app.core.jobs import Trigger
@@ -99,6 +100,10 @@ async def outcomes(_: dict[str, Any], trigger: Trigger = "api") -> dict[str, Any
     return await jobs.outcomes_job(trigger)
 
 
+async def digests(_: dict[str, Any], trigger: Trigger = "schedule") -> dict[str, Any]:
+    return await alert_jobs.digests_job(trigger)
+
+
 async def startup(ctx: dict[str, Any]) -> None:
     settings = get_settings()
     configure_logging(settings.log_level, settings.log_format)
@@ -122,6 +127,7 @@ class WorkerSettings:
         _task(patterns, HOUR),
         _task(setups, 2 * HOUR),  # up to MAX_CATCH_UP sessions of detection
         _task(outcomes, HOUR),
+        _task(digests, 600),
     ]
     cron_jobs: ClassVar[list[Any]] = [
         cron(heartbeat, second={0, 10, 20, 30, 40, 50}, run_at_startup=False, timeout=5)

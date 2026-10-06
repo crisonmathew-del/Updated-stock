@@ -8,8 +8,10 @@ Owns the clock (US/Eastern) and enqueues jobs for the worker; it never does the 
 - Universe rebuild: Sundays 18:00 (spec §7.1 weekly review).
 - Fundamentals: 06:00 Tuesday-Saturday for the companies that filed the previous weekday
   (spec §5.5 nightly), and a full refresh of every company on Sundays at 06:00.
+- Digests: every 5 minutes, the digests job sends the daily digest (trading days, at the
+  `daily_digest_time` setting) or the weekly review (Sundays 18:00) once it is due.
 - First boot: if there are no tickers at all, build the universe and backfill.
-Later phases add the pre-market, intraday and nightly jobs here.
+The pre-market scan and the intraday sweep run in the streamer, on the live feed's clock.
 """
 
 import asyncio
@@ -72,6 +74,11 @@ async def enqueue_fundamentals(pool: ArqRedis, full: bool) -> None:
 async def enqueue_outcomes(pool: ArqRedis) -> None:
     day = datetime.now().date().isoformat()
     await pool.enqueue_job("outcomes", "schedule", _job_id=f"outcomes:{day}")
+
+
+async def enqueue_digests(pool: ArqRedis) -> None:
+    tick = datetime.now().strftime("%Y-%m-%dT%H:%M")
+    await pool.enqueue_job("digests", "schedule", _job_id=f"digests:{tick}")
 
 
 async def bootstrap(pool: ArqRedis) -> None:
@@ -143,6 +150,15 @@ async def main() -> None:
         hour=17,
         minute=0,
         id="signal_outcomes",
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        enqueue_digests,
+        "cron",
+        args=[pool],
+        minute="*/5",
+        id="digests",
         max_instances=1,
         coalesce=True,
     )

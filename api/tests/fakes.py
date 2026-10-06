@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from datetime import date
 from typing import ClassVar
 
+from app.alerts.email import EmailError, EmailSender, Message
 from app.providers.base import (
     Bar,
     CompanyFilings,
@@ -163,3 +164,18 @@ def make_history(
         bars.append(Bar(day, close - 0.5, close + 1.0, close - 1.0, close, 1_000_000))
         close += step
     return PriceHistory(symbol, bars, actions or [])
+
+
+class FakeEmailSender(EmailSender):
+    """Keeps every message; `fail` makes the next sends raise like a refused delivery."""
+
+    name: ClassVar[str] = "fake"
+
+    def __init__(self, fail: str | None = None) -> None:
+        self.sent: list[Message] = []
+        self.fail = fail
+
+    async def send(self, message: Message) -> None:
+        if self.fail:
+            raise EmailError(self.fail)
+        self.sent.append(message)

@@ -11,10 +11,13 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.alerts.jobs import eod_alerts
 from app.core.calendar import MARKET_TZ, last_completed_session
 from app.core.db import get_sessionmaker
 from app.core.jobs import Trigger, job_lock, track_job
+from app.core.logging import get_logger
 from app.core.redis import get_redis
 from app.data.backfill import run_backfill
 from app.data.eod_update import EOD_DELAY, run_eod_update
@@ -40,11 +43,14 @@ from app.providers.base import (
     ProviderNotConfiguredError,
     ReferenceProvider,
 )
-from app.scanner.daily import latest_analytics_date, run_daily
+from app.scanner.daily import latest_analytics_date, run_daily, setups_through
 from app.scanner.detection import run_detection
 from app.scanner.eod_scan import run_analytics
 from app.scanner.outcomes import update_outcomes
 from app.settings import store
+from app.settings.schema import AppSettings
+
+log = get_logger(__name__)
 
 INGEST_LOCK = "ingest"
 OUTCOMES_LOCK = "outcomes"
@@ -59,6 +65,21 @@ def latest_session(now: datetime | None = None) -> date:
 
 def market_today() -> date:
     return datetime.now(MARKET_TZ).date()
+
+
+async def _session_alerts(
+    session: AsyncSession, settings: AppSettings, day: date
+) -> dict[str, Any]:
+    """The alerts stage, for the latest session only (a historical re-run alerts nothing). An
+    alerting problem is recorded, not raised: the data job itself succeeded."""
+    if day != latest_session() or await setups_through(session) != day:
+        return {"skipped": "alerts are raised for the latest session only"}
+    try:
+        return await eod_alerts(session, settings, day)
+    except Exception as exc:
+        log.exception("alerts.eod_failed", session=day)
+        await session.rollback()
+        return {"failed": f"{type(exc).__name__}: {exc}"}
 
 
 def _fundamentals_or_none() -> FundamentalsProvider | None:
@@ -160,6 +181,7 @@ async def eod_update_job(
             analytics: dict[str, object] = {}
             await run_analytics(session, settings, through=target, stats=analytics)
             run.stats["analytics"] = analytics
+            run.stats["alerts"] = await _session_alerts(session, settings, target)
         await prices.aclose()
         return run.stats
 
@@ -328,6 +350,10 @@ async def setups_job(trigger: Trigger, *, through: date | None = None) -> dict[s
             if not stats:
                 run.stats["skipped"] = "No analytics computed yet: run `make scan-now` first."
             run.stats.update(stats)
+            if stats:
+                day = await setups_through(session)
+                if day is not None:
+                    run.stats["alerts"] = await _session_alerts(session, settings, day)
         return run.stats
 
 
