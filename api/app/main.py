@@ -19,6 +19,7 @@ from app.api.routes import (
     live,
     market,
     patterns,
+    performance,
     screener,
     search,
     setups,
@@ -95,6 +96,7 @@ def create_app() -> FastAPI:
     api.include_router(holdings.router)
     api.include_router(live.router)
     api.include_router(backtests.router)
+    api.include_router(performance.router)
     app.include_router(api)
     return app
 

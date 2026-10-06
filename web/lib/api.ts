@@ -1081,3 +1081,37 @@ export type TradeChart = {
   sma50: (number | null)[];
   trade: BacktestTrade;
 };
+
+// --- Signal performance (Phase 7) ------------------------------------------------------------
+
+export type PerformanceStats = {
+  signals: number;
+  measured: number;
+  win_rate_pct: number | null;
+  avg_return_pct: number | null;
+  avg_gain_pct: number | null;
+  avg_loss_pct: number | null;
+  expectancy_r: number | null;
+  r_count: number;
+  stop_hit_pct: number | null;
+  reached_20_pct: number | null;
+  median_days_to_20: number | null;
+};
+
+export type PerformanceType = {
+  type: string;
+  label: string;
+  r: boolean;
+  all: PerformanceStats;
+  buckets: (PerformanceStats & { bucket: string })[];
+  regimes: (PerformanceStats & { regime: string })[];
+};
+
+export type Performance = {
+  horizon: number;
+  since: string | null;
+  first: string | null;
+  last: string | null;
+  total: PerformanceStats;
+  types: PerformanceType[];
+};

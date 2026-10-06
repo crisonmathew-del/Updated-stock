@@ -23,6 +23,7 @@ const LINKS = [
   { href: "/watchlists", label: "Watchlists" },
   { href: "/live", label: "Live" },
   { href: "/holdings", label: "Holdings" },
+  { href: "/performance", label: "Performance" },
   { href: "/backtests", label: "Backtests" },
 ];
 const ADMIN = [
