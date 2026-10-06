@@ -28,8 +28,13 @@ Trend Template + VCP / pocket pivots / episodic pivots). **The full build spec i
   the chart drawn at ~640 ms, screener scroll 60 fps, dashboard Lighthouse 95 mobile / 100
   desktop. Deferred by the owner: intraday chart, holdings, alert bell, screen → alert and the
   live setups board (Phase 6); news and the AI summary (Phase 7 / when keys arrive).
-- **Next: Phase 6 (Real-time & alerts).** Plan proposed to the owner; no Phase 6 code until
-  it's approved.
+- **Phase 6 (Real-time & alerts):** built (option A: the Alpaca adapter, switched on by keys
+  in `.env`; IEX volume is scaled and provisional until the close), **awaiting the owner's
+  approval**. Acceptance on a replayed breakout through the full path (watcher → Redis → API
+  WebSocket → Next.js proxy → browser; SMTP to Mailpit): toast 73–158 ms and email 129–138 ms
+  after the triggering print; the close confirmed it (and rejects a fading one,
+  `tests/test_watcher.py`). The live run needs Alpaca keys.
+- **Next: Phase 7 (backtests).** No Phase 7 code until the owner approves Phase 6 and a plan.
 
 ## Owner decisions (answers to spec §0.3)
 
@@ -43,6 +48,7 @@ Trend Template + VCP / pocket pivots / episodic pivots). **The full build spec i
 | ADRs | **Included** in the universe (stored as `type=adr`); the `include_adrs` setting filters them at scan time. |
 | Phase 2 defaults | Build Phase 2 before the Phase 1 live acceptance; overall market = **weaker of SPY and QQQ** (+IWM in small-cap mode); follow-through threshold **1.25%** (spec; IBD now uses ~1.7%, a setting); industry groups from **SEC SIC codes**. |
 | Phase 4 defaults | Setup Score: trend 20, RS 20, fundamentals 20, pattern 20, group 10, accumulation 10; a part without data (e.g. no Fundamentals Grade) is left out and the rest scaled up; × regime 1.0 / 0.8 / 0.5; red-flag penalties extended, late stage, climax −10, wide-and-loose, distribution −5, earnings risk 0; A+ ≥ 90, A ≥ 80, B ≥ 70, C ≥ 60. Breakouts confirmed **at the close** (≥ 140% volume, close in the top third) until real-time data (Phase 6). Outcomes measured from the signal session's close, plus R from the plan. **Plain admin pages** until the Phase 5 design. |
+| Phase 6 | **Option A**: build the Alpaca live adapter now (free keys later switch it on); IEX volume stays provisional until the close. Alerts in-app + email (Resend/SMTP; Mailpit in dev); digests 17:30 ET daily and Sunday 18:00 ET weekly; cooldown 390 min (once a session); setup alerts on stocks you don't hold or watch need grade ≥ A (a setting). |
 | Phase 3 defaults | Grade points/cutoffs as in `fundamentals/grade.py` (EPS growth 25, acceleration 10, sales 15, 3-year EPS 20, ROE 10, margins 10, accumulation 10, insider cluster +5; A ≥ 80, B ≥ 65, C ≥ 50, D ≥ 35); insider Form 4 now, **13F deferred** to a paid provider; next earnings date **estimated** from last year; review charts **server-rendered** (matplotlib). |
 
 ## Non-negotiables (spec §0, §2)
@@ -88,10 +94,20 @@ api/                 Python 3.12 · FastAPI · uv (non-packaged app; run command
                      Score), red_flags.py, lifecycle.py (stage machine), triggers.py
                      (pullback, undercut & rally)
   app/risk/          trade_plan.py (entry, stop, size, targets, management)
+  app/intraday/      session (phases, minutes), day (DayState per print → minute bars), volume
+                     (time-of-day curve, projection), store (minute bars, learned curve), plan
+                     (what to stream + the scans' universe), watcher (the streamer's engine),
+                     live (what counts as live, Redis keys), service (feed building, replay CLI)
+  app/alerts/        engine (drafts → alerts: who, once, channels; live:events pub/sub), email
+                     (Resend/SMTP senders), render (alert/digest emails, mini chart), delivery
+                     (send queued emails, digests), eod (close confirmation, signals → alerts,
+                     holdings' sell rules), screens (saved screen → new-match alerts), jobs
   app/market/        regime.py (distribution days, rally/FTD state machine), breadth.py
   app/groups/        classification.py (SIC → groups/sectors), industry_rank.py
   app/scanner/       snapshot.py: indicators + Trend Template for every stock on a date
-                     (screener, setups); eod_scan.py: the analytics pipeline (full / stale /
+                     (screener, setups); screener_rows.py: the screener snapshot + filter
+                     matching; intraday_scan.py: the per-print rules; live_scans.py:
+                     pre-market and sweep rules; eod_scan.py: the analytics pipeline (full / stale /
                      incremental);
                      daily.py: per-session stages in order (detection.py: grades + patterns;
                      setups.py: load/store around evaluate.py, the pure per-stock setup rules;
@@ -99,34 +115,42 @@ api/                 Python 3.12 · FastAPI · uv (non-packaged app; run command
   app/api/routes/    health, auth, settings, admin, market (+ index quotes), stocks (summary,
                      peers, note, watchlist membership), stock_chart (chart series + overlay),
                      search (ranked trigram search), screener (cached columnar snapshot + saved
-                     screens), watchlists, patterns (review), setups (setups, signals)
+                     screens), watchlists, patterns (review), setups (setups, signals), alerts
+                     (history, rules, tests, status), holdings, live (WebSocket /ws, /live,
+                     intraday bars)
   app/worker.py      arq worker: `arq app.worker.WorkerSettings`
   app/scheduler.py   APScheduler (US/Eastern): `python -m app.scheduler`
-  app/streamer.py    live feed (Phase 6): `python -m app.streamer`
+  app/streamer.py    live feed: `python -m app.streamer` (STREAM_PROVIDER alpaca | replay | none)
   alembic/           async migrations; URL comes from app settings, never alembic.ini
   tests/             pytest; fakes.py has in-memory providers; fixtures/providers/ has
                      real-shaped directory and SEC files; e2e_seed.py seeds the web e2e database
 web/                 Next.js 16 App Router · React 19 · TS strict · Tailwind 4 · pnpm
   proxy.ts           sends signed-out visitors to /login (cookie presence only)
   app/(app)/         signed-in pages with the top bar: / (dashboard), /stocks/[symbol],
-                     /screener, /watchlists; /admin/{status,data,inspect,patterns,setups,signals}
+                     /screener, /watchlists, /live, /holdings, /alerts;
+                     /admin/{status,data,inspect,patterns,setups,signals}
   app/login/         sign-in page (no top bar)
   app/globals.css    design tokens (approved Phase 5 palette) for dark (default) and .light
   components/        UI components (+ colocated *.test.tsx): shell/ (top bar, ⌘K palette,
-                     shortcuts, toasts), ui/ (badges, button, section, stock-link), stock/
-                     (chart, base overlay, panels, score + plan), dashboard/, screener/,
-                     watchlists/; admin pages: admin/, inspect/, patterns/, setups/
+                     shortcuts, toasts, live-provider), ui/ (badges, button, section,
+                     stock-link), stock/ (chart, intraday chart, base overlay, panels, score +
+                     plan), dashboard/, screener/, watchlists/, alerts/ (bell, alerts centre),
+                     live/ (live board), holdings/; admin pages: admin/, inspect/, patterns/,
+                     setups/
   lib/api.ts         typed API client: CSRF header on writes, 401 → /login, response types
   lib/format.ts      number/date/duration formatters, safeNext() redirect guard
   lib/screener.ts    screener field catalogue, presets, filters, sorting keys, CSV (pure)
   lib/sizing.ts      client trade-plan sizing (mirrors risk/trade_plan.py fixtures)
+  lib/live.ts        the /api/ws client (reconnect, ping); lib/positions.ts live P&L in R
   lib/theme.ts       theme cookie + tokens for canvas code; stages.ts, keys.ts, use-*.ts
   lib/server-api.ts  server components: fetch from the API with the visitor's cookie, prefetch
                      into a QueryClient for HydrationBoundary (components/*/queries.ts share keys)
-  stores/            Zustand: list.ts (the list `[`/`]` flip through), toast.ts
+  stores/            Zustand: list.ts (the list `[`/`]` flip through), toast.ts, live.ts
+                     (quotes, setup events, scans from the socket)
   test-utils.tsx     renderWithClient, mockApi (fetch stub keyed by "METHOD /path")
   e2e/ + playwright.config.ts   Playwright journeys against a production build (`make e2e`)
-infra/docker-compose.yml   web, api, worker, scheduler, streamer, migrate (one-shot), postgres, redis
+infra/docker-compose.yml   web, api, worker, scheduler, streamer, migrate (one-shot), postgres, redis,
+                           mailpit (dev mail catcher, UI :8025)
 docs/spec.md         the build specification
 .github/workflows/ci.yml   api (ruff, mypy, pytest + services), web (lint, prettier, tsc,
                            vitest, build), e2e (Playwright), prod Docker image builds
@@ -159,6 +183,10 @@ Only Docker is required; `make` targets run inside containers (except `make e2e`
 | `make patterns [date=…] [symbols=A,B]` | Grades + pattern detection as of a date; with symbols, lists the detections (acceptance checks) |
 | `make setups [date=…]` | Scores, lifecycle and signals for every session not processed yet (re-scores the latest after a settings change) |
 | `make outcomes` | Update signal outcomes (also runs after each scan and at 17:00 ET) |
+| `make digests` | Send the daily/weekly digest if due (the scheduler checks every 5 minutes) |
+| `make replay file=… [speed=60] [start=09:55] [close=0]` | Replay recorded minute bars through the watcher (alerts, emails, live board), then the close |
+| `make export-recording date=… out=… [symbols=A,B]` | Save a stored session's minute bars as a recording |
+| `make volume-curve` | Learn the time-of-day volume curve from stored minute bars (nightly at 20:30 ET) |
 | `make e2e` | Playwright end-to-end tests, run natively: needs `make dev` (Postgres/Redis), uv, pnpm and `pnpm exec playwright install chromium`; seeds its own `breakout_e2e` |
 | `make shell-api` / `make shell-db` | bash in api container / psql |
 
@@ -221,6 +249,21 @@ Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost)
   `SIGNAL_LABELS`. Trade plans are recomputed daily before a breakout and frozen at it.
   Outcomes are % from the signal session's close; R only for breakouts (other signals fire
   before the entry is reached).
+- **Intraday (Phase 6):** every rule runs on the feed's clock (event timestamps, never the wall
+  clock), so a replay behaves like a live day. Volume is projected with the time-of-day curve
+  (`intraday/volume.py`: standard until ≥ 20 full sessions are stored, then learned); a partial
+  (IEX) feed's volume is scaled by `partial_feed_volume_share_pct` and said so. Intraday
+  breakouts are *provisional*: logged as `breakout_provisional` signals, settled at the close by
+  `alerts/eod.confirm_provisional`. The pure rules are `scanner/intraday_scan.py` (per print)
+  and `scanner/live_scans.py` (pre-market, sweep); the watcher only feeds them. "Live" means
+  newer than the latest processed close (`intraday/live.py`).
+- **Alerts:** everything goes through `alerts/engine.raise_alerts` (drafts → per-user alerts;
+  grade filter for setup kinds on stocks you don't follow; Redis cooldown dedupe; delivery
+  recorded per channel in words; in-app pushed on `live:events`). Emails are sent by the caller
+  (`alerts/delivery.send_alert_emails`), never inline in the engine. EOD alerts are raised for
+  the latest session only, once per signal (an alert row links it). New alert kinds get a
+  label in `KIND_LABELS`. The WebSocket batches 250 ms windows and sends alerts only to their
+  user.
 - **Regime definitions** are in `market/regime.py`'s docstring (DD count restarts at a
   follow-through; the below-50-day rules apply only after the index reclaimed its 50-day since
   the follow-through). Every state change and day carries human-readable reasons.
@@ -276,6 +319,11 @@ Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost)
   retries). The update runs the analytics pipeline, then for each new session: grades →
   patterns → setups → signals, then outcomes (also scheduled at 17:00 ET). Universe rebuild: Sundays 18:00 ET. Empty universe at scheduler start → universe +
   backfill. Backfill progress lives in Redis (`backfill:progress`); the admin page polls it.
+- Live: the streamer (or `make replay`) publishes alerts, quotes (≤ every 250 ms) and setup
+  events on Redis `live:events`; `/api/ws` relays them (batched) to the browser through the
+  Next.js proxy (rewrites proxy WebSocket upgrades). Rule and holding changes publish
+  `watch:refresh` so the streamer reloads its plan. Digests: a scheduler tick every 5 min →
+  `digests` job. Volume curve: weekdays 20:30 ET.
 - Worker, scheduler and streamer each write `heartbeat:<service>` to Redis every 10 s (TTL 30 s).
   `GET /api/health/ready` checks Postgres, TimescaleDB, Redis and those heartbeats and returns 503
   if anything is down; `/admin/status` renders it. `GET /api/health` is plain liveness.
@@ -331,6 +379,15 @@ Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost)
   small scans stay in-process). Workers re-import the launching script, so every entry point
   that can run a scan needs an `if __name__ == "__main__":` guard (the CLI, scheduler and
   streamer have one; scratch scripts must too).
+- **Mailpit** (dev) receives every email when no provider is configured: compose sets
+  `MAIL_CATCHER_HOST=mailpit` for the backend services. Resend inline images use `content_id`
+  (`cid:` in the HTML); SMTP builds multipart/related.
+- **`make replay`** runs the watcher in the CLI process and reports itself as the streamer
+  (heartbeat + status): don't run it while the streamer service is streaming. A replay of an
+  older session works against a database whose analytics end the day before it (the e2e/demo
+  seeds), and its close step stores the day's bars from the recording when missing.
+- The session cookie is SameSite=Lax, which browsers don't send on a cross-site WebSocket
+  handshake: that, plus the session check, is the socket's CSRF protection.
 - The Docker image installs uv from PyPI (pinned `0.12.23`; keep in sync with CI and local).
 - **Claude Code cloud sandbox only:**
   - The Docker daemon isn't running by default; start it with `dockerd &`.

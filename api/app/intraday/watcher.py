@@ -36,6 +36,7 @@ from app.core.jobs import job_lock
 from app.core.logging import get_logger
 from app.data.bars import upsert_bars
 from app.intraday.day import DayState
+from app.intraday.live import EVENTS_KEY, MAX_EVENTS, QUOTES_KEY, REFRESH_CHANNEL, scan_key
 from app.intraday.plan import WatchPlan, load_plan
 from app.intraday.session import Phase, in_window, minutes_elapsed, phase, session_date
 from app.intraday.store import current_curve, load_bars, save_bars
@@ -54,18 +55,12 @@ log = get_logger(__name__)
 QUOTE_INTERVAL_SECONDS = 0.25
 BAR_FLUSH_SECONDS = 5.0
 REFRESH_SECONDS = 60.0
-REFRESH_CHANNEL = "watch:refresh"
-QUOTES_KEY = "live:quotes"
 PREMARKET_WINDOW = ("08:00", "09:25")
 PREMARKET_EVERY = timedelta(minutes=5)
 SWEEP_EVERY = timedelta(minutes=15)
 INGEST_LOCK = "ingest"
 # Intraday events about a setup (not a user's holding or rule): pushed to every open page.
 SETUP_EVENTS = frozenset({"breakout_provisional", "breakout_extended", "setup_stop"})
-
-
-def scan_key(scan: str, day: date) -> str:
-    return f"scan:{scan}:{day.isoformat()}"
 
 
 @dataclass(frozen=True)
@@ -253,7 +248,8 @@ class Watcher:
                 )
             day = session_date(now)
             body = {"at": now.isoformat(), "items": [h.as_json() for h in hits]}
-            await self.redis.set(scan_key(scan, day), json.dumps(body), ex=2 * 86400)
+            for key in (scan_key(scan, day), scan_key(scan, "latest")):
+                await self.redis.set(key, json.dumps(body), ex=2 * 86400)
             await publish(self.redis, {"type": "scan", "scan": scan, "data": body})
             if hits:
                 await self._alert([hit_draft(h, day) for h in hits])
@@ -332,20 +328,18 @@ class Watcher:
                 drafts.append(event_draft(event, batch.received_at, signal_id))
         for event in batch.events:
             if event.kind in SETUP_EVENTS:
-                await publish(
-                    self.redis,
-                    {
-                        "type": "setup_event",
-                        "data": {
-                            "kind": event.kind,
-                            "symbol": event.symbol,
-                            "setup_id": event.data.get("setup_id"),
-                            "price": event.price,
-                            "at": event.ts.isoformat(),
-                            "title": event.title,
-                        },
-                    },
-                )
+                data = {
+                    "kind": event.kind,
+                    "symbol": event.symbol,
+                    "setup_id": event.data.get("setup_id"),
+                    "price": event.price,
+                    "at": event.ts.isoformat(),
+                    "title": event.title,
+                }
+                # Kept for pages opened later in the session (GET /api/live), and pushed now.
+                await self.redis.lpush(EVENTS_KEY, json.dumps(data))  # type: ignore[misc]
+                await self.redis.ltrim(EVENTS_KEY, 0, MAX_EVENTS - 1)  # type: ignore[misc]
+                await publish(self.redis, {"type": "setup_event", "data": data})
         await self._alert(drafts)
 
     async def _alerts_loop(self) -> None:

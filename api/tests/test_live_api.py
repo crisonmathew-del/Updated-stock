@@ -19,10 +19,10 @@ from app.core.calendar import MARKET_TZ
 from app.core.redis import get_redis
 from app.core.security import SESSION_COOKIE, create_session
 from app.data.universe import plan_universe, sync_tickers
+from app.intraday.live import EVENTS_KEY, QUOTES_KEY, scan_key
 from app.intraday.store import save_bars, ticker_ids
-from app.intraday.watcher import QUOTES_KEY, scan_key
 from app.main import app as fastapi_app
-from app.models import User
+from app.models import IndicatorDaily, User
 from app.providers.base import MinuteBar
 from tests.test_universe import listed
 
@@ -51,16 +51,29 @@ def test_merge_keeps_your_alerts_and_the_latest_quote_per_stock() -> None:
 
 
 @pytest.mark.integration
-async def test_live_quotes_and_scans_for_today(signed_in: httpx.AsyncClient) -> None:
-    redis = get_redis()
+async def test_live_means_newer_than_the_latest_processed_close(
+    db: AsyncSession, signed_in: httpx.AsyncClient
+) -> None:
     now = datetime.now(MARKET_TZ)
+    # The EOD scan has processed the session two days ago.
+    await sync_tickers(db, plan_universe(listed("SPOT")), DAY)
+    ids = await ticker_ids(db, ["SPOT"])
+    db.add(IndicatorDaily(ticker_id=ids["SPOT"], date=(now - timedelta(days=2)).date()))
+    await db.commit()
+    redis = get_redis()
     fresh = {"symbol": "SPOT", "last": 92.7, "at": now.isoformat()}
     stale = {"symbol": "OLD", "last": 1.0, "at": (now - timedelta(days=3)).isoformat()}
     await redis.hset(QUOTES_KEY, mapping={"SPOT": json.dumps(fresh), "OLD": json.dumps(stale)})  # type: ignore[misc]
     scan = {"at": now.isoformat(), "items": [{"symbol": "NVDA", "change_pct": 5.0}]}
-    await redis.set(scan_key("premarket", now.date()), json.dumps(scan))
+    await redis.set(scan_key("premarket", "latest"), json.dumps(scan))
+    old_scan = {"at": (now - timedelta(days=3)).isoformat(), "items": []}
+    await redis.set(scan_key("sweep", "latest"), json.dumps(old_scan))
+    event = {"kind": "breakout_provisional", "symbol": "SPOT", "at": now.isoformat()}
+    old_event = {"kind": "setup_stop", "symbol": "OLD", "at": (now - timedelta(days=3)).isoformat()}
+    await redis.lpush(EVENTS_KEY, json.dumps(old_event), json.dumps(event))  # type: ignore[misc]
     body = (await signed_in.get("/api/live")).json()
     assert body["session"] == now.date().isoformat()
+    assert [e["symbol"] for e in body["events"]] == ["SPOT"]
     assert list(body["quotes"]) == ["SPOT"]
     assert body["premarket"]["items"][0]["symbol"] == "NVDA"
     assert body["sweep"] is None

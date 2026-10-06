@@ -12,7 +12,7 @@ from app.alerts.engine import AlertDraft, EmailRoute, raise_alerts
 from app.api.routes import alerts as alerts_routes
 from app.core.redis import get_redis
 from app.data.universe import plan_universe, sync_tickers
-from app.intraday.watcher import REFRESH_CHANNEL
+from app.intraday.live import REFRESH_CHANNEL
 from app.models import SavedScreen, User, Watchlist
 from app.settings.schema import AppSettings
 from tests.fakes import FakeEmailSender

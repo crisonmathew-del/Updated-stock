@@ -66,13 +66,18 @@ export function boardRows(
 
 function FeedNote() {
   const connected = useLive((s) => s.connected);
+  const quoted = useLive((s) => Object.keys(s.quotes).length > 0);
   const status = useQuery({
     queryKey: STATUS.key,
     queryFn: () => api.get<AlertsStatus>(STATUS.path),
     refetchInterval: 30_000,
   });
   const s = status.data?.streamer;
-  const streaming = s?.state === "streaming";
+  // Quotes arriving count as streaming even before the status is refetched.
+  const streaming =
+    s?.state === "streaming" || (connected && quoted && s?.state !== "replay finished");
+  const provider =
+    s?.provider === "alpaca" ? "Alpaca" : s?.provider && s.provider !== "none" ? s.provider : null;
   return (
     <p role="status" className="text-xs text-muted">
       <span aria-hidden className={connected && streaming ? "text-rise" : "text-muted"}>
@@ -81,7 +86,7 @@ function FeedNote() {
       {!connected
         ? "Connecting to live updates…"
         : streaming
-          ? `Live from ${s?.provider === "alpaca" ? "Alpaca" : s?.provider}. Intraday volume is provisional until the close confirms it.`
+          ? `Live${provider ? ` from ${provider}` : ""}. Intraday volume is provisional until the close confirms it.`
           : s?.state === "replay finished"
             ? "The replay has finished."
             : "No live feed right now: prices are the last close. "}
@@ -122,7 +127,7 @@ function SetupsTable() {
       note={setups.data?.as_of ? `levels as of ${setups.data.as_of}` : undefined}
     >
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[720px] text-sm">
+        <table className="w-full min-w-[460px] text-sm sm:min-w-[720px]">
           <caption className="sr-only">Setups near or past their pivot, with live prices</caption>
           <thead>
             <tr className="border-b border-border text-xs text-muted">
@@ -152,7 +157,9 @@ function SetupsTable() {
                   <td className="py-1.5 pr-3">
                     <span className="flex items-center gap-2">
                       <GradeBadge grade={setup.grade} score={setup.score} />
-                      <span className="text-muted">{setup.pattern_label ?? setup.kind}</span>
+                      <span className="hidden text-muted sm:inline">
+                        {setup.pattern_label ?? setup.kind}
+                      </span>
                     </span>
                   </td>
                   <td className="tabular py-1.5 pr-3 text-right">{formatPrice(setup.pivot)}</td>
@@ -286,9 +293,9 @@ export function LiveBoard() {
         <h1 className="text-lg font-semibold">Live</h1>
         <FeedNote />
       </div>
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <SetupsTable />
-        <div className="flex flex-col gap-4">
+        <div className="flex min-w-0 flex-col gap-4">
           <Events />
           <ScanTable title="Pre-market movers" scan={scans.premarket} kind="premarket" />
           <ScanTable title="Intraday sweep" scan={scans.sweep} kind="sweep" />

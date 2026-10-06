@@ -11,6 +11,8 @@ type LiveState = {
   setConnected: (connected: boolean) => void;
   applyQuotes: (quotes: LiveQuote[]) => void;
   addEvent: (event: SetupEvent) => void;
+  /** The session's events so far (from GET /api/live), keeping any newer ones already here. */
+  setEvents: (events: SetupEvent[]) => void;
   setScan: (scan: "premarket" | "sweep", result: ScanResult | null) => void;
 };
 
@@ -29,6 +31,13 @@ export const useLive = create<LiveState>((set) => ({
       return { quotes: next };
     }),
   addEvent: (event) => set((s) => ({ events: [event, ...s.events].slice(0, MAX_EVENTS) })),
+  setEvents: (events) =>
+    set((s) => {
+      const key = (e: SetupEvent) => `${e.kind}:${e.symbol}:${e.at}`;
+      const known = new Set(events.map(key));
+      const newer = s.events.filter((e) => !known.has(key(e)));
+      return { events: [...newer, ...events].slice(0, MAX_EVENTS) };
+    }),
   setScan: (scan, result) => set((s) => ({ scans: { ...s.scans, [scan]: result } })),
 }));
 

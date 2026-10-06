@@ -14,8 +14,8 @@ from app.core.calendar import MARKET_TZ
 from app.core.redis import get_redis
 from app.data.bars import upsert_bars
 from app.data.universe import plan_universe, sync_tickers
+from app.intraday.live import QUOTES_KEY, REFRESH_CHANNEL
 from app.intraday.store import ticker_ids
-from app.intraday.watcher import QUOTES_KEY, REFRESH_CHANNEL
 from app.models import IndicatorDaily
 from app.providers.base import Bar, PriceHistory
 from tests.test_universe import listed

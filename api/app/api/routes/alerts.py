@@ -29,8 +29,8 @@ from app.api.deps import AuthUser, DbSession, RedisClient, current_user
 from app.core.calendar import MARKET_TZ
 from app.core.config import get_settings
 from app.core.heartbeat import heartbeat_key
+from app.intraday.live import REFRESH_CHANNEL
 from app.intraday.service import STATUS_KEY
-from app.intraday.watcher import REFRESH_CHANNEL
 from app.models import Alert, AlertRule, SavedScreen, Ticker, Watchlist
 from app.scanner.intraday_scan import MA_LABELS
 from app.settings import store

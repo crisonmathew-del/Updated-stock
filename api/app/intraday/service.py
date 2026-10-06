@@ -2,6 +2,7 @@
 jobs (learning the volume curve, exporting a recording)."""
 
 import asyncio
+import json
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
@@ -9,7 +10,9 @@ from typing import Any
 from app.alerts.email import email_route, sender_from_config
 from app.core.config import Settings, get_settings
 from app.core.db import get_sessionmaker
+from app.core.heartbeat import HEARTBEAT_INTERVAL_SECONDS, beat
 from app.core.jobs import Trigger, job_lock, track_job
+from app.core.lifecycle import sleep_or_stop
 from app.core.redis import get_redis
 from app.intraday.session import session_date
 from app.intraday.store import learn_volume_curve, load_bars, prev_closes
@@ -64,16 +67,35 @@ def make_watcher(feed: StreamProvider, config: Settings | None = None) -> Watche
     )
 
 
+async def set_status(state: str, **detail: Any) -> None:
+    body = {"state": state, "at": datetime.now(UTC).isoformat(), **detail}
+    await get_redis().set(STATUS_KEY, json.dumps(body, default=str))
+
+
+async def _beat_until(stop: asyncio.Event) -> None:
+    while not stop.is_set():
+        await beat(get_redis(), "streamer")
+        await sleep_or_stop(stop, HEARTBEAT_INTERVAL_SECONDS)
+
+
 async def run_replay(
     path: Path, *, speed: float, start: str | None = None, close: bool = True
 ) -> dict[str, Any]:
-    """Replay a recording through the watcher in this process (the CLI's `replay`)."""
+    """Replay a recording through the watcher in this process (the CLI's `replay`). While it
+    runs it reports itself as the streamer (heartbeat and status), so pages show it as the live
+    feed; don't run it alongside a streaming streamer service."""
     config = get_settings().model_copy(update={"replay_close": close})
     feed = await replay_feed(path, speed=speed, start=start)
     watcher = make_watcher(feed, config)
+    stop = asyncio.Event()
+    beating = asyncio.create_task(_beat_until(stop))
+    await set_status("streaming", provider="replay", detail=f"Replaying {path.name}")
     try:
         await watcher.run(asyncio.Event())
+        await set_status("replay finished", provider="replay", stats=watcher.stats)
     finally:
+        stop.set()
+        await beating
         if watcher.sender is not None:
             await watcher.sender.aclose()
         await feed.aclose()

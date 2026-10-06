@@ -8,9 +8,6 @@ retried every minute.
 """
 
 import asyncio
-import json
-from datetime import UTC, datetime
-from typing import Any
 
 from redis.asyncio import Redis
 
@@ -20,17 +17,12 @@ from app.core.heartbeat import HEARTBEAT_INTERVAL_SECONDS, beat
 from app.core.lifecycle import install_stop_signals, sleep_or_stop
 from app.core.logging import configure_logging, get_logger
 from app.core.redis import get_redis
-from app.intraday.service import STATUS_KEY, build_feed, make_watcher
+from app.intraday.service import build_feed, make_watcher, set_status
 from app.providers.replay import ReplayStream
 
 log = get_logger(__name__)
 
 RETRY_SECONDS = 60
-
-
-async def set_status(redis: Redis, state: str, **detail: Any) -> None:
-    body = {"state": state, "at": datetime.now(UTC).isoformat(), **detail}
-    await redis.set(STATUS_KEY, json.dumps(body, default=str))
 
 
 async def heartbeat_loop(redis: Redis, stop: asyncio.Event) -> None:
@@ -48,19 +40,19 @@ async def stream(redis: Redis, stop: asyncio.Event) -> None:
         try:
             feed = await build_feed(config)
         except Exception as exc:
-            await set_status(redis, "error", provider=config.stream_provider, detail=str(exc))
+            await set_status("error", provider=config.stream_provider, detail=str(exc))
             log.error("streamer.feed_unavailable", error=str(exc))
             await sleep_or_stop(stop, RETRY_SECONDS)
             continue
         if feed is None:
-            await set_status(redis, "idle", provider="none", detail="STREAM_PROVIDER=none")
+            await set_status("idle", provider="none", detail="STREAM_PROVIDER=none")
             return
         watcher = make_watcher(feed, config)
-        await set_status(redis, "streaming", provider=feed.name)
+        await set_status("streaming", provider=feed.name)
         try:
             await watcher.run(stop)
         except Exception as exc:
-            await set_status(redis, "error", provider=feed.name, detail=str(exc))
+            await set_status("error", provider=feed.name, detail=str(exc))
             log.exception("streamer.feed_failed")
             await sleep_or_stop(stop, RETRY_SECONDS)
             continue
@@ -69,7 +61,7 @@ async def stream(redis: Redis, stop: asyncio.Event) -> None:
                 await watcher.sender.aclose()
             await feed.aclose()
         if isinstance(feed, ReplayStream):
-            await set_status(redis, "replay finished", provider="replay", stats=watcher.stats)
+            await set_status("replay finished", provider="replay", stats=watcher.stats)
             return
 
 

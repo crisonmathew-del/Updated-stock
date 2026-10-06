@@ -823,6 +823,7 @@ export type ScanResult = { at: string; items: ScanItem[] };
 export type LiveSnapshot = {
   session: string;
   quotes: Record<string, LiveQuote>;
+  events: SetupEvent[];
   premarket: ScanResult | null;
   sweep: ScanResult | null;
 };

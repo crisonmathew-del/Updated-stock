@@ -19,8 +19,9 @@ from app.core.calendar import MARKET_TZ
 from app.core.config import get_settings
 from app.core.db import get_sessionmaker
 from app.core.redis import get_redis
+from app.intraday.live import EVENTS_KEY, QUOTES_KEY
 from app.intraday.store import prev_closes
-from app.intraday.watcher import QUOTES_KEY, Watcher
+from app.intraday.watcher import Watcher
 from app.models import Alert, IntradayBar, Signal, User, Watchlist, WatchlistItem
 from app.providers.replay import ReplayStream
 from app.scanner.eod_scan import run_analytics
@@ -152,6 +153,8 @@ async def test_a_replayed_breakout_alerts_within_two_seconds_and_the_close_confi
     raw = await cast(Awaitable[str | None], get_redis().hget(QUOTES_KEY, "SPOT"))
     quote = json.loads(raw or "{}")
     assert quote["last"] == 92.75
+    kept = await cast(Awaitable[list[str]], get_redis().lrange(EVENTS_KEY, 0, -1))
+    assert [json.loads(e)["kind"] for e in kept] == ["breakout_provisional"]
 
 
 @pytest.mark.integration

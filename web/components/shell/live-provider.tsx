@@ -32,6 +32,7 @@ export function LiveProvider() {
       try {
         const snapshot = await api.get<LiveSnapshot>(LIVE.path);
         live.applyQuotes(Object.values(snapshot.quotes));
+        live.setEvents(snapshot.events ?? []);
         live.setScan("premarket", snapshot.premarket);
         live.setScan("sweep", snapshot.sweep);
       } catch {

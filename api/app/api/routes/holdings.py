@@ -12,7 +12,6 @@ apply at that price.
 A change tells the streamer to reload (it watches holdings' stops intraday).
 """
 
-import json
 from datetime import date, datetime
 from typing import Any
 
@@ -24,7 +23,7 @@ from app.alerts.eod import HoldingDay, sell_warnings
 from app.api.deps import AuthUser, DbSession, RedisClient, current_user
 from app.core.calendar import MARKET_TZ
 from app.data.loaders import query_frame
-from app.intraday.watcher import QUOTES_KEY, REFRESH_CHANNEL
+from app.intraday.live import REFRESH_CHANNEL, eod_through, live_quotes
 from app.models import Holding, Setup, Ticker
 from app.settings import store
 
@@ -104,27 +103,14 @@ async def _latest(db: DbSession, ticker_ids: list[int]) -> dict[int, dict[str, A
     return {int(r["ticker_id"]): r for r in frame.iter_rows(named=True)}
 
 
-async def _quotes(redis: RedisClient, symbols: list[str]) -> dict[str, dict[str, Any]]:
-    if not symbols:
-        return {}
-    raw = await redis.hmget(QUOTES_KEY, symbols)  # type: ignore[misc]
-    out = {}
-    for symbol, value in zip(symbols, raw, strict=True):
-        if value:
-            quote = json.loads(value)
-            if quote.get("at") and quote.get("last") is not None:
-                at = datetime.fromisoformat(quote["at"])
-                if at.astimezone(MARKET_TZ).date() == _today():
-                    out[symbol] = quote
-    return out
-
-
 async def _rows(
     db: DbSession, redis: RedisClient, holdings: list[tuple[Holding, Ticker]]
 ) -> list[HoldingOut]:
     settings = await store.load(db)
     latest = await _latest(db, [h.ticker_id for h, _ in holdings if h.closed_on is None])
-    quotes = await _quotes(redis, [t.symbol for h, t in holdings if h.closed_on is None])
+    quotes = await live_quotes(
+        redis, await eod_through(db), [t.symbol for h, t in holdings if h.closed_on is None]
+    )
     out = []
     for h, t in holdings:
         risk = h.entry_price - h.initial_stop

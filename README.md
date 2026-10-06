@@ -40,17 +40,35 @@ directory, company data from SEC EDGAR, and prices from yfinance (development on
 `make help` lists every command. `make test` and `make lint` run all checks inside the
 containers; `make e2e` runs the Playwright journeys (natively; see the Makefile).
 
+### Live data and alerts
+
+- **Alerts work without any keys.** In development every email goes to Mailpit, a local mail
+  catcher: open <http://localhost:8025> to read them (nothing leaves your machine). For real
+  email set `RESEND_API_KEY` and `EMAIL_FROM` (a sender on a domain verified in Resend), or
+  `EMAIL_PROVIDER=smtp` with `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`.
+  **Alerts → Channels** shows what's configured and sends a test.
+- **Live prices** come from Alpaca's free plan: create an account, then set
+  `STREAM_PROVIDER=alpaca`, `ALPACA_API_KEY_ID` and `ALPACA_API_SECRET_KEY` and run
+  `make restart`. The free plan streams IEX only (a few % of the market's volume), so intraday
+  volume is scaled up and every intraday breakout stays *provisional* until the close confirms
+  it. Without keys the streamer idles and everything else works on end-of-day data.
+- **Replay a recorded session** to see it all work: `make replay file=recordings/day.csv.gz
+  [speed=60] [start=09:55]` plays minute bars through the watcher (alerts, emails, the live
+  board), then runs the close. The streamer records the minute bars of the stocks it watches;
+  `make export-recording date=YYYY-MM-DD out=recordings/day.csv.gz` saves a session.
+
 ## Services
 
 | Service | Role |
 |---|---|
 | `web` | Next.js app. Proxies `/api/*` to the API so secrets stay server-side |
-| `api` | FastAPI: REST + (later) WebSocket |
+| `api` | FastAPI: REST + the live WebSocket (`/api/ws`) |
 | `worker` | arq background jobs: scans, backfills, fundamentals |
 | `scheduler` | APScheduler: runs the market-hours schedule in US/Eastern |
-| `streamer` | Live market data feed (Phase 6) |
+| `streamer` | Live feed (Alpaca, or a replayed session): intraday alerts, quotes, scans |
 | `postgres` | PostgreSQL 16 + TimescaleDB |
 | `redis` | Cache, pub/sub and job queue |
+| `mailpit` | Development mail catcher for alert emails (<http://localhost:8025>) |
 
 ## Status
 
@@ -62,7 +80,30 @@ containers; `make e2e` runs the Playwright journeys (natively; see the Makefile)
 | 3 | Fundamentals & patterns | ✅ built (live acceptance pending data access) |
 | 4 | Scoring, lifecycle, trade plans, scanner | ✅ built (live acceptance pending data access) |
 | 5 | Core UI | ✅ done |
-| 6–8 | Real-time → backtests → polish | planned |
+| 6 | Real-time & alerts | ✅ built, awaiting approval (live run pending Alpaca keys) |
+| 7–8 | Backtests → polish | planned |
+
+![Live board](docs/screenshots/phase6-live-board.png)
+
+_Phase 6, a replayed session: SPOT trades above its 92.46 pivot at 10:15:30 on projected volume
+of ~290% of average. The live board marks the provisional breakout, the toast and bell arrive
+over the WebSocket, and the email goes out with a mini chart
+([email](docs/screenshots/phase6-alert-email.png)). At the close the lifecycle confirms it
+(233% of average volume, closed 79% up the day's range) and says so in the
+[alerts centre](docs/screenshots/phase6-alerts-history.png) and by email; a breakout that fades
+is rejected with the reason. Also: the [intraday chart](docs/screenshots/phase6-stock-intraday.png)
+(1- and 5-minute bars, keys `6`/`7`, updated by live quotes), [holdings](docs/screenshots/phase6-holdings.png)
+with P&L in R and sell rules, [alert rules](docs/screenshots/phase6-alerts-rules.png), alert
+[channels](docs/screenshots/phase6-alerts-channels.png) and the [phone layout](docs/screenshots/phase6-live-phone.png)._
+
+**Phase 6 acceptance** (a replayed breakout through the full path: the watcher the streamer runs
+(`make replay`) → Redis → API WebSocket → Next.js proxy → browser, and SMTP to Mailpit):
+
+| Target | Measured (from the triggering print reaching the streamer) |
+|---|---|
+| In-app alert within 2 s | alert stored 11–15 ms; toast on screen 73–158 ms |
+| Email within 2 s | in Mailpit 129–138 ms (with the chart rendered) |
+| Provisional confirmed or rejected at the close | confirmed (breakout session); rejected with the reason (fading session, automated test) |
 
 ![Stock page](docs/screenshots/phase5-stock.png)
 

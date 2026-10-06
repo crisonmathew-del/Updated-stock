@@ -3,7 +3,7 @@ pages; the latest quotes and scan results for a page that just opened; and a sto
 bars for the 1- and 5-minute chart.
 
 - WS     /ws                         authenticated by the session cookie
-- GET    /live                        {quotes, premarket, sweep, session}
+- GET    /live                        {session, quotes, events, premarket, sweep}
 - GET    /stocks/{symbol}/intraday    ?interval=1|5&date=YYYY-MM-DD (default: latest stored)
 
 The socket batches: everything published in a 250 ms window goes out as one message
@@ -32,7 +32,7 @@ from app.core.logging import get_logger
 from app.core.redis import get_redis
 from app.core.security import SESSION_COOKIE, resolve_session
 from app.data.loaders import query_frame
-from app.intraday.watcher import QUOTES_KEY, scan_key
+from app.intraday.live import eod_through, latest_scan, live_events, live_quotes, session_of
 from app.models import Alert, DailyBar, IntradayBar, Ticker
 
 log = get_logger(__name__)
@@ -46,6 +46,7 @@ INTERVALS = (1, 5)
 class LiveOut(BaseModel):
     session: dt.date
     quotes: dict[str, dict[str, Any]]
+    events: list[dict[str, Any]]  # this session's setup events, newest first
     premarket: dict[str, Any] | None
     sweep: dict[str, Any] | None
 
@@ -70,20 +71,18 @@ def _today() -> dt.date:
 
 
 @router.get("/live", dependencies=[Depends(current_user)])
-async def live(redis: RedisClient) -> LiveOut:
-    today = _today()
-    raw = await redis.hgetall(QUOTES_KEY)  # type: ignore[misc]
-    quotes = {}
-    for symbol, value in raw.items():
-        quote = json.loads(value)
-        at = quote.get("at")
-        if at and dt.datetime.fromisoformat(at).astimezone(MARKET_TZ).date() == today:
-            quotes[symbol] = quote
-    scans: dict[str, Any] = {}
-    for scan in ("premarket", "sweep"):
-        body = await redis.get(scan_key(scan, today))
-        scans[scan] = json.loads(body) if body else None
-    return LiveOut(session=today, quotes=quotes, **scans)
+async def live(db: DbSession, redis: RedisClient) -> LiveOut:
+    """Quotes and scans newer than the latest processed close (see app.intraday.live)."""
+    through = await eod_through(db)
+    quotes = await live_quotes(redis, through)
+    sessions = [session_of(q["at"]) for q in quotes.values()]
+    return LiveOut(
+        session=max(sessions) if sessions else _today(),
+        quotes=quotes,
+        events=await live_events(redis, through),
+        premarket=await latest_scan(redis, "premarket", through),
+        sweep=await latest_scan(redis, "sweep", through),
+    )
 
 
 @router.get(

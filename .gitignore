@@ -27,3 +27,6 @@ test-results/
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# Replay recordings (minute bars; `make export-recording`)
+api/recordings/

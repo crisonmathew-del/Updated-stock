@@ -42,6 +42,7 @@ describe("LiveProvider", () => {
         body: {
           session: "2026-10-02",
           quotes: { AAPL: { symbol: "AAPL", last: 250 } },
+          events: [{ kind: "setup_stop", symbol: "TSM", at: "2026-10-02T14:00:00Z" }],
           premarket: { at: "x", items: [] },
           sweep: null,
         },
@@ -77,7 +78,7 @@ describe("LiveProvider", () => {
     });
     expect(client.getQueryData(UNREAD.key)).toEqual({ count: 3 });
     expect(useLive.getState().quotes.SPOT?.last).toBe(92.65);
-    expect(useLive.getState().events[0]?.symbol).toBe("SPOT");
+    expect(useLive.getState().events.map((e) => e.symbol)).toEqual(["SPOT", "TSM"]);
     expect(useLive.getState().scans.sweep).toEqual({ at: "y", items: [] });
     expect(useToasts.getState().toasts).toEqual([
       expect.objectContaining({
