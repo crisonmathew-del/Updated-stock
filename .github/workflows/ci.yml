@@ -129,6 +129,59 @@ jobs:
             web/test-results
           retention-days: 7
 
+  deploy:
+    name: Production config and backup restore test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: timescale/timescaledb:2.30.2-pg16
+        env:
+          POSTGRES_USER: breakout
+          POSTGRES_PASSWORD: breakout
+          POSTGRES_DB: breakout
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U breakout -d breakout"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.23"
+          enable-cache: true
+          cache-dependency-glob: api/uv.lock
+      - run: uv python install 3.12
+        working-directory: api
+      - run: uv sync --locked
+        working-directory: api
+      - name: Migrate the database to back up
+        run: uv run alembic upgrade head
+        working-directory: api
+        env:
+          DATABASE_URL: postgresql+asyncpg://breakout:breakout@localhost:5432/breakout
+      - name: Build the backup image
+        run: docker build --tag breakout-backup:test infra/backup
+      # Seed hypertable rows (some compressed), dump, verify in a scratch database, damage the
+      # database and restore it in place.
+      - name: Restore test
+        run: infra/backup/test-restore.sh breakout-backup:test
+        env:
+          PGHOST: localhost
+          PGUSER: breakout
+          PGPASSWORD: breakout
+          PGDATABASE: breakout
+      - name: Production compose file and Caddyfile are valid
+        env:
+          DOMAIN: example.com
+          ACME_EMAIL: owner@example.com
+          POSTGRES_PASSWORD: ci
+        run: |
+          cp .env.example .env
+          docker compose -f infra/docker-compose.prod.yml --env-file .env config --quiet
+          docker run --rm -v "$PWD/infra/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            -e DOMAIN -e ACME_EMAIL caddy:2.11.7-alpine \
+            caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+
   images:
     name: Docker images build
     runs-on: ubuntu-latest

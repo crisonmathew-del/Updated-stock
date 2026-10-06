@@ -30,7 +30,12 @@ RUN --mount=type=cache,target=/root/.cache/uv uv sync --locked --no-dev
 COPY alembic.ini ./
 COPY alembic ./alembic
 COPY app ./app
-RUN useradd --system --uid 10001 --no-create-home breakout
+# /data/backtests is the backtest tape cache (a volume in production; created here so the volume
+# starts out owned by the app user). Matplotlib needs a writable config dir for its font cache.
+RUN useradd --system --uid 10001 --no-create-home breakout \
+    && mkdir -p /data/backtests && chown breakout /data/backtests
+ENV BACKTEST_DIR=/data/backtests \
+    MPLCONFIGDIR=/tmp/matplotlib
 USER breakout
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]

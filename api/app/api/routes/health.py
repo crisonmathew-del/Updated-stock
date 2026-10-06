@@ -2,13 +2,16 @@
 
 - `GET /api/health`: liveness. Is the API process up? No dependencies touched.
 - `GET /api/health/ready`: readiness. Checks Postgres, the TimescaleDB extension, Redis and the
-  heartbeats of the background services. Returns 503 if any component is down.
+  heartbeats of the background services, plus (in production, when BACKUP_STATUS_FILE is set)
+  the age of the last nightly backup. Returns 503 if any component is down.
 """
 
 import asyncio
+import json
 import time
 from collections.abc import Awaitable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, Response, status
@@ -16,6 +19,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 
 from app import __version__
+from app.core.config import get_settings
 from app.core.db import get_engine
 from app.core.heartbeat import BACKGROUND_SERVICES, is_alive, last_seen
 from app.core.redis import get_redis
@@ -105,6 +109,42 @@ async def _check_redis_and_heartbeats(now: datetime) -> dict[str, ComponentStatu
     return result
 
 
+def backup_status(raw: str | None, now: datetime, max_age_hours: int) -> ComponentStatus:
+    """The backup service's last.json (see infra/backup/backup.sh) as a status row."""
+    if raw is None:
+        return ComponentStatus(ok=False, detail="no backup yet: run `make backup-now`")
+    try:
+        last = json.loads(raw)
+        finished = datetime.fromisoformat(last["finished_at"])
+        size_mb = float(last["size_kb"]) / 1024
+        offsite = str(last.get("offsite", "skipped"))
+    except (ValueError, KeyError, TypeError):
+        return ComponentStatus(ok=False, detail="last.json is unreadable: run `make backup-now`")
+    age = now - finished
+    hours = age.total_seconds() / 3600
+    detail = f"{last.get('file', 'backup')}, {size_mb:.1f} MB, {hours:.0f} h ago"
+    if offsite == "failed":
+        return ComponentStatus(
+            ok=False, detail=f"{detail}; the off-site copy failed", last_seen=finished
+        )
+    if age > timedelta(hours=max_age_hours):
+        return ComponentStatus(
+            ok=False, detail=f"{detail}: older than {max_age_hours} h", last_seen=finished
+        )
+    if offsite == "copied":
+        detail += ", copied off-site"
+    return ComponentStatus(ok=True, detail=detail, last_seen=finished)
+
+
+async def _check_backups(now: datetime) -> dict[str, ComponentStatus]:
+    config = get_settings()
+    if not config.backup_status_file:
+        return {}
+    path = Path(config.backup_status_file)
+    raw = await asyncio.to_thread(lambda: path.read_text() if path.is_file() else None)
+    return {"backups": backup_status(raw, now, config.backup_max_age_hours)}
+
+
 async def _with_timeout(
     names: tuple[str, ...], check: Awaitable[dict[str, ComponentStatus]]
 ) -> dict[str, ComponentStatus]:
@@ -122,14 +162,16 @@ async def liveness() -> LivenessResponse:
 @router.get("/ready", response_model=ReadinessResponse)
 async def readiness(response: Response) -> ReadinessResponse:
     now = datetime.now(UTC)
-    db_result, redis_result = await asyncio.gather(
+    db_result, redis_result, backups = await asyncio.gather(
         _with_timeout(("postgres", "timescaledb"), _check_database()),
         _with_timeout(("redis", *BACKGROUND_SERVICES), _check_redis_and_heartbeats(now)),
+        _check_backups(now),
     )
     components = {
         "api": ComponentStatus(ok=True, detail=f"v{__version__}"),
         **db_result,
         **redis_result,
+        **backups,
     }
     result = build_readiness(components, now)
     if result.status != "ok":

@@ -1,0 +1,32 @@
+# The public entry point in production (infra/docker-compose.prod.yml). Caddy gets and renews
+# the HTTPS certificate for DOMAIN from Let's Encrypt (ACME_EMAIL is told about problems) and
+# redirects HTTP to HTTPS. With DOMAIN=localhost it uses its own local CA instead, for testing.
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		-Server
+	}
+
+	# The API directly (including the live WebSocket at /api/ws); everything else is the web app.
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+	handle {
+		reverse_proxy web:3000
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

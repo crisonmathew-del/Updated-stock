@@ -46,6 +46,20 @@ describe("SystemStatus", () => {
     expect(screen.getByText("PostgreSQL 16.10 · 1.2 ms")).toBeInTheDocument();
     expect(screen.getByText("TimescaleDB 2.22.0")).toBeInTheDocument();
     expect(screen.queryAllByText("down:")).toHaveLength(0);
+    // No backup service in development: no row for it.
+    expect(screen.queryByText("Nightly backup")).not.toBeInTheDocument();
+  });
+
+  it("shows the nightly backup when the API reports it", async () => {
+    const detail = "breakout_2026-10-05_0230.dump, 12.3 MB, 30 h ago: older than 26 h";
+    mockFetch(
+      503,
+      readiness({ backups: { ok: false, detail, latency_ms: null, last_seen: null } }),
+    );
+    renderWithClient();
+
+    expect(await screen.findByText("Some checks are failing")).toBeInTheDocument();
+    expect(screen.getByText("Nightly backup").closest("li")).toHaveTextContent(`down: ${detail}`);
   });
 
   it("names the service that is down when readiness returns 503", async () => {
@@ -57,7 +71,7 @@ describe("SystemStatus", () => {
     );
     renderWithClient();
 
-    expect(await screen.findByText("Some services are down")).toBeInTheDocument();
+    expect(await screen.findByText("Some checks are failing")).toBeInTheDocument();
     const streamerRow = screen.getByText("Streamer").closest("li");
     expect(streamerRow).toHaveTextContent("down: no recent heartbeat");
   });

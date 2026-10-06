@@ -18,6 +18,8 @@ class Settings(BaseSettings):
         env_file=(".env", "../.env"),
         env_file_encoding="utf-8",
         extra="ignore",
+        # `KEY=` (as .env.example leaves unused keys) means "not set": use the default.
+        env_ignore_empty=True,
     )
 
     # --- Runtime -------------------------------------------------------------------------------
@@ -29,6 +31,10 @@ class Settings(BaseSettings):
     pattern_workers: int = Field(0, ge=0, le=64)
     # Where backtest candidate tapes are cached (Parquet; safe to delete, rebuilt on demand).
     backtest_dir: str = "var/backtests"
+    # The backup service's last.json (production: the backups volume, mounted read-only). When
+    # set, /api/health/ready reports the last backup and fails it once it's older than the limit.
+    backup_status_file: str | None = None
+    backup_max_age_hours: int = Field(26, ge=1, le=24 * 14)
 
     # --- Infrastructure ------------------------------------------------------------------------
     database_url: str = "postgresql+asyncpg://breakout:breakout@localhost:5432/breakout"

@@ -4,17 +4,21 @@
 COMPOSE := docker compose -f infra/docker-compose.yml
 RUN_API := $(COMPOSE) run --rm -T api
 RUN_WEB := $(COMPOSE) run --rm -T --no-deps web
+# Production (on the server; docs/deploy.md). Compose reads DOMAIN etc. from the repo's .env.
+PROD := docker compose -f infra/docker-compose.prod.yml --env-file .env
 
 .DEFAULT_GOAL := help
 .PHONY: help dev down logs ps restart test test-api test-web e2e lint lint-api lint-web fmt \
         digests replay export-recording volume-curve backtest \
         migrate migration seed create-user universe backfill eod-update data-quality scan-now \
         fundamentals patterns setups outcomes \
-        shell-api shell-db
+        shell-api shell-db \
+        deploy prod-up prod-down prod-logs prod-ps prod-cli prod-create-user \
+        backup-now backup-list backup-verify restore backup-test
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
-		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
+		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-17s\033[0m %s\n", $$1, $$2}'
 
 dev: ## Build and start the whole stack, waiting until every service is healthy
 	$(COMPOSE) up --build --detach --wait --renew-anon-volumes
@@ -125,3 +129,58 @@ shell-api: ## Open a shell in the api container
 
 shell-db: ## Open psql against the development database
 	$(COMPOSE) exec postgres psql -U breakout -d breakout
+
+# --- Production (run on the server; see docs/deploy.md) ------------------------------------------
+
+deploy: ## Production: build and (re)start everything behind HTTPS, then show status
+	@test -f .env || (echo "No .env: copy .env.example to .env and fill in the production section." && exit 1)
+	$(PROD) up --build --detach --wait --remove-orphans
+	$(PROD) ps
+
+prod-up: ## Production: start everything without rebuilding
+	$(PROD) up --detach --wait
+
+prod-down: ## Production: stop everything (data volumes and backups are kept)
+	$(PROD) down
+
+prod-logs: ## Production: follow logs. Option: service=api
+	$(PROD) logs --follow --tail=100 $(service)
+
+prod-ps: ## Production: service status
+	$(PROD) ps
+
+prod-cli: ## Production: run an operator command, e.g. make prod-cli cmd="universe --then-backfill"
+	@test -n "$(cmd)" || (echo 'Usage: make prod-cli cmd="eod-update" (any `python -m app.cli` command)' && exit 1)
+	$(PROD) run --rm -T api python -m app.cli $(cmd)
+
+prod-create-user: ## Production: create the login user: make prod-create-user email=you@example.com
+	@test -n "$(email)" || (echo 'Usage: make prod-create-user email=you@example.com' && exit 1)
+	$(PROD) run --rm api python -m app.cli create-user --email "$(email)"
+
+backup-now: ## Production: back the database up now (also copies off-site when configured)
+	$(PROD) run --rm -T backup now
+
+backup-list: ## Production: the backups on the server, newest first
+	$(PROD) run --rm -T backup list
+
+backup-verify: ## Production: restore a backup into a scratch database and compare row counts. [file=latest]
+	$(PROD) run --rm -T backup verify $(or $(file),latest)
+
+restore: ## Production: replace the database with a backup: make restore file=<name from backup-list>|latest
+	@test -n "$(file)" || (echo 'Usage: make restore file=<name from make backup-list> (or file=latest)' && exit 1)
+	@if [ "$(yes)" != 1 ]; then \
+		printf 'Replace the production database with %s? The current one is saved to pre-restore/ first. Type yes: ' "$(file)"; \
+		read answer; [ "$$answer" = yes ] || (echo "Cancelled." && exit 1); \
+	fi
+	$(PROD) stop caddy web api worker scheduler streamer
+	$(PROD) run --rm -T backup restore $(file)
+	$(PROD) up --detach --wait
+
+# Development/CI: the backup image's restore test against a scratch database (needs `make dev`).
+backup-test: ## Restore test for the backup image (dump, verify, damage, restore) on a scratch database
+	docker build --quiet --tag breakout-backup:test infra/backup
+	$(COMPOSE) exec -T postgres psql -U breakout -d postgres -qc "DROP DATABASE IF EXISTS breakout_backup_test WITH (FORCE)" -c "CREATE DATABASE breakout_backup_test"
+	$(COMPOSE) run --rm -T -e DATABASE_URL=postgresql+asyncpg://breakout:breakout@postgres:5432/breakout_backup_test migrate
+	PGHOST=localhost PGPORT=$${POSTGRES_PORT:-5432} PGUSER=breakout PGPASSWORD=breakout PGDATABASE=breakout_backup_test \
+		infra/backup/test-restore.sh breakout-backup:test
+	$(COMPOSE) exec -T postgres psql -U breakout -d postgres -qc "DROP DATABASE breakout_backup_test WITH (FORCE)"

@@ -6,8 +6,9 @@ import { cn } from "@/lib/utils";
 
 const REFRESH_MS = 5_000;
 
-// Display order and labels for each component reported by GET /api/health/ready.
-const COMPONENTS: { key: string; label: string }[] = [
+// Display order and labels for each component reported by GET /api/health/ready. Optional rows
+// only appear when the API reports them (backups: production, where BACKUP_STATUS_FILE is set).
+const COMPONENTS: { key: string; label: string; optional?: boolean }[] = [
   { key: "api", label: "API" },
   { key: "postgres", label: "PostgreSQL" },
   { key: "timescaledb", label: "TimescaleDB" },
@@ -15,6 +16,7 @@ const COMPONENTS: { key: string; label: string }[] = [
   { key: "worker", label: "Worker" },
   { key: "scheduler", label: "Scheduler" },
   { key: "streamer", label: "Streamer" },
+  { key: "backups", label: "Nightly backup", optional: true },
 ];
 
 function StatusRow({ label, status }: { label: string; status: ComponentStatus | undefined }) {
@@ -56,7 +58,7 @@ export function SystemStatus() {
         <span role="status" className="text-sm text-muted">
           {isPending && "Checking…"}
           {error && "API unreachable"}
-          {data && (data.status === "ok" ? "All services up" : "Some services are down")}
+          {data && (data.status === "ok" ? "All services up" : "Some checks are failing")}
         </span>
       </div>
 
@@ -71,9 +73,11 @@ export function SystemStatus() {
             label="Web"
             status={{ ok: true, detail: "Next.js", latency_ms: null, last_seen: null }}
           />
-          {COMPONENTS.map(({ key, label }) => (
-            <StatusRow key={key} label={label} status={data?.components[key]} />
-          ))}
+          {COMPONENTS.filter(({ key, optional }) => !optional || data?.components[key]).map(
+            ({ key, label }) => (
+              <StatusRow key={key} label={label} status={data?.components[key]} />
+            ),
+          )}
         </ul>
       )}
     </section>
