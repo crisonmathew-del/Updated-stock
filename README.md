@@ -80,8 +80,9 @@ containers; `make e2e` runs the Playwright journeys (natively; see the Makefile)
 | 3 | Fundamentals & patterns | ✅ built (live acceptance pending data access) |
 | 4 | Scoring, lifecycle, trade plans, scanner | ✅ built (live acceptance pending data access) |
 | 5 | Core UI | ✅ done |
-| 6 | Real-time & alerts | ✅ built, awaiting approval (live run pending Alpaca keys) |
-| 7–8 | Backtests → polish | planned |
+| 6 | Real-time & alerts | ✅ done (live run pending Alpaca keys) |
+| 7 | Backtest lab, signal performance, AI summary, deployment | plan in review |
+| 8 | Polish & extras | planned |
 
 ![Live board](docs/screenshots/phase6-live-board.png)
 
