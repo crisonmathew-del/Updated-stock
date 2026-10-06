@@ -343,7 +343,7 @@ async def run_backtest(run_id: int) -> dict[str, Any]:
             finished_at=datetime.now(UTC),
         )
     stats = {
-        "run_id": run_id,
+        "backtest_id": run_id,
         "trades": len(trades),
         "tape_reused": reused,
         "seconds": round(time.perf_counter() - started, 1),

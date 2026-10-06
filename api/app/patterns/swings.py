@@ -11,8 +11,9 @@ are exactly those with `confirmed_at <= t`: no lookahead. The extreme being trac
 returned as `pending` (a provisional point the base's right side may still be forming).
 """
 
-import math
 from dataclasses import dataclass
+
+import numpy as np
 
 from app.patterns.bars import Floats
 
@@ -43,13 +44,14 @@ def zigzag(high: Floats, low: Floats, threshold: Floats) -> tuple[list[Swing], S
     if n == 0:
         return [], None
     # Python floats: indexing them is several times faster than NumPy scalars.
-    high, low, threshold = high.tolist(), low.tolist(), threshold.tolist()
+    known = (np.isfinite(threshold) & (threshold > 0)).tolist()
+    high, low, limits = high.tolist(), low.tolist(), threshold.tolist()
     swings: list[Swing] = []
     direction = 0  # 0 = undecided, 1 = rising (tracking a high), -1 = falling (tracking a low)
     hi = lo = 0
     for i in range(1, n):
-        limit = threshold[i]
-        usable = math.isfinite(limit) and limit > 0
+        limit = limits[i]
+        usable = known[i]
         if direction == 0:
             # Undecided: once the range between the highest high and the lowest low reaches
             # the threshold, whichever extreme came first is the first swing.

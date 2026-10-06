@@ -329,9 +329,15 @@ def detect_cup_with_handle(
         gain = qualifying_uptrend(bars, a, s)
         if gain is None:
             continue
+        # A right-side peak at or after the first high above the lip can never qualify (the
+        # cup may not exceed its lip): skip those without building the candidate.
+        higher = np.flatnonzero(bars.high[a + 1 : t + 1] > lip)
+        limit = a + 1 + int(higher[0]) if len(higher) else t + 1
         for r in reversed(right_peaks):
             if r <= a + 2:
                 break
+            if r >= limit:
+                continue
             match = _cup_candidate(bars, s, a, r, lip, gain)
             if match is not None:
                 found.append(match)
