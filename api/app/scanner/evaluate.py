@@ -345,7 +345,7 @@ class _Evaluator:
 
     def _index(self, day: date) -> int | None:
         dates = self.bars.dates
-        i = int(np.searchsorted(np.array(dates, dtype="datetime64[D]"), np.datetime64(day)))
+        i = int(np.searchsorted(self.bars.days, np.datetime64(day)))
         return i if i < len(dates) and dates[i] == day else None
 
     def _since_breakout(self, rec: SetupRecord, i: int) -> int | None:

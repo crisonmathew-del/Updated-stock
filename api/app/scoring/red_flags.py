@@ -99,7 +99,7 @@ def find_red_flags(
 
     if base_start is not None:
         first = int(
-            np.searchsorted(np.array(bars.dates, dtype="datetime64[D]"), np.datetime64(base_start))
+            np.searchsorted(bars.days, np.datetime64(base_start))
         )
         loose = _wide_and_loose_weeks(bars, first, t, s.wide_loose_weekly_range_pct)
         if loose:

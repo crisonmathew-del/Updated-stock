@@ -27,7 +27,7 @@ from collections.abc import Callable, Sequence
 from concurrent.futures import Future, ProcessPoolExecutor
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import polars as pl
@@ -444,10 +444,8 @@ def walk_stock(
         tech = stock.technicals(i)
         common: dict[str, Any] | None = None
         market_day = market.regime.get(day, MarketDay())
-        for w in walks:
-            store = stores[w.variant]
-            if w.active is None and not store.today and not tech.tt_pass:
-                continue
+        for group in _groups(walks, stores, tech.tt_pass):
+            store = stores[group[0].variant]
             if common is None:
                 common = _common(stock, i, day, base, info, market, reported)
             s = common
@@ -466,45 +464,43 @@ def walk_stock(
                 detected=tuple(
                     Detected(pid, m) for pid, m in zip(store.today_ids, store.today, strict=True)
                 ),
-                spent=frozenset(w.spent),
+                spent=frozenset(group[0].spent),
             )
-            active = None if w.active is None else w.active.record(tid, store)
-            result = evaluate_stock(stock_day, active, market_day, w.settings, day)
-            tape.evaluated += 1
-            _apply(w, result, day, tid, tape)
-            setup = w.active
-            if (
-                setup is not None
-                and setup.state in PRE_BREAKOUT
-                and setup.trade_plan is not None
-                and setup.pivot is not None
-            ):
-                plan = setup.trade_plan
-                pattern = None if setup.pattern_id is None else store.rows.get(setup.pattern_id)
-                tape.candidates.append(
-                    (
-                        w.index,
-                        day,
-                        tid,
-                        setup.key,
-                        setup.kind,
-                        setup.pattern_type,
-                        setup.state,
-                        setup.pivot,
-                        float(plan["entry"]),
-                        float(plan["stop"]),
-                        float(plan["risk_pct"]),
-                        bool(plan["risk_too_wide"]),
-                        setup.score,
-                        setup.grade,
-                        setup.readiness,
-                        setup.quality,
-                        None if pattern is None else pattern.final_contraction,
-                        market_day.state,
+            for w, result, new in _evaluate(group, stock_day, store, market_day, day, tape):
+                _apply(w, result, new, day, tid, tape)
+                setup = w.active
+                if (
+                    setup is not None
+                    and setup.state in PRE_BREAKOUT
+                    and setup.trade_plan is not None
+                    and setup.pivot is not None
+                ):
+                    plan = setup.trade_plan
+                    pattern = None if setup.pattern_id is None else store.rows.get(setup.pattern_id)
+                    tape.candidates.append(
+                        (
+                            w.index,
+                            day,
+                            tid,
+                            setup.key,
+                            setup.kind,
+                            setup.pattern_type,
+                            setup.state,
+                            setup.pivot,
+                            float(plan["entry"]),
+                            float(plan["stop"]),
+                            float(plan["risk_pct"]),
+                            bool(plan["risk_too_wide"]),
+                            setup.score,
+                            setup.grade,
+                            setup.readiness,
+                            setup.quality,
+                            None if pattern is None else pattern.final_contraction,
+                            market_day.state,
+                        )
                     )
-                )
-                if not tape.stock_days or tape.stock_days[-1][0] != day:
-                    tape.stock_days.append(_stock_fields(stock, i, day, info, s, store, market))
+                    if not tape.stock_days or tape.stock_days[-1][0] != day:
+                        tape.stock_days.append(_stock_fields(stock, i, day, info, s, store, market))
     return tape
 
 
@@ -535,16 +531,86 @@ def _common(
     }
 
 
-def _apply(w: CellWalk, result: StockResult, day: date, tid: int, tape: StockTape) -> None:
-    """Store the evaluation as app.scanner.setups._store would: new setups get a key, ended
-    ones add their pattern to the spent set; log signals and confirmed breakouts."""
+class _VolumeWatch:
+    """The settings, noting whether the breakout volume threshold was read: the one value the
+    cells of a VCP group don't share. An evaluation that never read it is the same for all."""
+
+    def __init__(self, settings: AppSettings) -> None:
+        self.__dict__["_settings"] = settings
+        self.__dict__["read"] = False
+
+    def __getattr__(self, name: str) -> Any:
+        if name == "breakout_volume_min_pct_of_avg":
+            self.__dict__["read"] = True
+        return getattr(self.__dict__["_settings"], name)
+
+
+def _groups(
+    walks: list[CellWalk], stores: list[PatternStore], leader: bool
+) -> list[list[CellWalk]]:
+    """Cells to evaluate this session, grouped by VCP limit and identical stored state
+    (active setup, spent patterns, keys used): such cells differ only in the volume rule."""
+    groups: list[list[CellWalk]] = []
+    for w in walks:
+        if w.active is None and not stores[w.variant].today and not leader:
+            continue
+        for g in groups:
+            rep = g[0]
+            if (
+                rep.variant == w.variant
+                and rep.keys == w.keys
+                and rep.active == w.active
+                and rep.spent == w.spent
+            ):
+                g.append(w)
+                break
+        else:
+            groups.append([w])
+    return groups
+
+
+def _evaluate(
+    group: list[CellWalk],
+    stock_day: StockDay,
+    store: PatternStore,
+    market_day: MarketDay,
+    day: date,
+    tape: StockTape,
+) -> list[tuple[CellWalk, StockResult, int]]:
+    """Evaluate a group once; again per cell only if the volume threshold mattered. Returns
+    (cell, result, setups the result opened) for each cell."""
+    rep = group[0]
+    tid = stock_day.ticker_id
+
+    def run(w: CellWalk, settings: AppSettings) -> tuple[StockResult, int]:
+        active = None if w.active is None else w.active.record(tid, store)
+        result = evaluate_stock(stock_day, active, market_day, settings, day)
+        tape.evaluated += 1
+        new = 0
+        for write in result.writes:  # new setups get the next keys, as rows get ids
+            if write.record.id is None:
+                new += 1
+                write.record.id = w.keys + new
+        return result, new
+
+    watch = _VolumeWatch(rep.settings)
+    first, new = run(rep, cast(AppSettings, watch))
+    if len(group) == 1 or not watch.read:
+        return [(w, first, new) for w in group]
+    return [(rep, first, new)] + [(w, *run(w, w.settings)) for w in group[1:]]
+
+
+def _apply(
+    w: CellWalk, result: StockResult, new: int, day: date, tid: int, tape: StockTape
+) -> None:
+    """Store the evaluation as app.scanner.setups._store would: new setups use the next keys,
+    ended ones add their pattern to the spent set; log signals and confirmed breakouts."""
     new_active: StoredSetup | None = None
     types: set[str] = set()
+    w.keys += new
     for write in result.writes:
         rec = write.record
-        if rec.id is None:
-            w.keys += 1
-            rec.id = w.keys
+        assert rec.id is not None
         if rec.active:
             new_active = StoredSetup.of(rec)
         elif rec.pattern is not None and rec.pattern.id is not None:
