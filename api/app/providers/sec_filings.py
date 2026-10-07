@@ -14,7 +14,7 @@ import io
 import re
 import zipfile
 from collections.abc import Iterable, Mapping, Sequence
-from datetime import date, datetime, time
+from datetime import UTC, date, datetime, time
 from typing import Any
 from xml.etree import ElementTree
 
@@ -44,17 +44,23 @@ def _date_or_none(value: object) -> date | None:
         return None
 
 
+def _utc_clock_to_eastern(clock: datetime) -> datetime:
+    return clock.replace(tzinfo=UTC).astimezone(MARKET_TZ)
+
+
 def parse_acceptance(value: object) -> datetime | None:
-    """EDGAR acceptance time. The submissions API writes it with a trailing "Z", but the clock is
-    US/Eastern (it matches the ACCEPTANCE-DATETIME header of the filing itself), so the zone
-    marker is ignored and Eastern attached."""
+    """EDGAR acceptance time, US/Eastern. The submissions API shifts the Eastern clock to UTC
+    twice before writing it with a "Z": Apple's 8-K accepted at 16:30:28 Eastern on 2026-07-30
+    (the filing's index page) reads "2026-07-31T00:30:28.000Z", 8 hours on in summer and 10 in
+    winter. Undoing the shift twice gives the clock shown on EDGAR."""
     if not value or not isinstance(value, str):
         return None
     try:
         parsed = datetime.fromisoformat(value.replace("Z", ""))
     except ValueError:
         return None
-    return parsed.replace(tzinfo=MARKET_TZ)
+    once = _utc_clock_to_eastern(parsed.replace(tzinfo=None)).replace(tzinfo=None)
+    return _utc_clock_to_eastern(once)
 
 
 def parse_filing_columns(columns: Mapping[str, Sequence[Any]]) -> list[FilingRecord]:

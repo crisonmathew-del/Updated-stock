@@ -15,7 +15,12 @@ from typing import ClassVar
 
 
 class ProviderError(Exception):
-    """A provider failed in a way the caller should report rather than retry immediately."""
+    """A provider failed in a way the caller should report rather than retry immediately.
+    `status` is the HTTP status when the failure was an HTTP response."""
+
+    def __init__(self, message: str = "", *, status: int | None = None) -> None:
+        super().__init__(message)
+        self.status = status
 
 
 class RateLimitedError(ProviderError):

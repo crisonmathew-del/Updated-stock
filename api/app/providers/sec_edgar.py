@@ -49,6 +49,9 @@ COMPANY_FACTS_URL = "https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json"
 DAILY_INDEX_URL = (
     "https://www.sec.gov/Archives/edgar/daily-index/{year}/QTR{quarter}/master.{ymd}.idx"
 )
+DAILY_INDEX_LISTING_URL = (
+    "https://www.sec.gov/Archives/edgar/daily-index/{year}/QTR{quarter}/index.json"
+)
 ARCHIVE_URL = "https://www.sec.gov/Archives/{path}"
 INSIDER_DATASET_URL = (
     "https://www.sec.gov/files/structureddata/data/insider-transactions-data-sets/"
@@ -218,11 +221,24 @@ class SecFilingsProvider(_SecClient, FilingsProvider):
         super().__init__(timeout=BULK_TIMEOUT)
 
     async def daily_index(self, day: date) -> list[IndexEntry] | None:
-        url = DAILY_INDEX_URL.format(
-            year=day.year, quarter=(day.month - 1) // 3 + 1, ymd=day.strftime("%Y%m%d")
-        )
-        response = await self._get(url)
+        quarter = (day.month - 1) // 3 + 1
+        url = DAILY_INDEX_URL.format(year=day.year, quarter=quarter, ymd=day.strftime("%Y%m%d"))
+        try:
+            response = await self._get(url)
+        except ProviderError as exc:
+            # EDGAR answers 403, not 404, for a day without an index (weekends, federal
+            # holidays, today before it's published). 403 also means blocked or throttled, so
+            # it counts as "no index" only when the quarter's listing doesn't have the file.
+            if exc.status != 403 or await self._index_listed(day, quarter):
+                raise
+            return None
         return None if response is None else parse_daily_index(response.text)
+
+    async def _index_listed(self, day: date, quarter: int) -> bool:
+        listing = await self._json(DAILY_INDEX_LISTING_URL.format(year=day.year, quarter=quarter))
+        items = (listing or {}).get("directory", {}).get("item", [])
+        name = f"master.{day.strftime('%Y%m%d')}.idx"
+        return any(item.get("name") == name for item in items)
 
     async def insider_filing(self, entry: IndexEntry) -> list[InsiderTransaction]:
         response = await self._get(ARCHIVE_URL.format(path=entry.path))

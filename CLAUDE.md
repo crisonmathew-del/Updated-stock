@@ -410,8 +410,13 @@ Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost)
   still builds and data health shows a warning. ADR market caps are left empty on purpose:
   SEC share counts are ordinary shares, not ADSs.
 - In web tests, Next's route announcer also has `role="alert"`; scope alert queries to the form.
-- **SEC acceptance times** in the submissions API end in "Z" but are US/Eastern clock times; the
-  parser treats them as Eastern (verified by `test_providers_live.py` once SEC is reachable).
+- **SEC acceptance times** in the submissions API are the Eastern clock shifted to UTC *twice*
+  (Apple's 8-K accepted 16:30:28 ET reads `…T00:30:28.000Z` the next day: +8 h in summer, +10 h
+  in winter); `parse_acceptance` undoes both shifts. Checked against EDGAR's filing index pages
+  and `test_providers_live.py`; fixtures in `tests/fixtures/providers/` use the real format.
+- **EDGAR answers 403, not 404,** for a missing daily index (weekends, federal holidays). 403
+  also means blocked or throttled, so `daily_index` treats it as "no index" only when the
+  quarter's `index.json` doesn't list the file. `ProviderError.status` carries the HTTP status.
 - **Review charts** use matplotlib's object API (`Figure`, no pyplot) so rendering is safe in
   threads; the web shows them with `next/image` `unoptimized` (they need the session cookie) and
   requests the current theme (`?theme=dark|light`).
@@ -472,7 +477,14 @@ Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost)
     `docker tag rclone/rclone:1 rclone/rclone:1.75.1`) rather than pulling again.
   - Test the production stack with a scratch `.env` (`DOMAIN=localhost`, `HTTP_PORT=8080`,
     `HTTPS_PORT=8443`) plus the CA-shim override; delete that `.env` afterwards.
-  - The network policy blocks ghcr.io blobs and the market-data hosts (www.nasdaqtrader.com,
-    www.sec.gov, data.sec.gov, query1/query2.finance.yahoo.com). Until the owner allows them in
-    the environment's network settings, verify ingestion with the fake providers (the
-    universe job fails with "HTTP 403" here, which is expected).
+  - The owner allowed the market-data hosts in the environment (Custom network access:
+    www.nasdaqtrader.com, www.sec.gov, data.sec.gov, query1/query2.finance.yahoo.com, plus the
+    default package managers). yfinance also needs `fc.yahoo.com` (its cookie). ghcr.io blobs
+    stay blocked.
+  - Allowed domains work only through the host's proxy (`HTTPS_PROXY`, 127.0.0.1): containers
+    can't resolve them. Run ingestion jobs natively from `api/` (`uv run python -m app.cli …`)
+    against the published Postgres/Redis ports.
+  - Real data lives in its own database, `breakout_live` (Redis DB 2), so the synthetic demo
+    database `breakout` stays as it is: pass `DATABASE_URL=…/breakout_live
+    REDIS_URL=redis://localhost:6379/2` to native commands, and a scratch compose override
+    with the same two values for the containers.

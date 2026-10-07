@@ -33,9 +33,10 @@ async def test_not_found_is_returned_not_retried() -> None:
 
 async def test_client_errors_fail_fast() -> None:
     client, calls = client_returning(403)
-    with pytest.raises(ProviderError, match="HTTP 403"):
+    with pytest.raises(ProviderError, match="HTTP 403") as caught:
         await http.get(client, "https://example.test/x", base_delay=0.001)
     assert calls == [403]
+    assert caught.value.status == 403
 
 
 async def test_persistent_throttling_raises_rate_limited() -> None:

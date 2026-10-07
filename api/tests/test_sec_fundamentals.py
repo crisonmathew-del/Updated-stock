@@ -8,11 +8,13 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
+import httpx
 import pytest
 
 from app.core.calendar import MARKET_TZ
-from app.providers.base import FinancialPeriod, IndexEntry, PeriodKind
-from app.providers.sec_edgar import parse_company_financials
+from app.core.config import get_settings
+from app.providers.base import FinancialPeriod, IndexEntry, PeriodKind, ProviderError
+from app.providers.sec_edgar import SecFilingsProvider, parse_company_financials
 from app.providers.sec_facts import parse_financials
 from app.providers.sec_filings import (
     accession_from_path,
@@ -245,18 +247,33 @@ def test_extra_pages_older_than_the_history_window_are_skipped() -> None:
     ]
 
 
+def eastern(clock: str) -> datetime:
+    return datetime.fromisoformat(clock).replace(tzinfo=MARKET_TZ)
+
+
+def test_acceptance_matches_the_clock_on_edgar() -> None:
+    # The submissions API's value against the "Accepted" time on each filing's EDGAR index
+    # page (checked by hand): Apple's results 8-Ks and a Form 4, summer and winter.
+    assert parse_acceptance("2026-07-31T00:30:28.000Z") == eastern("2026-07-30T16:30:28")
+    assert parse_acceptance("2026-05-01T00:30:41.000Z") == eastern("2026-04-30T16:30:41")
+    assert parse_acceptance("2026-10-06T02:42:45.000Z") == eastern("2026-10-05T18:42:45")
+    # Winter (EST): 10 hours on. Apple again releases at 16:30.
+    assert parse_acceptance("2026-01-30T02:30:33.000Z") == eastern("2026-01-29T16:30:33")
+
+
 @pytest.mark.parametrize(
     ("accepted", "timing"),
     [
-        ("2023-02-09T07:45:03.000Z", "before_open"),
-        ("2022-10-27T12:00:00.000Z", "during_session"),
-        ("2023-04-27T16:05:12.000Z", "after_close"),
-        ("2023-04-27T16:00:00.000Z", "after_close"),
-        ("2023-04-27T09:29:59.000Z", "before_open"),
+        # API values (Eastern + twice the UTC offset) and the Eastern clock they stand for.
+        ("2023-02-09T17:45:03.000Z", "before_open"),  # 07:45 EST
+        ("2022-10-27T20:00:00.000Z", "during_session"),  # 12:00 EDT
+        ("2023-04-28T00:05:12.000Z", "after_close"),  # 16:05 EDT
+        ("2023-04-28T00:00:00.000Z", "after_close"),  # 16:00 EDT
+        ("2023-04-27T17:29:59.000Z", "before_open"),  # 09:29:59 EDT
         (None, "unknown"),
     ],
 )
-def test_release_timing_reads_the_acceptance_clock_as_eastern(
+def test_release_timing_reads_the_eastern_acceptance_clock(
     accepted: str | None, timing: str
 ) -> None:
     assert release_timing(parse_acceptance(accepted)) == timing
@@ -342,3 +359,38 @@ def test_a_dataset_missing_a_table_is_rejected() -> None:
         archive.writestr("SUBMISSION.tsv", "ACCESSION_NUMBER\n")
     with pytest.raises(ValueError, match=r"REPORTINGOWNER\.TSV is missing"):
         parse_insider_dataset(buffer.getvalue())
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("clean_redis")
+async def test_a_day_without_a_daily_index_is_none_and_a_blocked_one_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # EDGAR answers 403 for a day with no index (a Saturday) and lists the quarter's files in
+    # index.json; a 403 for a listed file means we're blocked, which must not read as "no index".
+    listing = {"directory": {"item": [{"name": "master.20230512.idx"}]}}
+    index = (FIXTURES / "master.20230512.idx").read_text()
+    blocked = False
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path.endswith("/QTR2/index.json"):
+            return httpx.Response(200, json=listing)
+        if path.endswith("/master.20230512.idx") and not blocked:
+            return httpx.Response(200, text=index)
+        return httpx.Response(403)
+
+    monkeypatch.setattr(get_settings(), "sec_user_agent", "Breakout test@example.com")
+    sec = SecFilingsProvider()
+    sec._client = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+    try:
+        assert await sec.daily_index(date(2023, 5, 13)) is None  # Saturday: not listed
+        entries = await sec.daily_index(date(2023, 5, 12))
+        assert entries is not None
+        assert len(entries) == 5
+        blocked = True
+        with pytest.raises(ProviderError) as caught:
+            await sec.daily_index(date(2023, 5, 12))
+        assert caught.value.status == 403
+    finally:
+        await sec.aclose()

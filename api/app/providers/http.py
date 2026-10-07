@@ -47,7 +47,7 @@ async def get(
                 return response
             last_error = f"HTTP {response.status_code}"
             if response.status_code not in RETRY_STATUSES:
-                raise ProviderError(f"GET {url} failed: {last_error}")
+                raise ProviderError(f"GET {url} failed: {last_error}", status=response.status_code)
 
         if attempt == max_attempts:
             break
