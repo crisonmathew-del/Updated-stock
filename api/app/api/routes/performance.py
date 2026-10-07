@@ -42,7 +42,8 @@ async def performance(
     where = f"WHERE s.date >= '{since.isoformat()}'" if since else ""
     frame = await query_frame(
         db,
-        "SELECT s.type, s.date, s.grade, s.context->'market'->>'state' AS regime, s.price, "
+        "SELECT s.type, s.date, s.grade, s.score IS NOT NULL AS scored, "
+        "s.context->'market'->>'state' AS regime, s.price, "
         "s.entry, s.stop, o.ret_5, o.ret_10, o.ret_20, o.ret_60, "
         "coalesce(o.sessions_observed, 0) AS observed, o.stop_hit_on, o.gain_20_on "
         f"FROM signals s LEFT JOIN signal_outcomes o ON o.signal_id = s.id {where} "
@@ -76,6 +77,7 @@ async def performance(
                     observed=int(r["observed"]),
                     stop_hit_after=after(r["date"], r["stop_hit_on"]),
                     gain_20_after=after(r["date"], r["gain_20_on"]),
+                    scored=bool(r["scored"]),
                 )
             )
     summary = summarize(rows, horizon)

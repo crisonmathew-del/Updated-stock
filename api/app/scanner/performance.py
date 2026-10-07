@@ -13,6 +13,10 @@ Definitions, at a horizon of N sessions after the signal session:
 - stop hit: the share of signals with a plan whose low reached the stop within N sessions;
 - days to +20%: the median number of sessions until a high 20% above the signal close, among
   the signals that got there (within the 60 sessions tracked); "reached +20%" is their share.
+
+Grade buckets are the Setup Score grade at the signal: "Below C" scored under the C cutoff;
+"Not scored" never had a Setup Score (a pocket pivot on a stock without a setup, a market
+regime change).
 """
 
 import statistics
@@ -25,7 +29,7 @@ from typing import Any
 from app.scanner.evaluate import SIGNAL_LABELS
 
 R_TYPES = frozenset({"breakout", "breakout_provisional"})
-BUCKETS = ("A+", "A", "B", "C", "Below C")
+BUCKETS = ("A+", "A", "B", "C", "Below C", "Not scored")
 HORIZONS = (5, 10, 20, 60)
 
 
@@ -42,9 +46,12 @@ class SignalRow:
     observed: int  # sessions observed after the signal session
     stop_hit_after: int | None  # sessions until the stop was reached (1 = the next session)
     gain_20_after: int | None  # sessions until +20%
+    scored: bool = True  # had a Setup Score (grade None + scored = below the C cutoff)
 
 
-def bucket(grade: str | None) -> str:
+def bucket(grade: str | None, scored: bool = True) -> str:
+    if not scored:
+        return "Not scored"
     return grade if grade in BUCKETS else "Below C"
 
 
@@ -109,7 +116,7 @@ def summarize(rows: Sequence[SignalRow], horizon: int) -> dict[str, Any]:
     """Per signal type: all of them, then each grade bucket; and per type × market regime."""
     types = []
     for kind, items in sorted(_grouped(rows, lambda r: r.type).items(), key=lambda kv: -len(kv[1])):
-        buckets = _grouped(items, lambda r: bucket(r.grade))
+        buckets = _grouped(items, lambda r: bucket(r.grade, r.scored))
         types.append(
             {
                 "type": kind,

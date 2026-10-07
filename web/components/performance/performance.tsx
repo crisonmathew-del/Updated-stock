@@ -25,6 +25,12 @@ export function sinceFor(months: number | null, today = new Date()): string | nu
   return d.toISOString().slice(0, 10);
 }
 
+/** "Grade A", "Grade below C"; signals that never had a Setup Score say so. */
+export function bucketLabel(bucket: string): string {
+  if (bucket === "Not scored") return "No Setup Score";
+  return bucket === "Below C" ? "Grade below C" : `Grade ${bucket}`;
+}
+
 export function performancePath(horizon: number, since: string | null): string {
   const params = new URLSearchParams({ horizon: String(horizon) });
   if (since) params.set("since", since);
@@ -103,7 +109,7 @@ function TypeRows({ t }: { t: PerformanceType }) {
       {t.buckets.map((b) => (
         <tr key={b.bucket} className="text-muted">
           <th scope="row" className="py-1 pr-3 pl-4 text-left font-normal">
-            Grade {b.bucket}
+            {bucketLabel(b.bucket)}
           </th>
           <Cells s={b} r={t.r} />
         </tr>

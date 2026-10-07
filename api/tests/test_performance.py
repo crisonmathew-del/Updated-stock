@@ -29,6 +29,7 @@ def row(
     stop_after: int | None = None,
     gain_after: int | None = None,
     observed: int = 60,
+    scored: bool = True,
 ) -> SignalRow:
     # Close 101 on the signal day, plan entry 100.10, stop 96.10: 1R = 4.00.
     return SignalRow(
@@ -43,6 +44,7 @@ def row(
         observed=observed,
         stop_hit_after=stop_after,
         gain_20_after=gain_after,
+        scored=scored,
     )
 
 
@@ -80,6 +82,8 @@ def test_summary_groups_by_type_bucket_and_regime() -> None:
         row(grade="A"),
         row(grade=None, regime="correction", ret20=-3.0),
         row("pocket_pivot", grade="B"),
+        # No Setup Score at all (no setup on the stock): not "below C".
+        row("pocket_pivot", grade=None, scored=False),
     ]
     out = summarize(rows, 20)
     breakout, pivots = out["types"]
@@ -89,12 +93,13 @@ def test_summary_groups_by_type_bucket_and_regime() -> None:
         True,
     )
     assert [b["bucket"] for b in breakout["buckets"]] == ["A+", "A", "Below C"]
+    assert [b["bucket"] for b in pivots["buckets"]] == ["B", "Not scored"]
     assert [(g["regime"], g["signals"]) for g in breakout["regimes"]] == [
         ("confirmed_uptrend", 2),
         ("correction", 1),
     ]
     assert pivots["all"]["expectancy_r"] is None
-    assert out["total"]["signals"] == 4
+    assert out["total"]["signals"] == 5
 
 
 @pytest.mark.integration
@@ -121,6 +126,7 @@ async def test_the_endpoint_reads_the_signal_log(
                 price=price,
                 entry=entry,
                 stop=stop,
+                score=85.0,
                 grade=grade,
                 context={"market": {"state": "confirmed_uptrend"}},
             )
@@ -134,6 +140,16 @@ async def test_the_endpoint_reads_the_signal_log(
         # Stopped on the 3rd session after its signal.
         {"ret_20": -6.0, "gain_20_on": None, "stop_hit_on": days[5]},
     ]
+    # A market regime change has no stock and no Setup Score.
+    await db.execute(
+        insert(Signal).values(
+            date=days[1],
+            type="regime_change",
+            ticker_id=None,
+            summary="regime_change",
+            context={"market": {"state": "confirmed_uptrend"}},
+        )
+    )
     await db.execute(
         insert(SignalOutcome),
         [
@@ -154,6 +170,9 @@ async def test_the_endpoint_reads_the_signal_log(
     assert breakout["all"]["expectancy_r"] == 0.88  # (+2.75R - 1R) / 2, to 2 decimals
     assert breakout["all"]["median_days_to_20"] == 8
     assert breakout["all"]["stop_hit_pct"] == 50.0
+    assert [b["bucket"] for b in breakout["buckets"]] == ["A"]
+    regime = next(t for t in body["types"] if t["type"] == "regime_change")
+    assert [b["bucket"] for b in regime["buckets"]] == ["Not scored"]
     later = (await signed_in.get("/api/performance", params={"since": days[2].isoformat()})).json()
     assert later["total"]["signals"] == 1
     bad = await signed_in.get("/api/performance", params={"horizon": 7})

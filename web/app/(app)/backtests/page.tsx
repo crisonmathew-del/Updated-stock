@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: "Backtest lab · Breakout" };
 
 export default function BacktestsPage() {
   return (
-    <div className="flex flex-col gap-4">
+    <main className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-4 py-6">
       <div>
         <h1 className="text-xl font-semibold">Backtest lab</h1>
         <p className="text-sm text-muted">
@@ -21,6 +21,6 @@ export default function BacktestsPage() {
       <Section title="New run">
         <NewRun />
       </Section>
-    </div>
+    </main>
   );
 }

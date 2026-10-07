@@ -30,7 +30,10 @@ const BODY: Performance = {
       label: "Breakout confirmed",
       r: true,
       all: STATS,
-      buckets: [{ bucket: "A", ...STATS, signals: 12, measured: 12 }],
+      buckets: [
+        { bucket: "A", ...STATS, signals: 12, measured: 12 },
+        { bucket: "Not scored", ...STATS, signals: 3, measured: 3 },
+      ],
       regimes: [{ regime: "correction", ...STATS, signals: 5, measured: 5, win_rate_pct: 20 }],
     },
     {
@@ -59,6 +62,7 @@ describe("Signal performance", () => {
     expect(breakout).toHaveTextContent("+0.42R");
     expect(breakout).toHaveTextContent("▲ +9.4% / ▼ −4.6%");
     expect(within(table).getByRole("rowheader", { name: "Grade A" })).toBeInTheDocument();
+    expect(within(table).getByRole("rowheader", { name: "No Setup Score" })).toBeInTheDocument();
     const pivots = within(table).getByRole("rowheader", { name: "Pocket pivot" }).closest("tr");
     expect(pivots).toHaveTextContent("—"); // no R before the entry
     fireEvent.click(within(table).getAllByRole("button", { name: "Show by market regime" })[0]);
