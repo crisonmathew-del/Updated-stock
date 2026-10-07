@@ -90,8 +90,8 @@ step in [`docs/deploy.md`](docs/deploy.md).
 | 4 | Scoring, lifecycle, trade plans, scanner | ✅ built (live acceptance pending data access) |
 | 5 | Core UI | ✅ done |
 | 6 | Real-time & alerts | ✅ done (live run pending Alpaca keys) |
-| 7 | Backtest lab, signal performance, AI summary, deployment | ✅ built, awaiting approval (real report needs real data) |
-| 8 | Polish & extras | planned |
+| 7 | Backtest lab, signal performance, AI summary, deployment | ✅ done (real report needs real data; deploy needs a server) |
+| 8 | Polish & extras | waiting for the owner's priorities |
 
 ![Backtest report](docs/screenshots/phase7-backtest-report.png)
 
