@@ -34,8 +34,14 @@ Trend Template + VCP / pocket pivots / episodic pivots). **The full build spec i
   WebSocket → Next.js proxy → browser; SMTP to Mailpit): toast 73–158 ms and email 129–138 ms
   after the triggering print; the close confirmed it (and rejects a fading one,
   `tests/test_watcher.py`). The live run needs Alpaca keys.
-- **Phase 7 (backtest lab, signal performance, AI summary, deployment, backups):** in progress
-  (the owner said to go ahead on the recommended defaults without reviewing the plan).
+- **Phase 7 (backtest lab, signal performance, AI summary, deployment, backups):** built on the
+  recommended defaults (the owner said to go ahead without reviewing the plan), **awaiting the
+  owner's approval**. Acceptance on a synthetic 5-year, 600-stock market: the default ruleset's
+  full report (18 trades; the B-grade variant 95) and the 30-cell sensitivity heatmap (tape in
+  7.5 min on 3 workers); the production stack served over HTTPS locally (Caddy, `DOMAIN=localhost`);
+  nightly backups with a restore test in CI. The real report needs real data; the deployment
+  needs the owner's server, domain and Let's Encrypt email.
+- **Next: Phase 8 (polish & extras).** No Phase 8 code until the owner approves Phase 7 and a plan.
 
 ## Owner decisions (answers to spec §0.3)
 
@@ -50,7 +56,7 @@ Trend Template + VCP / pocket pivots / episodic pivots). **The full build spec i
 | Phase 2 defaults | Build Phase 2 before the Phase 1 live acceptance; overall market = **weaker of SPY and QQQ** (+IWM in small-cap mode); follow-through threshold **1.25%** (spec; IBD now uses ~1.7%, a setting); industry groups from **SEC SIC codes**. |
 | Phase 4 defaults | Setup Score: trend 20, RS 20, fundamentals 20, pattern 20, group 10, accumulation 10; a part without data (e.g. no Fundamentals Grade) is left out and the rest scaled up; × regime 1.0 / 0.8 / 0.5; red-flag penalties extended, late stage, climax −10, wide-and-loose, distribution −5, earnings risk 0; A+ ≥ 90, A ≥ 80, B ≥ 70, C ≥ 60. Breakouts confirmed **at the close** (≥ 140% volume, close in the top third) until real-time data (Phase 6). Outcomes measured from the signal session's close, plus R from the plan. **Plain admin pages** until the Phase 5 design. |
 | Phase 6 | **Option A**: build the Alpaca live adapter now (free keys later switch it on); IEX volume stays provisional until the close. Alerts in-app + email (Resend/SMTP; Mailpit in dev); digests 17:30 ET daily and Sunday 18:00 ET weekly; cooldown 390 min (once a session); setup alerts on stocks you don't hold or watch need grade ≥ A (a setting). Confirmed with the results: stream cap 30 (holdings → near pivot → broken out → rule targets → basing → watchlists); holdings warnings: stop, close below the 50-day (high) / 21-day (normal), breakeven at 2R or +10%, profit zone 20–25%, earnings within 5 sessions. |
-| Phase 7 | Owner: "go ahead" on the recommendations. Hosting: one Docker VPS behind Caddy (automatic HTTPS); the owner supplies server, domain and Let's Encrypt email, and deploys with `make deploy` / `docs/deploy.md`. Backups: nightly `pg_dump` 02:30 ET, 14 daily + 8 weekly, optional S3-compatible off-site copy. Backtest defaults: $100k, 1% risk, 25% max position, max 10 positions, slippage 0.1%, $0 commission, buy-stop at the trigger the next session (fill at the open inside the buy zone, skip above it), exits: stop, close below the 50-day (21-day optional), time stop < +5% after 15 sessions, sell ⅓ at +20%, breakeven at 2R/+10%; 70/30 in/out-of-sample; sensitivity breakout volume 100–200% × VCP final contraction 6–14%. Survivorship bias (no delisted names in free data) is labelled in every report. AI summary built now, off until `ANTHROPIC_API_KEY`. Settings page included. |
+| Phase 7 | Owner: "go ahead" on the recommendations. Hosting: one Docker VPS behind Caddy (automatic HTTPS); the owner supplies server, domain and Let's Encrypt email, and deploys with `make deploy` / `docs/deploy.md`. Backups: nightly `pg_dump` 02:30 ET, 14 daily + 8 weekly, optional S3-compatible off-site copy. Backtest defaults: $100k, 1% risk, 25% max position, max 10 positions, slippage 0.1%, $0 commission, buy-stop at the trigger the next session (fill at the open inside the buy zone, skip above it), exits: stop, close below the 50-day (21-day optional), time stop < +5% after 15 sessions, sell ⅓ at +20%, breakeven at 2R/+10%; 70/30 in/out-of-sample; sensitivity breakout volume 100–200% × VCP final contraction 6–14%. Survivorship bias (no delisted names in free data) is labelled in every report. AI summary built now, off until `ANTHROPIC_API_KEY` (default model `claude-opus-5-5` via `ANTHROPIC_MODEL`; only numbers from the data; cached 24 h per stock and session). Settings page included. Judgement call to confirm: unconfirmed breakouts (volume or close position short at the close) are **sold at the close by default** in backtests (`backtest_sell_unconfirmed`), so the heatmap's volume axis means something; the lab can switch it off. |
 | Phase 3 defaults | Grade points/cutoffs as in `fundamentals/grade.py` (EPS growth 25, acceleration 10, sales 15, 3-year EPS 20, ROE 10, margins 10, accumulation 10, insider cluster +5; A ≥ 80, B ≥ 65, C ≥ 50, D ≥ 35); insider Form 4 now, **13F deferred** to a paid provider; next earnings date **estimated** from last year; review charts **server-rendered** (matplotlib). |
 
 ## Non-negotiables (spec §0, §2)
@@ -106,6 +112,11 @@ api/                 Python 3.12 · FastAPI · uv (non-packaged app; run command
                      holdings' sell rules), screens (saved screen → new-match alerts), jobs
   app/market/        regime.py (distribution days, rally/FTD state machine), breadth.py
   app/groups/        classification.py (SIC → groups/sectors), industry_rank.py
+  app/backtest/      context (point-in-time inputs per stock), tape (stage 1: the EOD pipeline
+                     replayed per stock → candidate tape, Parquet under BACKTEST_DIR, cached by
+                     settings hash), engine (stage 2: the pure daily portfolio simulation),
+                     metrics, reports (report JSON: samples, heatmap, breakdowns), jobs
+  app/ai/            summary.py: the stock page's AI summary (Claude API; numbers check)
   app/scanner/       snapshot.py: indicators + Trend Template for every stock on a date
                      (screener, setups); screener_rows.py: the screener snapshot + filter
                      matching; intraday_scan.py: the per-print rules; live_scans.py:
@@ -113,13 +124,15 @@ api/                 Python 3.12 · FastAPI · uv (non-packaged app; run command
                      incremental);
                      daily.py: per-session stages in order (detection.py: grades + patterns;
                      setups.py: load/store around evaluate.py, the pure per-stock setup rules;
-                     outcomes.py); universe_filter.py: point-in-time liquidity filter
+                     outcomes.py); universe_filter.py: point-in-time liquidity filter;
+                     performance.py: signal performance statistics (pure)
   app/api/routes/    health, auth, settings, admin, market (+ index quotes), stocks (summary,
                      peers, note, watchlist membership), stock_chart (chart series + overlay),
                      search (ranked trigram search), screener (cached columnar snapshot + saved
                      screens), watchlists, patterns (review), setups (setups, signals), alerts
                      (history, rules, tests, status), holdings, live (WebSocket /ws, /live,
-                     intraday bars)
+                     intraday bars), backtests (runs, report, trade charts), performance, ai
+                     (summary), settings (+ /settings/keys: which keys are set, never values)
   app/worker.py      arq worker: `arq app.worker.WorkerSettings`
   app/scheduler.py   APScheduler (US/Eastern): `python -m app.scheduler`
   app/streamer.py    live feed: `python -m app.streamer` (STREAM_PROVIDER alpaca | replay | none)
@@ -129,7 +142,8 @@ api/                 Python 3.12 · FastAPI · uv (non-packaged app; run command
 web/                 Next.js 16 App Router · React 19 · TS strict · Tailwind 4 · pnpm
   proxy.ts           sends signed-out visitors to /login (cookie presence only)
   app/(app)/         signed-in pages with the top bar: / (dashboard), /stocks/[symbol],
-                     /screener, /watchlists, /live, /holdings, /alerts;
+                     /screener, /watchlists, /live, /holdings, /alerts, /performance,
+                     /backtests, /backtests/[id], /settings;
                      /admin/{status,data,inspect,patterns,setups,signals}
   app/login/         sign-in page (no top bar)
   app/globals.css    design tokens (approved Phase 5 palette) for dark (default) and .light
@@ -137,8 +151,9 @@ web/                 Next.js 16 App Router · React 19 · TS strict · Tailwind 
                      shortcuts, toasts, live-provider), ui/ (badges, button, section,
                      stock-link), stock/ (chart, intraday chart, base overlay, panels, score +
                      plan), dashboard/, screener/, watchlists/, alerts/ (bell, alerts centre),
-                     live/ (live board), holdings/; admin pages: admin/, inspect/, patterns/,
-                     setups/
+                     live/ (live board), holdings/, backtests/ (lab: form, runs, report,
+                     equity + trade charts), performance/, settings/; admin pages: admin/,
+                     inspect/, patterns/, setups/
   lib/api.ts         typed API client: CSRF header on writes, 401 → /login, response types
   lib/format.ts      number/date/duration formatters, safeNext() redirect guard
   lib/screener.ts    screener field catalogue, presets, filters, sorting keys, CSV (pure)
@@ -153,9 +168,14 @@ web/                 Next.js 16 App Router · React 19 · TS strict · Tailwind 
   e2e/ + playwright.config.ts   Playwright journeys against a production build (`make e2e`)
 infra/docker-compose.yml   web, api, worker, scheduler, streamer, migrate (one-shot), postgres, redis,
                            mailpit (dev mail catcher, UI :8025)
-docs/spec.md         the build specification
+infra/docker-compose.prod.yml + Caddyfile   production: Caddy (HTTPS, the only public service)
+                           in front of the prod images, migrate (+ seed), postgres, redis, backup
+infra/backup/              backup image (pg_dump nightly, rotation, rclone S3 copy, verify,
+                           restore) and test-restore.sh (the CI restore test)
+docs/spec.md         the build specification; docs/deploy.md: deploying and backups
 .github/workflows/ci.yml   api (ruff, mypy, pytest + services), web (lint, prettier, tsc,
-                           vitest, build), e2e (Playwright), prod Docker image builds
+                           vitest, build), e2e (Playwright), deploy (backup restore test, prod
+                           compose + Caddyfile validation), prod Docker image builds
 ```
 
 The spec's planned backend modules (`providers/`, `data/`, `indicators/`, `patterns/`, `market/`,
@@ -189,8 +209,15 @@ Only Docker is required; `make` targets run inside containers (except `make e2e`
 | `make replay file=… [speed=60] [start=09:55] [close=0]` | Replay recorded minute bars through the watcher (alerts, emails, live board), then the close |
 | `make export-recording date=… out=… [symbols=A,B]` | Save a stored session's minute bars as a recording |
 | `make volume-curve` | Learn the time-of-day volume curve from stored minute bars (nightly at 20:30 ET) |
+| `make backtest [start=…] [end=…] [sensitivity=1]` | Backtest the default rules (the web lab does the same; the worker runs it) |
+| `make backup-test` | The backup image's restore test on a scratch database (needs `make dev`) |
 | `make e2e` | Playwright end-to-end tests, run natively: needs `make dev` (Postgres/Redis), uv, pnpm and `pnpm exec playwright install chromium`; seeds its own `breakout_e2e` |
 | `make shell-api` / `make shell-db` | bash in api container / psql |
+
+Production (on the server, `docs/deploy.md`): `make deploy` (build + up behind HTTPS),
+`prod-up` / `prod-down` / `prod-logs [service=…]` / `prod-ps`, `prod-cli cmd="…"` (any
+`app.cli` command), `prod-create-user email=…`, `backup-now`, `backup-list`,
+`backup-verify [file=latest]`, `restore file=…|latest` (asks first; `yes=1` skips).
 
 Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost):
 - API: `cd api && uv sync && uv run pytest` (`-m "not integration"` needs no services;
@@ -266,6 +293,26 @@ Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost)
   the latest session only, once per signal (an alert row links it). New alert kinds get a
   label in `KIND_LABELS`. The WebSocket batches 250 ms windows and sends alerts only to their
   user.
+- **Backtests (Phase 7):** two stages. Stage 1 (`backtest/tape.py`) walks each stock forward
+  session by session, emulating the EOD pipeline's database state (pattern ids, retirement,
+  setups reloaded from stored columns) with the live code (`detect_variants`, `evaluate`), so a
+  setup in the tape is exactly what the nightly scan would have said that day; tests prove it
+  matches the pipeline session by session and that no input reaches past the session. Cells are
+  sensitivity variants (VCP final contraction × breakout volume); identical cells are evaluated
+  once. Stage 2 (`backtest/engine.py`) is a pure daily simulation over the tape (buy-stop next
+  session, exits, sizing, costs). Tapes are cached (Parquet + `backtest_tapes`) by a settings
+  hash that ignores the BACKTEST/ALERTS/INTRADAY/DATA categories; changing a pattern or scoring
+  setting builds a new tape. Every report is labelled hypothetical and states survivorship bias.
+  One run at a time per user; runs go through the worker (`backtest` job, 8 h limit).
+- **AI summary:** `ai/summary.py` only; the key is read server-side and never logged. The data
+  sent is the stock page's own facts (`routes/ai.stock_facts`); the reply must use only numbers
+  in that data (`unverified` checks it, one regeneration, leftovers shown on the page). Cached
+  24 h per stock and session in Redis; off (503 with the fix in words) without a key.
+- **Deployment:** production config lives in `infra/docker-compose.prod.yml` (it sets APP_ENV,
+  DATABASE_URL, REDIS_URL, PUBLIC_URL, BACKTEST_DIR itself; `.env` holds secrets and choices).
+  Only Caddy publishes ports. New env vars for production go in `.env.example`'s production
+  section; new services get log rotation (`*logging`) and a restart policy. The backup service
+  writes `last.json`, which `/api/health/ready` reads (BACKUP_STATUS_FILE).
 - **Regime definitions** are in `market/regime.py`'s docstring (DD count restarts at a
   follow-through; the below-50-day rules apply only after the index reclaimed its 50-day since
   the follow-through). Every state change and day carries human-readable reasons.
@@ -326,9 +373,15 @@ Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost)
   Next.js proxy (rewrites proxy WebSocket upgrades). Rule and holding changes publish
   `watch:refresh` so the streamer reloads its plan. Digests: a scheduler tick every 5 min →
   `digests` job. Volume curve: weekdays 20:30 ET.
+- Backtests: the lab posts `/api/backtests` → arq `backtest` job (worker) → tape (built or
+  reused) → simulation → report and trades stored on `backtest_runs`; the page polls progress.
+- Production: browser → Caddy (HTTPS) → `/api/*` straight to FastAPI (the WebSocket too),
+  everything else to Next.js (which calls the API at `http://api:8000` server-side). The backup
+  container runs its own nightly loop (02:30 ET) → `backups` volume (+ S3) → `last.json`.
 - Worker, scheduler and streamer each write `heartbeat:<service>` to Redis every 10 s (TTL 30 s).
-  `GET /api/health/ready` checks Postgres, TimescaleDB, Redis and those heartbeats and returns 503
-  if anything is down; `/admin/status` renders it. `GET /api/health` is plain liveness.
+  `GET /api/health/ready` checks Postgres, TimescaleDB, Redis and those heartbeats (plus the last
+  backup in production) and returns 503 if anything is down; `/admin/status` renders it.
+  `GET /api/health` is plain liveness.
 - `HealthNoiseFilter` (core/logging.py) drops successful health probes and heartbeat-job logs;
   failures always log.
 
@@ -390,12 +443,31 @@ Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost)
   seeds), and its close step stores the day's bars from the recording when missing.
 - The session cookie is SameSite=Lax, which browsers don't send on a cross-site WebSocket
   handshake: that, plus the session check, is the socket's CSRF protection.
+- **`.env` parsing differs:** Docker Compose reads `KEY=   # note` as the value "# note"
+  (python-dotenv reads it as empty), so `.env.example` keeps notes for empty keys on the line
+  above (a test checks). Empty values mean "not set" (`env_ignore_empty`), so `REPLAY_START=`
+  no longer fails its pattern.
+- **`POSTGRES_PASSWORD`** only applies when the data volume is first initialised; changing it
+  later needs `ALTER USER` (docs/deploy.md).
+- The prod api image runs as uid 10001 without a home: `MPLCONFIGDIR=/tmp/matplotlib` and
+  `/data/backtests` (created in the image so the volume is writable) are set in the Dockerfile.
+- **TimescaleDB restores** need `timescaledb_pre_restore()` / `timescaledb_post_restore()`
+  around `pg_restore` (infra/backup/backup.sh); pg_dump's warning about circular foreign keys
+  in TimescaleDB's catalog (`continuous_agg`) is harmless for a full dump.
+- `make test-api` mounts only `api/` into its container: tests that read repo-root files
+  (`.env.example`) skip there and run in CI/natively.
 - The Docker image installs uv from PyPI (pinned `0.12.23`; keep in sync with CI and local).
 - **Claude Code cloud sandbox only:**
   - The Docker daemon isn't running by default; start it with `dockerd &`.
   - Container TLS is intercepted. Build with CA-shimmed base images passed via the Dockerfiles'
     `PYTHON_IMAGE`/`NODE_IMAGE` build args from a scratch compose override. **Never commit
     proxy or CA config.**
+  - The network policy also blocks Alpine's package mirror (dl-cdn.alpinelinux.org), so images
+    must not `apk add` (the backup image copies rclone from its official image instead), and
+    Docker Hub rate-limits anonymous pulls (429): re-tag a local image (e.g.
+    `docker tag rclone/rclone:1 rclone/rclone:1.75.1`) rather than pulling again.
+  - Test the production stack with a scratch `.env` (`DOMAIN=localhost`, `HTTP_PORT=8080`,
+    `HTTPS_PORT=8443`) plus the CA-shim override; delete that `.env` afterwards.
   - The network policy blocks ghcr.io blobs and the market-data hosts (www.nasdaqtrader.com,
     www.sec.gov, data.sec.gov, query1/query2.finance.yahoo.com). Until the owner allows them in
     the environment's network settings, verify ingestion with the fake providers (the

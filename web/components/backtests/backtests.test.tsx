@@ -103,8 +103,12 @@ describe("Backtest lab", () => {
     });
     renderWithClient(<BacktestReportView id={3} />);
     const note = await screen.findByRole("note");
-    expect(note).toHaveTextContent("Hypothetical.");
-    expect(note).toHaveTextContent("Survivorship bias.");
+    // The bold name, then the label without repeating it, starting with a capital.
+    expect(note).toHaveTextContent("◆ Hypothetical. Simulated trades on past prices");
+    expect(note).toHaveTextContent("◆ Survivorship bias. The free price data covers");
+    const years = screen.getByText("By year of entry").closest("section") as HTMLElement;
+    const yearRows = within(years).getAllByRole("row").slice(1); // after the header
+    expect(yearRows.map((r) => r.textContent?.slice(0, 4))).toEqual(["2021", "2022"]);
     const headline = screen.getByRole("group", { name: "Headline numbers" });
     expect(within(headline).getByText("CAGR").nextSibling).toHaveTextContent("▲ +5.6%");
     expect(within(headline).getByText("Expectancy").nextSibling).toHaveTextContent("+1.10R");

@@ -17,12 +17,17 @@ import { applyTheme } from "@/lib/theme";
 import { useTheme } from "@/lib/use-theme";
 import { cn } from "@/lib/utils";
 
+// What fits in the bar (its content is capped at 1600 px): the main links from 768 px (phones and
+// small tablets get the bottom tab bar), the review pages from 1280 px (in the menu below that),
+// the regime from 1024 px and the index quotes, compact, from 1536 px.
 const LINKS = [
   { href: "/", label: "Dashboard" },
   { href: "/screener", label: "Screener" },
   { href: "/watchlists", label: "Watchlists" },
   { href: "/live", label: "Live" },
   { href: "/holdings", label: "Holdings" },
+];
+const REVIEW = [
   { href: "/performance", label: "Performance" },
   { href: "/backtests", label: "Backtests" },
 ];
@@ -58,7 +63,7 @@ function RegimePill() {
       href="/#market"
       title={`Market regime: ${r.label}. Distribution days: ${detail}.`}
       className={cn(
-        "hidden items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs whitespace-nowrap md:inline-flex",
+        "hidden items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs whitespace-nowrap lg:inline-flex",
         look.tone,
       )}
     >
@@ -76,11 +81,14 @@ function Quotes() {
     staleTime: 5 * 60_000,
   });
   return (
-    <ul className="hidden items-center gap-3 text-xs lg:flex" aria-label="Index quotes">
+    <ul className="hidden items-center gap-3 text-xs 2xl:flex" aria-label="Index quotes">
       {quotes.data?.map((q) => (
-        <li key={q.symbol} className="flex gap-1.5 whitespace-nowrap">
+        <li
+          key={q.symbol}
+          className="flex gap-1.5 whitespace-nowrap"
+          title={`${q.symbol} closed at ${formatPrice(q.close)}`}
+        >
           <span className="text-muted">{q.symbol}</span>
-          <span className="tabular">{formatPrice(q.close)}</span>
           <Change value={q.change_pct} />
         </li>
       ))}
@@ -117,6 +125,18 @@ function AccountMenu() {
           className="absolute right-0 z-30 mt-1 w-56 rounded-md border border-border bg-surface p-1 text-sm shadow-lg"
           onMouseLeave={() => setOpen(false)}
         >
+          {REVIEW.map(({ href, label }) => (
+            <Link
+              key={href}
+              role="menuitem"
+              href={href}
+              onClick={() => setOpen(false)}
+              className="block rounded px-2 py-1.5 hover:bg-surface-2 xl:hidden"
+            >
+              {label}
+            </Link>
+          ))}
+          <div className="my-1 border-t border-border xl:hidden" />
           {ADMIN.map(({ href, label }) => (
             <Link
               key={href}
@@ -158,7 +178,7 @@ function TabBar({ pathname, onSearch }: { pathname: string | null; onSearch: () 
   return (
     <nav
       aria-label="Main"
-      className="fixed inset-x-0 bottom-0 z-20 flex border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden"
+      className="fixed inset-x-0 bottom-0 z-20 flex border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
     >
       {TABS.map(({ href, label, icon }) => {
         const active = href === "/" ? pathname === "/" : pathname?.startsWith(href);
@@ -199,16 +219,18 @@ export function TopBar() {
           <Link href="/" className="font-semibold tracking-tight">
             Breakout
           </Link>
-          <nav className="hidden gap-1 text-sm sm:flex" aria-label="Main">
-            {LINKS.map(({ href, label }) => {
+          <nav className="hidden shrink-0 gap-1 text-sm md:flex" aria-label="Main">
+            {[...LINKS, ...REVIEW].map(({ href, label }) => {
               const active = href === "/" ? pathname === "/" : pathname?.startsWith(href);
+              const review = REVIEW.some((r) => r.href === href);
               return (
                 <Link
                   key={href}
                   href={href}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "rounded-md px-2 py-1",
+                    "rounded-md px-2 py-1 whitespace-nowrap",
+                    review && "hidden xl:block",
                     active ? "text-foreground" : "text-muted hover:text-foreground",
                   )}
                 >
@@ -220,15 +242,15 @@ export function TopBar() {
           <button
             type="button"
             onClick={() => setPaletteOpen(true)}
-            className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md border border-border bg-surface px-2.5 text-sm text-muted hover:border-muted sm:max-w-xs"
+            className="flex h-8 min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-md border border-border bg-surface px-2.5 text-sm text-muted hover:border-muted sm:max-w-xs"
           >
             <span aria-hidden>⌕</span>
             <span className="truncate">Search ticker or company</span>
-            <span className="ml-auto hidden sm:inline">
+            <span className="ml-auto hidden lg:inline">
               <Kbd>⌘K</Kbd>
             </span>
           </button>
-          <div className="ml-auto flex items-center gap-3">
+          <div className="ml-auto flex shrink-0 items-center gap-3">
             <RegimePill />
             <Quotes />
             <AlertBell />

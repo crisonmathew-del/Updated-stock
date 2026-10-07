@@ -156,15 +156,26 @@ function Samples({ report }: { report: BacktestReport }) {
   );
 }
 
+/** A stored label without its leading "Name: ", starting with a capital (the page prints the
+ * name itself in bold). */
+export function labelBody(text: string): string {
+  const body = text.replace(/^[^:.]{1,40}: /, "");
+  return body.charAt(0).toUpperCase() + body.slice(1);
+}
+
 function Breakdown({
   title,
   rows,
   label = (k) => k,
+  byKey = false,
 }: {
   title: string;
   rows: BreakdownRow[];
   label?: (key: string) => string;
+  /** In key order (years) instead of the largest group first. */
+  byKey?: boolean;
 }) {
+  const shown = byKey ? [...rows].sort((a, b) => a.key.localeCompare(b.key)) : rows;
   return (
     <Section title={title}>
       {rows.length === 0 ? (
@@ -174,22 +185,22 @@ function Breakdown({
           <thead className="text-left text-xs text-muted">
             <tr>
               <th className="py-1 font-normal" />
-              <th className="py-1 text-right font-normal">Trades</th>
-              <th className="py-1 text-right font-normal">Win rate</th>
-              <th className="py-1 text-right font-normal">Expectancy</th>
-              <th className="py-1 text-right font-normal">Net</th>
+              <th className="py-1 pl-3 text-right font-normal">Trades</th>
+              <th className="py-1 pl-3 text-right font-normal">Win rate</th>
+              <th className="py-1 pl-3 text-right font-normal">Expectancy</th>
+              <th className="py-1 pl-3 text-right font-normal">Net</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
+            {shown.map((r) => (
               <tr key={r.key} className="border-t border-border">
                 <td className="py-1.5 pr-2">{label(r.key)}</td>
-                <td className="tabular py-1.5 text-right">{r.trades}</td>
-                <td className="tabular py-1.5 text-right">{pct(r.win_rate_pct, 0)}</td>
-                <td className="tabular py-1.5 text-right">
+                <td className="tabular py-1.5 pl-3 text-right">{r.trades}</td>
+                <td className="tabular py-1.5 pl-3 text-right">{pct(r.win_rate_pct, 0)}</td>
+                <td className="tabular py-1.5 pl-3 text-right">
                   {r.expectancy_r == null ? "—" : formatR(r.expectancy_r)}
                 </td>
-                <td className="tabular py-1.5 text-right">{money(r.net_profit)}</td>
+                <td className="tabular py-1.5 pl-3 text-right">{money(r.net_profit)}</td>
               </tr>
             ))}
           </tbody>
@@ -568,11 +579,11 @@ export function BacktestReportView({ id }: { id: number }) {
           >
             <p>
               <span className="font-semibold text-warn">◆ Hypothetical.</span>{" "}
-              {report.labels.hypothetical}
+              {labelBody(report.labels.hypothetical)}
             </p>
             <p>
               <span className="font-semibold text-warn">◆ Survivorship bias.</span>{" "}
-              {report.labels.survivorship.replace(/^Survivorship bias: /, "")}
+              {labelBody(report.labels.survivorship)}
             </p>
           </div>
           <Headline s={report.summary} />
@@ -611,7 +622,7 @@ export function BacktestReportView({ id }: { id: number }) {
             <Breakdown title="By pattern" rows={report.by_pattern} label={patternLabel} />
             <Breakdown title="By grade" rows={report.by_grade} />
             <Breakdown title="By exit" rows={report.by_exit} />
-            <Breakdown title="By year of entry" rows={report.by_year} />
+            <Breakdown title="By year of entry" rows={report.by_year} byKey />
           </div>
           <Trades runId={r.id} trades={r.trades} />
           <Details report={report} />

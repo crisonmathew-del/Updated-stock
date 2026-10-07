@@ -221,7 +221,29 @@ export const DETAIL: BacktestDetail = {
     by_pattern: [],
     by_grade: [],
     by_exit: [],
-    by_year: [],
+    // Largest group first, as the API sends them; the page lists years in order.
+    by_year: [
+      {
+        key: "2022",
+        trades: 2,
+        win_rate_pct: 50,
+        expectancy_r: 0.5,
+        avg_win_pct: 4,
+        avg_loss_pct: -2,
+        profit_factor: 1.5,
+        net_profit: 100,
+      },
+      {
+        key: "2021",
+        trades: 1,
+        win_rate_pct: 50,
+        expectancy_r: 0.5,
+        avg_win_pct: 4,
+        avg_loss_pct: -2,
+        profit_factor: 1.5,
+        net_profit: 100,
+      },
+    ],
     orders: { orders: 12, filled: 2, gapped_above_zone: 1, no_slot: 0, no_cash: 0 },
     signals: { breakout: 980, near_pivot: 6623 },
     tape: {
