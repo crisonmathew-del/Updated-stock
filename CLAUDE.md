@@ -38,7 +38,8 @@ Trend Template + VCP / pocket pivots / episodic pivots). **The full build spec i
   recommended defaults (the owner said to go ahead without reviewing the plan), **awaiting the
   owner's approval**. Acceptance on a synthetic 5-year, 600-stock market: the default ruleset's
   full report (18 trades; the B-grade variant 95) and the 30-cell sensitivity heatmap (tape in
-  7.5 min on 3 workers); the production stack served over HTTPS locally (Caddy, `DOMAIN=localhost`);
+  7.5 min on 3 workers); signal performance over a year of replayed nightly scans (9,303
+  signals); 9 Playwright journeys; the production stack served over HTTPS locally (Caddy, `DOMAIN=localhost`);
   nightly backups with a restore test in CI. The real report needs real data; the deployment
   needs the owner's server, domain and Let's Encrypt email.
 - **Next: Phase 8 (polish & extras).** No Phase 8 code until the owner approves Phase 7 and a plan.

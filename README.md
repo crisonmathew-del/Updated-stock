@@ -40,6 +40,10 @@ directory, company data from SEC EDGAR, and prices from yfinance (development on
 `make help` lists every command. `make test` and `make lint` run all checks inside the
 containers; `make e2e` runs the Playwright journeys (natively; see the Makefile).
 
+**Deploying:** one Linux server with Docker, a domain and an email for Let's Encrypt;
+`make deploy` serves it over HTTPS behind Caddy and backs the database up every night. Step by
+step in [`docs/deploy.md`](docs/deploy.md).
+
 ### Live data and alerts
 
 - **Alerts work without any keys.** In development every email goes to Mailpit, a local mail
@@ -52,6 +56,9 @@ containers; `make e2e` runs the Playwright journeys (natively; see the Makefile)
   `make restart`. The free plan streams IEX only (a few % of the market's volume), so intraday
   volume is scaled up and every intraday breakout stays *provisional* until the close confirms
   it. Without keys the streamer idles and everything else works on end-of-day data.
+- **AI summaries** on the stock page switch on with `ANTHROPIC_API_KEY` (and optionally
+  `ANTHROPIC_MODEL`). The summary uses only the numbers on the page and says so when it
+  doesn't. **Settings** (under Admin) shows which keys are set, never their values.
 - **Replay a recorded session** to see it all work: `make replay file=recordings/day.csv.gz
   [speed=60] [start=09:55]` plays minute bars through the watcher (alerts, emails, the live
   board), then runs the close. The streamer records the minute bars of the stocks it watches;
@@ -69,6 +76,8 @@ containers; `make e2e` runs the Playwright journeys (natively; see the Makefile)
 | `postgres` | PostgreSQL 16 + TimescaleDB |
 | `redis` | Cache, pub/sub and job queue |
 | `mailpit` | Development mail catcher for alert emails (<http://localhost:8025>) |
+| `caddy` | Production only: HTTPS (Let's Encrypt) and the only public port |
+| `backup` | Production only: nightly `pg_dump`, rotation, optional S3 copy |
 
 ## Status
 
@@ -81,8 +90,33 @@ containers; `make e2e` runs the Playwright journeys (natively; see the Makefile)
 | 4 | Scoring, lifecycle, trade plans, scanner | ✅ built (live acceptance pending data access) |
 | 5 | Core UI | ✅ done |
 | 6 | Real-time & alerts | ✅ done (live run pending Alpaca keys) |
-| 7 | Backtest lab, signal performance, AI summary, deployment | plan in review |
+| 7 | Backtest lab, signal performance, AI summary, deployment | ✅ built, awaiting approval (real report needs real data) |
 | 8 | Polish & extras | planned |
+
+![Backtest report](docs/screenshots/phase7-backtest-report.png)
+
+_Phase 7, the backtest lab on a synthetic 5-year, 600-stock market: the nightly scan's own
+rules replayed day by day with only what was known each day, then traded with the portfolio
+rules (buy-stop the next session, stop, 50-day exit, time stop, partial profit, breakeven).
+Every report is labelled hypothetical and states the survivorship bias of the free data. Below
+the equity curve: [in-sample against out-of-sample and the sensitivity heatmap](docs/screenshots/phase7-backtest-heatmap.png)
+(VCP final contraction × breakout volume, 30 full re-runs), breakdowns by regime, pattern,
+grade, exit and year, every trade with its chart, and the [run list and form](docs/screenshots/phase7-backtests.png).
+Also: [signal performance](docs/screenshots/phase7-performance.png) (every logged signal's
+win rate, expectancy and stop hits by type, grade and regime), [settings](docs/screenshots/phase7-settings.png)
+and the [status page over HTTPS](docs/screenshots/phase7-https-status.png) on the production
+stack, nightly backup included._
+
+**Phase 7 acceptance** (synthetic market; the real report needs real data):
+
+| Target | Result |
+|---|---|
+| Full report for the default ruleset | 18 trades over 5 years (grade ≥ A); the B-grade variant 95. Candidate tape: 600 stocks, 747,062 stock-sessions in 4.5 min; later runs reuse it (3 s) |
+| Sensitivity heatmap | 30 cells (VCP 6–14% × volume 100–200%) from one 7.5-minute tape |
+| Signal performance | a year of nightly scans replayed on the same market: 9,303 signals by type, grade and regime (20 sessions on: 58.6% up; confirmed breakouts +0.34R) |
+| Tape = the nightly scan | a test runs the nightly scan session by session and the tape over the same market: same signals each session, same setups and plans; a walk stopped early (later data never loaded) gives the same results up to that point |
+| Production deploy | the production stack served over HTTPS locally (Caddy; HTTP → HTTPS, HSTS, secure cookies, `wss://` live socket); `make deploy` on a server is the owner's step |
+| Backups | nightly dump + verify (restore into a scratch database, row counts match); CI restores a damaged database with compressed hypertable chunks |
 
 ![Live board](docs/screenshots/phase6-live-board.png)
 
