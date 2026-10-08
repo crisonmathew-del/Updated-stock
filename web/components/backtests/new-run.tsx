@@ -349,8 +349,8 @@ export function NewRun() {
   if (!options.data.last_date)
     return (
       <p className="text-sm text-muted">
-        No price history analysed yet. Backfill prices and run the scan (make backfill, make
-        scan-now), then come back to backtest.
+        No price history analysed yet. Come back once prices have loaded and the evening scan has
+        run (progress on Admin → Data; by hand: make backfill, then make scan-now).
       </p>
     );
   return <RunForm options={options.data} />;

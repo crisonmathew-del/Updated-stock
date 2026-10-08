@@ -186,7 +186,8 @@ export function SectorRotation({ className }: { className?: string }) {
       {q.error && <p className="text-sm text-fall">{q.error.message}</p>}
       {q.data && sectors.length === 0 && (
         <p className="text-sm text-muted">
-          No sector ETF history yet. Run <code>make backfill</code> to load the sector ETFs.
+          No sector ETF history yet. It loads with the prices (progress on Admin → Data; by hand:
+          <code>make backfill</code>).
         </p>
       )}
       {sectors.length > 0 && (

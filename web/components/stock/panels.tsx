@@ -131,7 +131,8 @@ export function FundamentalsPanel({ symbol }: { symbol: string }) {
       {f.isPending && <p className="text-sm text-muted">Loading…</p>}
       {f.data && f.data.quarters.length === 0 && (
         <p className="text-sm text-muted">
-          No statements loaded for {symbol}. They come from SEC EDGAR (make fundamentals).
+          No statements loaded for {symbol} yet. They load from SEC EDGAR overnight (make
+          fundamentals loads them now).
         </p>
       )}
       {f.data && f.data.quarters.length > 0 && (

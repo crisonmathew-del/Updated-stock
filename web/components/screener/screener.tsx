@@ -474,8 +474,9 @@ export function Screener() {
         )}
         {snapshot.data && rows.length === 0 && (
           <p className="text-sm text-muted">
-            No stocks to screen yet. Load prices (<code>make backfill</code>) and run the evening
-            scan (<code>make scan-now</code>).
+            No stocks to screen yet. They appear once prices have loaded and the evening scan has
+            run (progress on Admin → Data; by hand: <code>make backfill</code>, then
+            <code>make scan-now</code>).
           </p>
         )}
         {snapshot.isPending ? (

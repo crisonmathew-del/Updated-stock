@@ -332,7 +332,8 @@ async def stock_chart(
     if frame.is_empty():
         raise HTTPException(
             status.HTTP_404_NOT_FOUND,
-            f"No price history for {ticker.symbol} yet. Run the backfill (make backfill).",
+            f"No price history for {ticker.symbol} yet. Prices load by themselves after the "
+            "stock list is built (progress on Admin → Data; make backfill loads them by hand).",
         )
     days = frame["date"].to_list()
     if timeframe == "weekly":
