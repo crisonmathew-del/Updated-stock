@@ -414,6 +414,15 @@ Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost)
   (Apple's 8-K accepted 16:30:28 ET reads `…T00:30:28.000Z` the next day: +8 h in summer, +10 h
   in winter); `parse_acceptance` undoes both shifts. Checked against EDGAR's filing index pages
   and `test_providers_live.py`; fixtures in `tests/fixtures/providers/` use the real format.
+- **A Form 4 is listed once per filer** in the daily index, each copy in that filer's folder
+  (`edgar/data/<cik>/<accession>.txt`); when an owner is itself in the universe (Lantheus and
+  its sales of CATX) both copies pass the universe filter. Read Form 4s once per accession.
+- **SEC company facts carry filer typos** (a fiscal year of 43646): `sec_facts` keeps fiscal
+  labels only when plausible, and `refresh_companies` stores a failing batch company by company
+  so one unstorable filer is reported instead of aborting the load.
+- yfinance 1.7 deprecated `history(raise_errors=True)`; the adapter sets
+  `yf.config.debug.hide_exceptions = False` instead (pytest's `filterwarnings=error` turned the
+  deprecation into a swallowed per-symbol error).
 - **EDGAR answers 403, not 404,** for a missing daily index (weekends, federal holidays). 403
   also means blocked or throttled, so `daily_index` treats it as "no index" only when the
   quarter's `index.json` doesn't list the file. `ProviderError.status` carries the HTTP status.
