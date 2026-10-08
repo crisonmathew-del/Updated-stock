@@ -15,6 +15,7 @@ from collections import defaultdict
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
+from pathlib import PurePosixPath
 from typing import Any
 
 from sqlalchemy import delete, or_, select, update
@@ -311,6 +312,8 @@ async def store_insider_trades(
         for t in trades
         for ticker_id in issuers.get(t.issuer_cik, [])
     ]
+    # One row per key even if a filing reached us twice (the last copy wins).
+    rows = list({(r["accession"], r["seq"], r["ticker_id"]): r for r in rows}.values())
     accessions = sorted({str(r["accession"]) for r in rows})
     for start in range(0, len(accessions), CHUNK_ROWS):
         chunk = accessions[start : start + CHUNK_ROWS]
@@ -414,7 +417,11 @@ async def process_filing_index(
             if entry.form in REFRESH_FORMS:
                 result.refresh_ciks.add(entry.cik)
             elif entry.form in INSIDER_FORMS:
-                form4s.setdefault(entry.path, entry)
+                # A Form 4 is listed under the issuer and under each reporting owner, each in
+                # its own folder (edgar/data/<cik>/<accession>.txt). When an owner is also in
+                # the universe (Lantheus reporting its sales of Perspective Therapeutics), the
+                # same filing passes this filter twice: read it once, by its file name.
+                form4s.setdefault(PurePosixPath(entry.path).name, entry)
 
         async def read(entry: IndexEntry) -> list[InsiderTrade]:
             async with semaphore:

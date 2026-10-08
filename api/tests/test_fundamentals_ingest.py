@@ -33,6 +33,7 @@ from tests.test_universe import listed
 FIXTURES = Path(__file__).parent / "fixtures" / "providers"
 NORTHWIND, FJORD = "0001234567", "0007654321"
 FORM4_PATH = "edgar/data/1234567/0001234567-23-000031.txt"
+OWNER_FORM4_PATH = "edgar/data/7654321/0001234567-23-000031.txt"
 
 
 def load(name: str) -> Any:
@@ -136,7 +137,9 @@ def fake_sec() -> FakeFundamentals:
 
 def fake_filings() -> FakeFilings:
     entry = IndexEntry(NORTHWIND, "Northwind Tools Inc.", "4", date(2023, 5, 12), FORM4_PATH)
-    owner_row = IndexEntry("0001876543", "Doe Jane", "4", date(2023, 5, 12), FORM4_PATH)
+    # The same Form 4 is also listed under the reporting owner, in the owner's folder. Here the
+    # owner is a universe company itself (Fjord), so the row passes the universe filter too.
+    owner_row = IndexEntry(FJORD, "Fjord Holdings ASA", "4", date(2023, 5, 12), OWNER_FORM4_PATH)
     bulk = Trade(
         accession="0001234567-23-000002",
         seq=1,
@@ -161,7 +164,7 @@ def fake_filings() -> FakeFilings:
                 IndexEntry(FJORD, "Fjord Holdings ASA", "6-K", date(2023, 5, 15), "edgar/x.txt")
             ],
         },
-        form4={FORM4_PATH: form4_trades()},
+        form4={FORM4_PATH: form4_trades(), OWNER_FORM4_PATH: form4_trades()},
         quarters={(2023, 1): [bulk]},
     )
 
