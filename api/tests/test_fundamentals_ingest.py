@@ -3,6 +3,7 @@ estimated earnings calendar. Providers are fakes fed with the real-shaped SEC fi
 
 import json
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -23,7 +24,7 @@ from app.models import (
     SharesOutstanding,
     Ticker,
 )
-from app.providers.base import CompanyReference, IndexEntry
+from app.providers.base import CompanyFinancials, CompanyReference, IndexEntry
 from app.providers.base import InsiderTransaction as Trade
 from app.providers.sec_edgar import parse_company_financials
 from app.providers.sec_filings import earnings_releases, parse_filing_history, parse_form4
@@ -324,6 +325,30 @@ async def test_failed_company_keeps_its_previous_data(
     assert stats["company_errors"] == 1
     assert stats["company_error_sample"]["GOOGL"] == "GET companyfacts failed: HTTP 503"
     assert await count(db, FundamentalsQuarterly, ids["GOOGL"]) == 7
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("clean_redis")
+async def test_a_company_whose_figures_cannot_be_stored_does_not_stop_the_others(
+    db: AsyncSession, market_day: Callable[[date], None]
+) -> None:
+    # Real filings carry surprises (a fiscal year of 43646 once failed the whole load). When
+    # a batch can't be stored, its companies are stored one by one and only the bad one fails.
+    ids = await seed_universe(db)
+    market_day(date(2023, 5, 16))
+    sec = fake_sec()
+    fjord = sec.financials[FJORD]
+    sec.financials[FJORD] = CompanyFinancials(
+        [replace(p, fiscal_period="TOOLONG") for p in fjord.periods], fjord.shares
+    )
+    stats = await jobs.fundamentals_job("cli", fundamentals=sec, filings=fake_filings())
+    assert stats["company_errors"] == 1
+    assert stats["company_error_sample"]["TSM"].startswith(
+        "Could not store its figures: value too long"
+    )
+    assert stats["companies"] == 1
+    assert await count(db, FundamentalsQuarterly, ids["GOOGL"]) == 7
+    assert await count(db, FundamentalsAnnual, ids["TSM"]) == 0
 
 
 @pytest.mark.integration

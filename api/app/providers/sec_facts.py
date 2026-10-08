@@ -25,6 +25,11 @@ from typing import Any
 
 from app.providers.base import FinancialPeriod, PeriodKind
 
+# Labels outside these are filer typos (one 10-Q gives fiscal year 43646, an Excel date
+# serial): kept as unknown rather than stored. The periods themselves come from the dates.
+FISCAL_YEARS = range(1900, 2101)
+FISCAL_PERIOD_MAX_LEN = 4  # "FY", "Q1"... (fundamentals_*.fiscal_period is varchar(4))
+
 QUARTER_DAYS = range(80, 101)
 HALF_YEAR_DAYS = range(170, 196)
 NINE_MONTH_DAYS = range(260, 291)
@@ -144,7 +149,7 @@ def _parse_facts(entries: Iterable[Mapping[str, Any]]) -> list[_Fact]:
         if key in seen:
             continue
         seen.add(key)
-        fy = e.get("fy")
+        fy, fp = e.get("fy"), e.get("fp")
         out.append(
             _Fact(
                 start=start,
@@ -153,8 +158,8 @@ def _parse_facts(entries: Iterable[Mapping[str, Any]]) -> list[_Fact]:
                 filed=filed,
                 accession=key[0],
                 form=e.get("form"),
-                fy=fy if isinstance(fy, int) else None,
-                fp=e.get("fp"),
+                fy=fy if isinstance(fy, int) and fy in FISCAL_YEARS else None,
+                fp=fp if isinstance(fp, str) and 0 < len(fp) <= FISCAL_PERIOD_MAX_LEN else None,
             )
         )
     return out

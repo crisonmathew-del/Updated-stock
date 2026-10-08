@@ -208,6 +208,23 @@ def test_company_financials_include_cover_page_shares() -> None:
     assert len(financials.periods) == 10
 
 
+def test_impossible_fiscal_labels_are_dropped_not_stored(
+    northwind: list[FinancialPeriod],
+) -> None:
+    # A real 10-Q/A gave its fiscal year as 43646 (an Excel date serial), which overflowed
+    # the smallint column and failed the whole load. The periods stay; only the label goes.
+    facts = load("companyfacts_financials.json")
+    for concept in facts["facts"]["us-gaap"].values():
+        for entries in concept["units"].values():
+            for e in entries:
+                e["fy"], e["fp"] = 43646, "Q2 (restated)"
+    periods = parse_financials(facts)
+    assert [(p.period_end, p.reported_date) for p in periods] == [
+        (p.period_end, p.reported_date) for p in northwind
+    ]
+    assert {(p.fiscal_year, p.fiscal_period) for p in periods} == {(None, None)}
+
+
 def test_documents_without_financial_facts_give_nothing() -> None:
     assert parse_financials(load("companyfacts_no_dei.json")) == []
     assert parse_financials({"cik": 1, "facts": {}}) == []

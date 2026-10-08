@@ -19,6 +19,7 @@ from pathlib import PurePosixPath
 from typing import Any
 
 from sqlalchemy import delete, or_, select, update
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
@@ -186,6 +187,64 @@ async def _insert(session: AsyncSession, model: Any, rows: list[dict[str, Any]])
         await session.execute(model.__table__.insert(), rows[start : start + CHUNK_ROWS])
 
 
+async def _store_companies(
+    session: AsyncSession,
+    source: str,
+    done: Sequence[tuple[Company, tuple[CompanyFinancials, CompanyFilings]]],
+    *,
+    today: date,
+    now: datetime,
+) -> dict[str, int]:
+    """Replace these companies' statements and calendar, add their share counts, and commit.
+    Returns the row counts."""
+    ids = [tid for company, _ in done for tid in company.ticker_ids]
+    quarterly: list[dict[str, Any]] = []
+    annual: list[dict[str, Any]] = []
+    calendar: list[dict[str, Any]] = []
+    shares: list[dict[str, object]] = []
+    for company, (financials, filings) in done:
+        quarterly += _statement_rows(company.ticker_ids, financials, PeriodKind.QUARTER, source)
+        annual += _statement_rows(company.ticker_ids, financials, PeriodKind.ANNUAL, source)
+        calendar += _calendar_rows(company.ticker_ids, filings, today, source)
+        shares += [
+            {
+                "ticker_id": tid,
+                "as_of_date": o.as_of_date,
+                "filed_date": o.filed_date,
+                "shares": o.shares,
+                "form": o.form,
+                "source": source,
+            }
+            for o in financials.shares
+            for tid in company.common_ids
+        ]
+    for model in (FundamentalsQuarterly, FundamentalsAnnual, EarningsEvent):
+        await session.execute(delete(model).where(model.ticker_id.in_(ids)))
+    await _insert(session, FundamentalsQuarterly, quarterly)
+    await _insert(session, FundamentalsAnnual, annual)
+    await _insert(session, EarningsEvent, calendar)
+    await upsert_shares(session, shares)
+    for company, (_, filings) in done:
+        reference = filings.reference
+        values: dict[str, Any] = {"fundamentals_refreshed_at": now}
+        if reference.sic_code:
+            values |= {
+                "sic_code": reference.sic_code,
+                "sic_description": reference.sic_description,
+                "reference_refreshed_at": now,
+            }
+        await session.execute(
+            update(Ticker).where(Ticker.id.in_(company.ticker_ids)).values(**values)
+        )
+    await session.commit()
+    return {
+        "companies": len(done),
+        "quarterly_rows": len(quarterly),
+        "annual_rows": len(annual),
+        "earnings_dates": len(calendar),
+    }
+
+
 async def refresh_companies(
     session: AsyncSession,
     provider: FundamentalsProvider,
@@ -218,54 +277,29 @@ async def refresh_companies(
         done = [(c, r) for c, r in zip(batch, results, strict=True) if r is not None]
         if not done:
             continue
-        ids = [tid for company, _ in done for tid in company.ticker_ids]
-        quarterly: list[dict[str, Any]] = []
-        annual: list[dict[str, Any]] = []
-        calendar: list[dict[str, Any]] = []
-        shares: list[dict[str, object]] = []
-        for company, (financials, filings) in done:
-            quarterly += _statement_rows(
-                company.ticker_ids, financials, PeriodKind.QUARTER, provider.name
-            )
-            annual += _statement_rows(
-                company.ticker_ids, financials, PeriodKind.ANNUAL, provider.name
-            )
-            calendar += _calendar_rows(company.ticker_ids, filings, today, provider.name)
-            shares += [
-                {
-                    "ticker_id": tid,
-                    "as_of_date": o.as_of_date,
-                    "filed_date": o.filed_date,
-                    "shares": o.shares,
-                    "form": o.form,
-                    "source": provider.name,
-                }
-                for o in financials.shares
-                for tid in company.common_ids
-            ]
-        for model in (FundamentalsQuarterly, FundamentalsAnnual, EarningsEvent):
-            await session.execute(delete(model).where(model.ticker_id.in_(ids)))
-        await _insert(session, FundamentalsQuarterly, quarterly)
-        await _insert(session, FundamentalsAnnual, annual)
-        await _insert(session, EarningsEvent, calendar)
-        await upsert_shares(session, shares)
-        for company, (_, filings) in done:
-            reference = filings.reference
-            values: dict[str, Any] = {"fundamentals_refreshed_at": now}
-            if reference.sic_code:
-                values |= {
-                    "sic_code": reference.sic_code,
-                    "sic_description": reference.sic_description,
-                    "reference_refreshed_at": now,
-                }
-            await session.execute(
-                update(Ticker).where(Ticker.id.in_(company.ticker_ids)).values(**values)
-            )
-        await session.commit()
-        totals["companies"] += len(done)
-        totals["quarterly_rows"] += len(quarterly)
-        totals["annual_rows"] += len(annual)
-        totals["earnings_dates"] += len(calendar)
+        try:
+            counts = await _store_companies(session, provider.name, done, today=today, now=now)
+        except DBAPIError:
+            # One company's unstorable figures must not cost the others theirs: store them one
+            # by one, and report (and keep the previous data of) the ones that fail.
+            await session.rollback()
+            counts = defaultdict(int)
+            for item in done:
+                try:
+                    one = await _store_companies(
+                        session, provider.name, [item], today=today, now=now
+                    )
+                except DBAPIError as exc:
+                    await session.rollback()
+                    reason = str(exc.orig).splitlines()[0][:200]
+                    log.warning("fundamentals.store_failed", cik=item[0].cik, error=reason)
+                    for symbol in item[0].symbols:
+                        errors[symbol] = f"Could not store its figures: {reason}"
+                    continue
+                for key, value in one.items():
+                    counts[key] += value
+        for key, value in counts.items():
+            totals[key] += value
         log.info("fundamentals.batch", done=start + len(batch), of=len(companies))
 
     stats.update(
