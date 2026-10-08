@@ -14,6 +14,35 @@ internet ──443──▶ caddy ─┬─ /api/* ──▶ api ──┬──
 The files: `infra/docker-compose.prod.yml` (the services), `infra/Caddyfile` (HTTPS and
 routing), `infra/backup/` (the backup image and its restore test).
 
+## Quick install (about 20 minutes)
+
+1. **Get a domain.** Any registrar works (Cloudflare, Namecheap, Porkbun: about $10 a year), or
+   use a subdomain of one you own, e.g. `stocks.yourname.com`.
+2. **Create a server.** At [Hetzner Cloud](https://www.hetzner.com/cloud) (cheapest) or
+   [DigitalOcean](https://www.digitalocean.com): choose **Ubuntu 24.04**, **4 vCPUs / 8 GB RAM**
+   (Hetzner CPX31 or DigitalOcean's 8 GB droplet, about $15–50 a month), add your SSH key or a
+   root password, and create it. Note its **IPv4 address**.
+3. **Point the domain at it.** In the registrar's DNS settings add an **A record**: name
+   `stocks` (or `@` for the bare domain), value the server's IPv4 address. If Cloudflare asks,
+   turn the proxy (orange cloud) **off**, so the server can get its own HTTPS certificate.
+4. **Run the installer.** Connect to the server (`ssh root@<the IPv4 address>`; Windows has
+   `ssh` in PowerShell) and paste:
+
+   ```sh
+   curl -fsSL https://raw.githubusercontent.com/crisonmathew-del/Updated-stock/claude/vibrant-darwin-yeisdw/infra/install.sh | sudo bash
+   ```
+
+   It asks for your domain, an email for the certificate, the SEC contact email, and the email
+   and password you'll sign in with; installs Docker; writes `.env` with generated secrets;
+   builds and starts everything; and creates your login. The first build takes 5–10 minutes.
+5. **Open `https://<your domain>`** and sign in. The market loads by itself (prices in about
+   30–60 minutes, company financials the first night); watch **Admin → Data** and
+   **Admin → Status**.
+
+To update later, run the same command again (or `sudo bash /opt/breakout/infra/install.sh`):
+it pulls the latest version and rebuilds, keeping your settings and data. The rest of this page
+explains what the installer does and how to do it by hand.
+
 ## What you need
 
 - **A server**: Ubuntu 24.04 (any Linux with Docker works). 4 vCPUs, 8 GB RAM and 80 GB of SSD

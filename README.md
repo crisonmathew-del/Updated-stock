@@ -40,9 +40,14 @@ directory, company data from SEC EDGAR, and prices from yfinance (development on
 `make help` lists every command. `make test` and `make lint` run all checks inside the
 containers; `make e2e` runs the Playwright journeys (natively; see the Makefile).
 
-**Deploying:** one Linux server with Docker, a domain and an email for Let's Encrypt;
-`make deploy` serves it over HTTPS behind Caddy and backs the database up every night. Step by
-step in [`docs/deploy.md`](docs/deploy.md).
+**Deploying:** one Ubuntu server, a domain and an email for Let's Encrypt. On the server:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/crisonmathew-del/Updated-stock/claude/vibrant-darwin-yeisdw/infra/install.sh | sudo bash
+```
+
+It installs Docker, asks a few questions, and serves the app over HTTPS behind Caddy with
+nightly backups; running it again updates. Step by step in [`docs/deploy.md`](docs/deploy.md).
 
 ### Live data and alerts
 

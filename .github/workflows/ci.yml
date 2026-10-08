@@ -170,6 +170,8 @@ jobs:
           PGUSER: breakout
           PGPASSWORD: breakout
           PGDATABASE: breakout
+      - name: Installer and backup scripts pass shellcheck
+        run: shellcheck -S warning -x infra/install.sh infra/backup/*.sh
       - name: Production compose file and Caddyfile are valid
         env:
           DOMAIN: example.com

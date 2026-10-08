@@ -176,6 +176,8 @@ infra/docker-compose.prod.yml + Caddyfile   production: Caddy (HTTPS, the only p
                            in front of the prod images, migrate (+ seed), postgres, redis, backup
 infra/backup/              backup image (pg_dump nightly, rotation, rclone S3 copy, verify,
                            restore) and test-restore.sh (the CI restore test)
+infra/install.sh           one-command server install/update (Docker, clone to /opt/breakout,
+                           .env with generated secrets, make deploy, login); `--prepare-only`
 docs/spec.md         the build specification; docs/deploy.md: deploying and backups
 .github/workflows/ci.yml   api (ruff, mypy, pytest + services), web (lint, prettier, tsc,
                            vitest, build), e2e (Playwright), deploy (backup restore test, prod
@@ -218,7 +220,8 @@ Only Docker is required; `make` targets run inside containers (except `make e2e`
 | `make e2e` | Playwright end-to-end tests, run natively: needs `make dev` (Postgres/Redis), uv, pnpm and `pnpm exec playwright install chromium`; seeds its own `breakout_e2e` |
 | `make shell-api` / `make shell-db` | bash in api container / psql |
 
-Production (on the server, `docs/deploy.md`): `make deploy` (build + up behind HTTPS),
+Production (on the server, `docs/deploy.md`): `infra/install.sh` installs or updates it all
+(the README has the one-line `curl … | sudo bash`); `make deploy` (build + up behind HTTPS),
 `prod-up` / `prod-down` / `prod-logs [service=…]` / `prod-ps`, `prod-cli cmd="…"` (any
 `app.cli` command), `prod-create-user email=…`, `backup-now`, `backup-list`,
 `backup-verify [file=latest]`, `restore file=…|latest` (asks first; `yes=1` skips).
