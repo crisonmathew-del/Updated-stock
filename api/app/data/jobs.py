@@ -21,6 +21,7 @@ from app.core.logging import get_logger
 from app.core.redis import get_redis
 from app.data.backfill import run_backfill
 from app.data.eod_update import EOD_DELAY, run_eod_update
+from app.data.market_cap import update_latest_market_caps
 from app.data.quality import run_quality_checks
 from app.data.universe import build_universe
 from app.fundamentals.ingest import (
@@ -139,17 +140,23 @@ async def backfill_job(
         prices = prices or registry.price_provider()
         async with get_sessionmaker()() as session:
             settings = await store.load(session)
+            end = latest_session()
             await run_backfill(
                 session,
                 prices,
                 redis,
                 today=market_today(),
-                end=latest_session(),
+                end=end,
                 years=years or settings.backfill_years,
                 symbols=symbols,
                 force=force,
                 run_id=run.id,
                 stats=run.stats,
+            )
+            # Otherwise only the nightly update computes them: a fresh install would show no
+            # market caps until its first evening.
+            run.stats["market_caps"] = await update_latest_market_caps(
+                session, since=end - timedelta(days=10)
             )
         await prices.aclose()
         return run.stats

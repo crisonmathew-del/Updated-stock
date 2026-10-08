@@ -4,6 +4,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.jobs import JobAlreadyRunningError, job_lock
 from app.core.redis import get_redis
 from app.data import jobs
@@ -115,7 +116,11 @@ async def test_a_new_split_triggers_a_full_refetch(db: AsyncSession) -> None:
 
 @pytest.mark.integration
 @pytest.mark.usefixtures("clean_redis")
-async def test_eod_job_records_its_run_and_satisfies_the_scheduler(db: AsyncSession) -> None:
+async def test_eod_job_records_its_run_and_satisfies_the_scheduler(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Without an SEC contact (whatever the developer's .env says), data health warns.
+    monkeypatch.setattr(get_settings(), "sec_user_agent", None)
     symbols = await seeded_universe(db)
     assert not await eod_already_done(SESSION.isoformat())
 
@@ -130,6 +135,43 @@ async def test_eod_job_records_its_run_and_satisfies_the_scheduler(db: AsyncSess
     issues = await open_issues(db)
     assert "critical" not in issues, issues
     assert "sec_not_configured" in issues["warning"]
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("clean_redis")
+async def test_a_first_backfill_fills_in_market_caps(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A fresh install loads the universe (with share counts), then backfills: market caps
+    # must be there straight away, not only after the first nightly update.
+    monkeypatch.setattr(jobs, "latest_session", lambda: BACKFILLED_TO)
+    monkeypatch.setattr(jobs, "market_today", lambda: BACKFILLED_TO)
+    plan = plan_universe(listed("AAPL", "A"))
+    await sync_tickers(db, plan, BACKFILLED_TO)
+    aapl = await db.scalar(select(Ticker).where(Ticker.symbol == "AAPL"))
+    assert aapl is not None
+    db.add(
+        SharesOutstanding(
+            ticker_id=aapl.id,
+            as_of_date=date(2026, 6, 30),
+            filed_date=date(2026, 8, 1),
+            shares=1_000_000,
+            source="test",
+        )
+    )
+    await db.commit()
+
+    stats = await jobs.backfill_job(
+        "manual", years=1, prices=FakePrices(histories(list(plan), BACKFILLED_TO))
+    )
+
+    assert stats["market_caps"] == 1  # A has no share count
+    close = await db.scalar(
+        select(DailyBar.close).where(DailyBar.ticker_id == aapl.id, DailyBar.date == BACKFILLED_TO)
+    )
+    await db.refresh(aapl)
+    assert close is not None
+    assert aapl.market_cap == pytest.approx(close * 1_000_000)
 
 
 @pytest.mark.integration
