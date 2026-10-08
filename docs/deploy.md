@@ -19,9 +19,11 @@ routing), `infra/backup/` (the backup image and its restore test).
 1. **Get a domain.** Any registrar works (Cloudflare, Namecheap, Porkbun: about $10 a year), or
    use a subdomain of one you own, e.g. `stocks.yourname.com`.
 2. **Create a server.** At [Hetzner Cloud](https://www.hetzner.com/cloud) (cheapest) or
-   [DigitalOcean](https://www.digitalocean.com): choose **Ubuntu 24.04**, **4 vCPUs / 8 GB RAM**
-   (Hetzner CPX31 or DigitalOcean's 8 GB droplet, about $15–50 a month), add your SSH key or a
-   root password, and create it. Note its **IPv4 address**.
+   [DigitalOcean](https://www.digitalocean.com): choose **Ubuntu 24.04** and at least **2 vCPUs /
+   4 GB RAM** (DigitalOcean Basic Regular $24/month; 4 vCPUs / 8 GB is more comfortable for
+   backtests, and a droplet can be resized later). On a server under ~7 GB the installer adds a
+   4 GB swap file: the first full market scan peaks at about 3 GB on top of the services' ~2 GB.
+   Add your SSH key or a root password, and create it. Note its **IPv4 address**.
 3. **Point the domain at it.** In the registrar's DNS settings add an **A record**: name
    `stocks` (or `@` for the bare domain), value the server's IPv4 address. If Cloudflare asks,
    turn the proxy (orange cloud) **off**, so the server can get its own HTTPS certificate.

@@ -83,6 +83,22 @@ if ! command -v docker >/dev/null; then
 fi
 docker compose version >/dev/null 2>&1 || fail "Docker Compose v2 is missing (docker compose version failed)."
 
+# The first full market scan peaks at about 3 GB on top of the services' ~2 GB. On a server
+# with less than ~7 GB of memory, a swap file lets it finish (slower) instead of failing.
+mem_mb=$(awk '/^MemTotal/ {print int($2 / 1024)}' /proc/meminfo)
+swap_mb=$(awk '/^SwapTotal/ {print int($2 / 1024)}' /proc/meminfo)
+add_swap() {
+  { fallocate -l 4G /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count=4096 status=none; } &&
+    chmod 600 /swapfile && mkswap /swapfile >/dev/null && swapon /swapfile &&
+    { grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >>/etc/fstab; } &&
+    echo 'vm.swappiness=10' >/etc/sysctl.d/99-breakout-swap.conf &&
+    sysctl -q -w vm.swappiness=10
+}
+if [ "$mem_mb" -lt 7000 ] && [ "$swap_mb" -lt 1024 ] && [ ! -e /swapfile ]; then
+  echo "This server has ${mem_mb} MB of memory: adding a 4 GB swap file for the big scans."
+  add_swap || echo "Couldn't add a swap file (continuing without it; the first full scan may run out of memory)."
+fi
+
 say "2/5  Downloading the app to $DIR"
 if [ -d "$DIR/.git" ]; then
   git -C "$DIR" fetch --quiet origin
