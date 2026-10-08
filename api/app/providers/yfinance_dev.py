@@ -37,6 +37,9 @@ from app.providers.base import (
 )
 
 log = get_logger(__name__)
+# Raise download failures instead of logging them and returning an empty frame (yfinance
+# replaced history(raise_errors=True) with this switch).
+yf.config.debug.hide_exceptions = False
 
 REQUESTS_PER_SECOND = 4
 CONCURRENCY = 4
@@ -94,7 +97,6 @@ def _fetch_one(symbol: str, start: date, end: date) -> pd.DataFrame:
         interval="1d",
         actions=True,
         auto_adjust=False,
-        raise_errors=True,
         timeout=30,
     )
     return frame
