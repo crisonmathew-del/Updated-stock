@@ -132,7 +132,19 @@ def parse_shares_outstanding(payload: dict[str, Any]) -> list[SharesObservation]
                 as_of_date=as_of, filed_date=filed, shares=info["shares"], form=info["form"]
             ),
         )
-    return sorted(observations.values(), key=lambda o: (o.filed_date, o.as_of_date))
+    out = sorted(observations.values(), key=lambda o: (o.filed_date, o.as_of_date))
+    # A 20-F filer reports its ordinary shares, but what trades in the US is often an ADS worth
+    # several of them (TSM: 5, Toyota: 10), so price x count overstates the market cap many
+    # times. No free source gives the ratio, so such a company gets no count, like an ADR:
+    # none at all while its latest count is from a 20-F, and none from its 20-F years after
+    # it moves to 10-K/10-Q. (40-F filers, Canadian, list their common shares directly.)
+    if out and _is_20f(out[-1].form):
+        return []
+    return [o for o in out if not _is_20f(o.form)]
+
+
+def _is_20f(form: str | None) -> bool:
+    return form is not None and form.upper().startswith("20-F")
 
 
 def parse_company_financials(payload: dict[str, Any]) -> CompanyFinancials:

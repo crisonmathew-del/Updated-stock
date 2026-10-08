@@ -187,6 +187,22 @@ def test_multi_class_share_counts_are_summed_and_zeros_ignored() -> None:
     assert observations[0].shares == 5_833_000_000 + 861_000_000 + 5_426_000_000
 
 
+def test_20f_share_counts_are_not_kept() -> None:
+    # 20-F counts are ordinary shares; the US listing may be an ADS worth several (TSM: 5).
+    payload = fixture_json("companyfacts_single_class.json")
+    entries = payload["facts"]["dei"]["EntityCommonStockSharesOutstanding"]["units"]["shares"]
+    for e in entries:
+        e["form"] = "20-F"
+    assert parse_shares_outstanding(payload) == []
+    # A company that moved to 10-K/10-Q keeps those counts only.
+    for e in entries:
+        e["form"] = "10-K" if e["filed"] >= "2024-11-01" else "20-F"
+    assert [(o.filed_date, o.form) for o in parse_shares_outstanding(payload)] == [
+        (date(2024, 11, 1), "10-K"),
+        (date(2025, 1, 31), "10-K"),
+    ]
+
+
 def test_filers_without_cover_page_shares_give_no_observations() -> None:
     assert parse_shares_outstanding(fixture_json("companyfacts_no_dei.json")) == []
 
