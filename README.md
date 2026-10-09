@@ -58,9 +58,17 @@ nightly backups; running it again updates. Step by step in [`docs/deploy.md`](do
   **Alerts → Channels** shows what's configured and sends a test.
 - **Live prices** come from Alpaca's free plan: create an account, then set
   `STREAM_PROVIDER=alpaca`, `ALPACA_API_KEY_ID` and `ALPACA_API_SECRET_KEY` and run
-  `make restart`. The free plan streams IEX only (a few % of the market's volume), so intraday
-  volume is scaled up and every intraday breakout stays *provisional* until the close confirms
-  it. Without keys the streamer idles and everything else works on end-of-day data.
+  `make restart` (on a server: `sudo bash infra/install.sh --keys` asks for them, checks them
+  with Alpaca and restarts). The free plan streams 30 stocks from IEX only (a few % of the
+  market's volume): your holdings, SPY/QQQ/IWM, then setups closest to their pivots, alert
+  rule targets and watchlists, trade by trade. Every other scanned stock (active setups and
+  the Stage 2 leaders) gets a price from the pre-market check (every 5 minutes) and the
+  intraday sweep (every 15), labelled "Checked" with its time. Intraday volume is scaled up and
+  every intraday breakout stays *provisional* until the close confirms it. Without keys the
+  streamer idles and everything else works on end-of-day data.
+- **Pages keep themselves current:** when the evening update (or a manual scan) stores new
+  analytics, every open page refetches what it shows; a laptop waking up catches up the same
+  way. No reload needed.
 - **AI summaries** on the stock page switch on with `ANTHROPIC_API_KEY` (and optionally
   `ANTHROPIC_MODEL`). The summary uses only the numbers on the page and says so when it
   doesn't. **Settings** (under Admin) shows which keys are set, never their values.

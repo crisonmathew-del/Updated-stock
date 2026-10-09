@@ -225,6 +225,9 @@ Production (on the server, `docs/deploy.md`): `infra/install.sh` installs or upd
 `prod-up` / `prod-down` / `prod-logs [service=…]` / `prod-ps`, `prod-cli cmd="…"` (any
 `app.cli` command), `prod-create-user email=…`, `backup-now`, `backup-list`,
 `backup-verify [file=latest]`, `restore file=…|latest` (asks first; `yes=1` skips).
+`install.sh --keys` (piped: `| sudo bash -s -- --keys`) updates and asks for the Alpaca and
+Anthropic keys (Alpaca's are checked against its data API before they're saved). The installer
+runs from `main()` so a command reading stdin can't swallow the rest of a piped script.
 
 Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost):
 - API: `cd api && uv sync && uv run pytest` (`-m "not integration"` needs no services;
@@ -292,7 +295,14 @@ Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost)
   breakouts are *provisional*: logged as `breakout_provisional` signals, settled at the close by
   `alerts/eod.confirm_provisional`. The pure rules are `scanner/intraday_scan.py` (per print)
   and `scanner/live_scans.py` (pre-market, sweep); the watcher only feeds them. "Live" means
-  newer than the latest processed close (`intraday/live.py`).
+  newer than the latest processed close (`intraday/live.py`). SPY/QQQ/IWM are always streamed
+  (after holdings; `INDEX_SYMBOLS`, never scanned); each pre-market check and sweep also
+  publishes a `"source": "check"` quote for every scanned stock that isn't streamed (the UI
+  says "Checked" with its time). Jobs that store analytics (EOD update, analytics, setups) end
+  with `announce_new_data` (`{"type": "data", "through": …}` on `live:events`); the web's
+  `LiveProvider` then refetches every query and drops the processed session's live data (it
+  also compares `through` from `/api/live` on every reconnect). Pages use `useNewerQuote`
+  (stores/live.ts) to overlay a live price on a stored close.
 - **Alerts:** everything goes through `alerts/engine.raise_alerts` (drafts → per-user alerts;
   grade filter for setup kinds on stocks you don't follow; Redis cooldown dedupe; delivery
   recorded per channel in words; in-app pushed on `live:events`). Emails are sent by the caller
@@ -376,7 +386,7 @@ Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost)
   patterns → setups → signals, then outcomes (also scheduled at 17:00 ET). Universe rebuild: Sundays 18:00 ET. Empty universe at scheduler start → universe +
   backfill. Backfill progress lives in Redis (`backfill:progress`); the admin page polls it.
 - Live: the streamer (or `make replay`) publishes alerts, quotes (≤ every 250 ms) and setup
-  events on Redis `live:events`; `/api/ws` relays them (batched) to the browser through the
+  events on Redis `live:events` (jobs add `data` when new analytics are stored); `/api/ws` relays them (batched) to the browser through the
   Next.js proxy (rewrites proxy WebSocket upgrades). Rule and holding changes publish
   `watch:refresh` so the streamer reloads its plan. Digests: a scheduler tick every 5 min →
   `digests` job. Volume curve: weekdays 20:30 ET.

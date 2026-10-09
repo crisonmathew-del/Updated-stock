@@ -8,8 +8,13 @@
 # secrets), builds and starts everything, and creates your login. Running it again updates the
 # app to the latest version and keeps your settings and data.
 #
+# Add or change API keys (live prices from Alpaca, AI summaries) while updating:
+#
+#   curl -fsSL https://raw.githubusercontent.com/crisonmathew-del/Updated-stock/claude/vibrant-darwin-yeisdw/infra/install.sh | sudo bash -s -- --keys
+#
 # Answers can also come from the environment (no questions asked): BREAKOUT_DOMAIN,
-# BREAKOUT_ACME_EMAIL, BREAKOUT_LOGIN_EMAIL, BREAKOUT_PASSWORD, BREAKOUT_SEC_EMAIL.
+# BREAKOUT_ACME_EMAIL, BREAKOUT_LOGIN_EMAIL, BREAKOUT_PASSWORD, BREAKOUT_SEC_EMAIL, and with
+# --keys BREAKOUT_ALPACA_KEY_ID, BREAKOUT_ALPACA_SECRET, BREAKOUT_ANTHROPIC_KEY.
 # Other options: BREAKOUT_DIR (default /opt/breakout), BREAKOUT_BRANCH (default: the
 # repository's default branch), BREAKOUT_REPO. `--prepare-only` stops after writing .env.
 set -euo pipefail
@@ -17,18 +22,21 @@ set -euo pipefail
 REPO="${BREAKOUT_REPO:-https://github.com/crisonmathew-del/Updated-stock.git}"
 DIR="${BREAKOUT_DIR:-/opt/breakout}"
 BRANCH="${BREAKOUT_BRANCH:-}"
+ALPACA_CHECK_URL="${BREAKOUT_ALPACA_CHECK_URL:-https://data.alpaca.markets/v2/stocks/snapshots?symbols=SPY&feed=iex}"
 PREPARE_ONLY=0
-[ "${1:-}" = "--prepare-only" ] && PREPARE_ONLY=1
+KEYS=0
 MIN_PASSWORD_LENGTH=12
 
 say() { printf '\n\033[1m%s\033[0m\n' "$*"; }
 fail() { printf '\n\033[31mError:\033[0m %s\n' "$*" >&2; exit 1; }
+# Whether there's a terminal to ask (opening it fails without one, though it's always "readable").
+have_tty() { (: </dev/tty) 2>/dev/null; }
 
 # Questions go to the terminal even when this script is piped from curl.
 ask() { # ask VAR "Question" [default]
   local var=$1 question=$2 default=${3:-} answer
   if [ -n "${!var:-}" ]; then return; fi
-  [ -r /dev/tty ] || fail "$var is not set and there is no terminal to ask for it."
+  have_tty || fail "$var is not set and there is no terminal to ask for it."
   if [ -n "$default" ]; then question="$question [$default]"; fi
   read -r -p "$question: " answer </dev/tty
   answer=${answer:-$default}
@@ -38,7 +46,7 @@ ask() { # ask VAR "Question" [default]
 
 ask_password() {
   if [ -n "${BREAKOUT_PASSWORD:-}" ]; then return; fi
-  [ -r /dev/tty ] || fail "BREAKOUT_PASSWORD is not set and there is no terminal to ask for it."
+  have_tty || fail "BREAKOUT_PASSWORD is not set and there is no terminal to ask for it."
   local first second
   while true; do
     read -r -s -p "Password for your login (at least $MIN_PASSWORD_LENGTH characters): " first </dev/tty
@@ -56,6 +64,74 @@ ask_password() {
   done
 }
 
+# A secret typed without echo; Enter keeps what .env has (an empty answer).
+ask_secret() { # ask_secret VAR "Question"
+  local var=$1 question=$2 answer
+  if [ -n "${!var:-}" ]; then return; fi
+  have_tty || return 0
+  read -r -s -p "$question: " answer </dev/tty
+  echo
+  printf -v "$var" '%s' "$answer"
+}
+
+env_value() { sed -n "s/^$1=//p" .env | head -n 1; }
+
+# "set" or "not set" for a key in .env (never its value).
+key_state() { if [ -n "$(env_value "$1")" ]; then echo "set"; else echo "not set"; fi; }
+
+# The HTTP status Alpaca's market data API gives these keys (200: they work). The keys go in
+# a header file, not on the command line, so other processes can't read them.
+alpaca_status() {
+  curl -s -o /dev/null -w '%{http_code}' --max-time 15 \
+    -H @<(printf 'APCA-API-KEY-ID: %s\nAPCA-API-SECRET-KEY: %s\n' "$1" "$2") \
+    "$ALPACA_CHECK_URL" || true
+}
+
+ask_keys() {
+  echo "API keys (typing is hidden; press Enter to keep what's there):"
+  echo "  Alpaca, for live prices: alpaca.markets, Paper account, API Keys (free)."
+  while true; do
+    ask_secret BREAKOUT_ALPACA_KEY_ID "Alpaca API key ID ($(key_state ALPACA_API_KEY_ID))"
+    ask_secret BREAKOUT_ALPACA_SECRET "Alpaca secret key ($(key_state ALPACA_API_SECRET_KEY))"
+    local id=${BREAKOUT_ALPACA_KEY_ID:-$(env_value ALPACA_API_KEY_ID)}
+    local secret=${BREAKOUT_ALPACA_SECRET:-$(env_value ALPACA_API_SECRET_KEY)}
+    if [ -z "$id" ] && [ -z "$secret" ]; then
+      echo "No Alpaca keys: prices stay end of day."
+      break
+    fi
+    if [ -z "$id" ] || [ -z "$secret" ]; then
+      echo "Alpaca needs both the key ID and the secret key."
+    else
+      local status
+      status=$(alpaca_status "$id" "$secret")
+      if [ "$status" = 200 ]; then
+        echo "Alpaca accepted the keys: live prices switch on."
+        set_env ALPACA_API_KEY_ID "$id"
+        set_env ALPACA_API_SECRET_KEY "$secret"
+        set_env STREAM_PROVIDER alpaca
+        break
+      fi
+      if [ "$status" = 401 ] || [ "$status" = 403 ]; then
+        echo "Alpaca refused these keys (HTTP $status). Copy both again from the Paper account's API Keys."
+      else
+        echo "Couldn't check the keys with Alpaca (HTTP ${status:-none}); saving them anyway."
+        set_env ALPACA_API_KEY_ID "$id"
+        set_env ALPACA_API_SECRET_KEY "$secret"
+        set_env STREAM_PROVIDER alpaca
+        break
+      fi
+    fi
+    have_tty || fail "The Alpaca keys from the environment don't work."
+    BREAKOUT_ALPACA_KEY_ID="" BREAKOUT_ALPACA_SECRET=""
+  done
+  echo "  Anthropic, for the stock page's AI summary (optional, paid): console.anthropic.com."
+  ask_secret BREAKOUT_ANTHROPIC_KEY "Anthropic API key ($(key_state ANTHROPIC_API_KEY))"
+  if [ -n "${BREAKOUT_ANTHROPIC_KEY:-}" ]; then
+    set_env ANTHROPIC_API_KEY "$BREAKOUT_ANTHROPIC_KEY"
+    echo "Saved the Anthropic key: AI summaries switch on."
+  fi
+}
+
 # Replace KEY=... in .env (the value is written as given; sed-special characters escaped).
 set_env() {
   local key=$1 value=$2 escaped
@@ -70,6 +146,13 @@ set_env() {
 # Everything runs from main, called on the last line: piped from curl, bash then has the whole
 # script before any of it runs, so a command that reads stdin can't swallow the rest of it.
 main() {
+  for arg in "$@"; do
+    case $arg in
+      --prepare-only) PREPARE_ONLY=1 ;;
+      --keys) KEYS=1 ;;
+      *) fail "Unknown option $arg (the options are --keys and --prepare-only)." ;;
+    esac
+  done
   [ "$(id -u)" -eq 0 ] || fail "Run it as root: put sudo in front (curl ... | sudo bash)."
   command -v apt-get >/dev/null || fail "This installer supports Ubuntu and Debian (apt). See docs/deploy.md for other systems."
 
@@ -132,7 +215,10 @@ main() {
     set_env SEC_USER_AGENT "\"Breakout $BREAKOUT_SEC_EMAIL\""
     echo "Wrote $DIR/.env with new secrets (keep it private; it is never uploaded anywhere)."
   fi
-  domain=$(sed -n 's/^DOMAIN=//p' .env)
+  if [ "$KEYS" -eq 1 ]; then
+    ask_keys
+  fi
+  domain=$(env_value DOMAIN)
   [ -n "$domain" ] || fail "DOMAIN is empty in $DIR/.env."
 
   if [ "$PREPARE_ONLY" -eq 1 ]; then
@@ -148,7 +234,7 @@ main() {
       echo "Warning: $domain points at '${there:-nothing}', but this server is $here."
       echo "The HTTPS certificate can't be issued until the DNS A record points here (it can take"
       echo "a few minutes after you change it). The app will retry; you can also continue now."
-      if [ -r /dev/tty ]; then
+      if have_tty; then
         read -r -p "Continue anyway? [y/N] " go </dev/tty
         [ "$go" = y ] || [ "$go" = Y ] || fail "Stopped. Fix the DNS record, then run this again."
       fi
@@ -186,7 +272,8 @@ Useful commands (run in $DIR):
   make prod-ps            what's running
   make prod-logs          follow the logs (Ctrl+C to stop)
   make backup-now         back up now
-  sudo bash infra/install.sh   update to the latest version (keeps settings and data)
+  sudo bash infra/install.sh          update to the latest version (keeps settings and data)
+  sudo bash infra/install.sh --keys   update and add or change API keys (live prices, AI)
 EOF
 }
 

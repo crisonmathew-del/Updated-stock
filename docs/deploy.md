@@ -122,7 +122,8 @@ explains what the installer does and how to do it by hand.
 
 | Command | What it does |
 |---|---|
-| `git pull && make deploy` | Update: rebuild the images, run new migrations, restart what changed |
+| `git pull && make deploy` | Update: rebuild the images, run new migrations, restart what changed (or `sudo bash infra/install.sh`) |
+| `sudo bash infra/install.sh --keys` | Update, and add or change API keys (Alpaca live prices, Anthropic) |
 | `make prod-ps` / `make prod-logs [service=worker]` | Status / follow the logs |
 | `make prod-cli cmd="…"` | Any operator command, e.g. `cmd="eod-update"`, `cmd="backtest --sensitivity"` |
 | `make prod-up` / `make prod-down` | Start / stop everything (data and backups are kept) |
@@ -134,6 +135,21 @@ explains what the installer does and how to do it by hand.
 Logs are rotated (5 × 20 MB per service). The status page (**Admin → Status**, or
 `GET /api/health/ready`) fails the *Nightly backup* row when the last backup is more than 26
 hours old (`BACKUP_MAX_AGE_HOURS`) or its off-site copy failed.
+
+## Live prices and other keys
+
+Without keys the app works on end-of-day data (updated about 20 minutes after each close).
+For live prices during the session, create a free [Alpaca](https://alpaca.markets) account (a
+Paper account is enough: you never fund it or trade), generate its API keys, then on the server:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/crisonmathew-del/Updated-stock/claude/vibrant-darwin-yeisdw/infra/install.sh | sudo bash -s -- --keys
+```
+
+It updates the app, asks for the Alpaca key ID and secret (and, optionally, an Anthropic API
+key for the stock page's AI summary; typing is hidden, Enter keeps what's there), checks the
+Alpaca keys, writes them to `.env` with `STREAM_PROVIDER=alpaca`, and restarts. **Admin →
+Status** then shows the streamer connected during market hours.
 
 ## Backups
 
