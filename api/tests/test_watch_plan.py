@@ -1,5 +1,6 @@
-"""What the streamer watches: holdings first, then setups by readiness, rule targets and
-watchlists, capped; each with the levels its rules need from the latest session."""
+"""What the streamer watches: holdings first, then the market indexes, setups by readiness,
+rule targets and watchlists, capped; each with the levels its rules need from the latest
+session."""
 
 from datetime import date
 from typing import Any
@@ -102,6 +103,9 @@ async def test_the_plan_orders_caps_and_carries_levels(db: AsyncSession, user: U
     assert plan.as_of == AS_OF
     assert list(plan.reasons.items()) == [
         ("EPD", "holding"),
+        ("SPY", "market index"),  # for the top bar and the market card, never scanned
+        ("QQQ", "market index"),
+        ("IWM", "market index"),
         ("TSM", "near pivot"),  # 0.4% from its pivot: closer than SPOT
         ("SPOT", "near pivot"),
         ("AAPL", "alert rule"),
@@ -119,5 +123,5 @@ async def test_the_plan_orders_caps_and_carries_levels(db: AsyncSession, user: U
     assert plan.universe["SPOT"].grade == "A"
 
     capped = await load_plan(db, AppSettings(stream_max_symbols=2), TODAY)
-    assert capped.symbols == ["EPD", "TSM"]
+    assert capped.symbols == ["EPD", "SPY"]
     assert set(capped.universe) == set(SYMBOLS)  # the scans still cover everything

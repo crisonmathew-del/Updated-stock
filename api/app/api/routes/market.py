@@ -11,6 +11,7 @@ from sqlalchemy import func, select, text
 from app.api.deps import DbSession, current_user
 from app.groups.classification import SECTOR_ETFS
 from app.groups.industry_rank import RANK_TREND_SESSIONS
+from app.intraday.live import INDEX_SYMBOLS
 from app.market.regime import LABELS, MARKET, RegimeState
 from app.models import (
     GroupRankDaily,
@@ -259,7 +260,7 @@ async def _sector_rotation(db: DbSession) -> list[SectorRow]:
 
 # --- Index quotes for the top bar (Phase 5) ---------------------------------------------------
 
-QUOTE_SYMBOLS = ("SPY", "QQQ", "IWM")
+QUOTE_SYMBOLS = INDEX_SYMBOLS
 
 
 class QuoteOut(BaseModel):
@@ -271,7 +272,7 @@ class QuoteOut(BaseModel):
 
 @router.get("/market/quotes", response_model=list[QuoteOut])
 async def market_quotes(db: DbSession) -> list[QuoteOut]:
-    """The latest close and % change of SPY, QQQ and IWM (end of day until Phase 6)."""
+    """The latest close and % change of SPY, QQQ and IWM (the page overlays live quotes)."""
     rows = await db.execute(
         text(
             "SELECT t.symbol, lb.date, lb.close, lb.prev_close FROM tickers t "

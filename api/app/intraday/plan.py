@@ -3,12 +3,14 @@ intraday rules need, and the wider universe the pre-market scan and the sweep ch
 
 Streamed, in this order until `stream_max_symbols` is reached (Alpaca's free plan allows 30):
 1. open holdings (their stops and sell rules),
-2. near-pivot setups, closest to the pivot first,
-3. broken-out setups (their stops, and extension past the buy zone),
-4. stocks named by enabled alert rules (ticker, watchlist and holdings scopes),
-5. basing setups, closest first,
-6. watchlist stocks.
-The scan universe adds every active setup and the Stage 2 leaders (RS Rating ≥ 80).
+2. the market indexes SPY, QQQ and IWM (the top bar and the dashboard's market card),
+3. near-pivot setups, closest to the pivot first,
+4. broken-out setups (their stops, and extension past the buy zone),
+5. stocks named by enabled alert rules (ticker, watchlist and holdings scopes),
+6. basing setups, closest first,
+7. watchlist stocks.
+The scan universe adds every active setup and the Stage 2 leaders (RS Rating ≥ 80); the
+indexes are streamed for their prices only, never scanned.
 Levels come from the latest close and indicators: nothing intraday is invented.
 """
 
@@ -19,6 +21,7 @@ from datetime import date
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.intraday.live import INDEX_SYMBOLS
 from app.models import (
     AlertRule,
     DailyBar,
@@ -99,6 +102,19 @@ async def load_plan(session: AsyncSession, settings: AppSettings, today: date) -
         )
         held_by_user[h.user_id].add(h.ticker_id)
         ordered.append((h.ticker_id, "holding"))
+
+    indexes = {
+        symbol: int(tid)
+        for tid, symbol in (
+            await session.execute(
+                select(Ticker.id, Ticker.symbol).where(
+                    Ticker.symbol.in_(INDEX_SYMBOLS), Ticker.is_benchmark, Ticker.active
+                )
+            )
+        ).all()
+    }
+    index_ids = set(indexes.values())
+    ordered += [(indexes[s], "market index") for s in INDEX_SYMBOLS if s in indexes]
 
     setups = (
         await session.execute(
@@ -227,6 +243,8 @@ async def load_plan(session: AsyncSession, settings: AppSettings, today: date) -
             avg_volume,
             dict(zip(MA_COLUMNS, ma_values, strict=True)),
         )
+        if int(tid) in index_ids:
+            continue
         found = setup_of.get(int(tid))
         plan.universe[symbol] = Candidate(
             symbol,

@@ -45,6 +45,7 @@ INTERVALS = (1, 5)
 
 class LiveOut(BaseModel):
     session: dt.date
+    through: dt.date | None  # the latest processed close: a newer one means pages are stale
     quotes: dict[str, dict[str, Any]]
     events: list[dict[str, Any]]  # this session's setup events, newest first
     premarket: dict[str, Any] | None
@@ -78,6 +79,7 @@ async def live(db: DbSession, redis: RedisClient) -> LiveOut:
     sessions = [session_of(q["at"]) for q in quotes.values()]
     return LiveOut(
         session=max(sessions) if sessions else _today(),
+        through=through,
         quotes=quotes,
         events=await live_events(redis, through),
         premarket=await latest_scan(redis, "premarket", through),

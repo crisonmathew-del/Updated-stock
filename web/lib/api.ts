@@ -801,6 +801,9 @@ export type LiveQuote = {
   volume: number;
   partial_volume: boolean;
   at: string | null;
+  /** "stream": every trade as it prints; "check": the pre-market check's or the 15-minute
+   * sweep's price, for scanned stocks that aren't streamed. */
+  source?: "stream" | "check";
 };
 
 export type ScanItem = {
@@ -822,6 +825,8 @@ export type ScanResult = { at: string; items: ScanItem[] };
 
 export type LiveSnapshot = {
   session: string;
+  /** The latest processed close: when it moves on, what the page shows is out of date. */
+  through: string | null;
   quotes: Record<string, LiveQuote>;
   events: SetupEvent[];
   premarket: ScanResult | null;
@@ -857,7 +862,8 @@ export type LiveEvent =
   | { type: "alert"; data: Alert }
   | { type: "quotes"; data: LiveQuote[] }
   | { type: "setup_event"; data: SetupEvent }
-  | { type: "scan"; scan: "premarket" | "sweep"; data: ScanResult };
+  | { type: "scan"; scan: "premarket" | "sweep"; data: ScanResult }
+  | { type: "data"; through: string | null };
 
 export type LiveMessage =
   { type: "hello"; unread: number } | { type: "batch"; events: LiveEvent[] } | { type: "pong" };

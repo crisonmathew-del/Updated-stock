@@ -20,11 +20,15 @@ from app.core.config import get_settings
 from app.core.db import get_sessionmaker
 from app.core.redis import get_redis
 from app.intraday.live import EVENTS_KEY, QUOTES_KEY
+from app.intraday.plan import WatchPlan
 from app.intraday.store import prev_closes
 from app.intraday.watcher import Watcher
 from app.models import Alert, IntradayBar, Signal, User, Watchlist, WatchlistItem
+from app.providers.base import Snapshot
 from app.providers.replay import ReplayStream
 from app.scanner.eod_scan import run_analytics
+from app.scanner.intraday_scan import WatchContext
+from app.scanner.live_scans import Candidate
 from app.settings.schema import AppSettings
 from tests.fakes import FakeEmailSender
 from tests.replay_market import SESSION, recording
@@ -180,3 +184,62 @@ async def test_a_breakout_that_fades_is_rejected_at_the_close(db: AsyncSession, 
         )
         == 0
     )
+
+
+class CheckFeed:
+    """A feed whose only job here is the sweep's snapshots."""
+
+    name = "alpaca"
+    partial_volume = True
+    volume_share = 1.0
+
+    def __init__(self, snaps: dict[str, Snapshot]) -> None:
+        self.snaps = snaps
+
+    async def snapshots(self, symbols: list[str]) -> dict[str, Snapshot]:
+        return {s: self.snaps[s] for s in symbols if s in self.snaps}
+
+
+@pytest.mark.integration
+async def test_the_sweep_prices_every_scanned_stock_that_isnt_streamed(clean_redis: None) -> None:
+    now = datetime(2026, 10, 2, 11, 0, tzinfo=MARKET_TZ)
+    earlier = now - timedelta(minutes=3)
+    yesterday = now - timedelta(days=1)
+    feed = CheckFeed(
+        {
+            "NVDA": Snapshot("NVDA", earlier, 103.0, 99.0, 101.0, 104.0, 100.5, volume=25_000),
+            "SPOT": Snapshot("SPOT", earlier, 95.0, 92.0),  # streamed: its prints are fresher
+            "OLD": Snapshot("OLD", yesterday, 20.0, 19.0),  # no trade yet today
+            "NONE": Snapshot("NONE", None, None, 10.0),
+        }
+    )
+    watcher = Watcher(
+        cast(Any, feed),
+        sessionmaker=get_sessionmaker(),
+        redis=get_redis(),
+        config=get_settings(),
+        sender=None,
+        route=EmailRoute(False),
+    )
+    universe = {s: Candidate(s, i, s, 100.0, 1_000_000.0) for i, s in enumerate(feed.snaps)}
+    watcher.plan = WatchPlan(
+        contexts={"SPOT": WatchContext("SPOT", 1, "Spotify", 92.0, 1_000_000.0)},
+        universe=universe,
+    )
+    await watcher._scan("sweep", now)
+    stored = await cast(Awaitable[dict[str, str]], get_redis().hgetall(QUOTES_KEY))
+    assert list(stored) == ["NVDA"]
+    share = SETTINGS.partial_feed_volume_share_pct / 100
+    assert json.loads(stored["NVDA"]) == {
+        "symbol": "NVDA",
+        "last": 103.0,
+        "prev_close": 100.0,  # our stored close, as for streamed quotes
+        "change_pct": 3.0,
+        "open": 101.0,
+        "high": 104.0,
+        "low": 100.5,
+        "volume": round(25_000 / share),
+        "partial_volume": True,
+        "at": earlier.isoformat(),
+        "source": "check",
+    }

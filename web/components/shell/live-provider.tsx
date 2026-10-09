@@ -20,17 +20,30 @@ export function toastAlert(alert: Alert) {
 /**
  * Keeps one live socket open while the app is shown: alerts update the bell, the alert lists
  * and pop a toast; quotes, setup events and scans go to the live store. On every (re)connect
- * the current quotes and scans are fetched, so nothing is missed while it was down.
+ * the current quotes and scans are fetched, so nothing is missed while it was down. When new
+ * analytics land (the evening update, a manual scan), or the socket comes back after they
+ * did, every query is refetched and the processed session's live data is dropped, so an open
+ * page never needs a reload.
  */
 export function LiveProvider() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
     const live = useLive.getState();
+    let through: string | null | undefined; // the processed close this page's data is from
+
+    // `announced`: the server just stored new analytics (possibly a re-score of the same close).
+    function onData(next: string | null, announced: boolean) {
+      const moved = through !== undefined && next !== through;
+      through = next;
+      if (moved) live.clearSession();
+      if (moved || announced) void queryClient.invalidateQueries();
+    }
 
     async function prime() {
       try {
         const snapshot = await api.get<LiveSnapshot>(LIVE.path);
+        onData(snapshot.through, false);
         live.applyQuotes(Object.values(snapshot.quotes));
         live.setEvents(snapshot.events ?? []);
         live.setScan("premarket", snapshot.premarket);
@@ -56,6 +69,8 @@ export function LiveProvider() {
         live.addEvent(event.data);
       } else if (event.type === "scan") {
         live.setScan(event.scan, event.data);
+      } else if (event.type === "data") {
+        onData(event.through, true);
       }
     }
 

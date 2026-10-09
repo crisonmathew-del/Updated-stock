@@ -16,6 +16,7 @@ import { formatPrice } from "@/lib/format";
 import { applyTheme } from "@/lib/theme";
 import { useTheme } from "@/lib/use-theme";
 import { cn } from "@/lib/utils";
+import { quoteLabel, useNewerQuote } from "@/stores/live";
 
 // What fits in the bar (its content is capped at 1600 px): the main links from 768 px (phones and
 // small tablets get the bottom tab bar), the review pages from 1280 px (in the menu below that),
@@ -83,16 +84,27 @@ function Quotes() {
   return (
     <ul className="hidden items-center gap-3 text-xs 2xl:flex" aria-label="Index quotes">
       {quotes.data?.map((q) => (
-        <li
-          key={q.symbol}
-          className="flex gap-1.5 whitespace-nowrap"
-          title={`${q.symbol} closed at ${formatPrice(q.close)}`}
-        >
-          <span className="text-muted">{q.symbol}</span>
-          <Change value={q.change_pct} />
-        </li>
+        <QuoteItem key={q.symbol} quote={q} />
       ))}
     </ul>
+  );
+}
+
+/** An index's change today: live while the market is open, else at the close. */
+function QuoteItem({ quote: q }: { quote: Quote }) {
+  const live = useNewerQuote(q.symbol, q.date);
+  return (
+    <li
+      className="flex gap-1.5 whitespace-nowrap"
+      title={
+        live
+          ? `${q.symbol} ${formatPrice(live.last)} (${quoteLabel(live)})`
+          : `${q.symbol} closed at ${formatPrice(q.close)}`
+      }
+    >
+      <span className="text-muted">{q.symbol}</span>
+      <Change value={live ? live.change_pct : q.change_pct} />
+    </li>
   );
 }
 

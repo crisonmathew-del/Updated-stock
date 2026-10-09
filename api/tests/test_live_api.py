@@ -18,6 +18,7 @@ from app.api.routes.live import merge
 from app.core.calendar import MARKET_TZ
 from app.core.redis import get_redis
 from app.core.security import SESSION_COOKIE, create_session
+from app.data.jobs import announce_new_data
 from app.data.universe import plan_universe, sync_tickers
 from app.intraday.live import EVENTS_KEY, QUOTES_KEY, scan_key
 from app.intraday.store import save_bars, ticker_ids
@@ -73,10 +74,30 @@ async def test_live_means_newer_than_the_latest_processed_close(
     await redis.lpush(EVENTS_KEY, json.dumps(old_event), json.dumps(event))  # type: ignore[misc]
     body = (await signed_in.get("/api/live")).json()
     assert body["session"] == now.date().isoformat()
+    assert body["through"] == (now - timedelta(days=2)).date().isoformat()
     assert [e["symbol"] for e in body["events"]] == ["SPOT"]
     assert list(body["quotes"]) == ["SPOT"]
     assert body["premarket"]["items"][0]["symbol"] == "NVDA"
     assert body["sweep"] is None
+
+
+@pytest.mark.integration
+async def test_new_analytics_are_announced_to_open_pages(
+    db: AsyncSession, clean_redis: None
+) -> None:
+    """After the evening update (or a manual scan) open pages are told to refetch."""
+    await sync_tickers(db, plan_universe(listed("SPOT")), DAY)
+    ids = await ticker_ids(db, ["SPOT"])
+    db.add(IndicatorDaily(ticker_id=ids["SPOT"], date=DAY))
+    await db.commit()
+    pubsub = get_redis().pubsub()
+    await pubsub.subscribe(LIVE_CHANNEL)
+    await pubsub.get_message(timeout=1)  # the subscribe confirmation
+    await announce_new_data(db)
+    message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=2)
+    await pubsub.aclose()  # type: ignore[no-untyped-call]
+    assert message is not None
+    assert json.loads(message["data"]) == {"type": "data", "through": DAY.isoformat()}
 
 
 @pytest.mark.integration

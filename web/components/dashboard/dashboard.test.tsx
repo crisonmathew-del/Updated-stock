@@ -1,9 +1,10 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import { act, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { focusRow } from "@/components/shell/shortcuts";
 import { LIST } from "@/components/setups/fixtures";
 import type { BreadthDay, Groups, Regime, SignalEntry, SignalList } from "@/lib/api";
 import { useListStore } from "@/stores/list";
+import { useLive } from "@/stores/live";
 import { mockApi, renderWithClient } from "@/test-utils";
 import { Dashboard } from "./dashboard";
 import { divergingLayout, SectorRotation } from "./leadership";
@@ -16,6 +17,7 @@ afterEach(() => {
 
 beforeEach(() => {
   useListStore.setState({ source: null, symbols: [] });
+  useLive.setState({ quotes: {} });
 });
 
 const REGIME: Regime = {
@@ -237,6 +239,37 @@ describe("MarketPanel", () => {
     expect(screen.getAllByText(/in 5 sessions/)[0]).toHaveTextContent("▼ −4 pts in 5 sessions");
     expect(screen.getByText("+45")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: /Net new highs, last 6 sessions/ })).toBeInTheDocument();
+  });
+
+  it("shows the indexes' live prices while the market is open, the close otherwise", async () => {
+    const quote = (at: string) => ({
+      symbol: "SPY",
+      last: 840.12,
+      prev_close: 833.29,
+      change_pct: 0.82,
+      open: 834,
+      high: 841,
+      low: 833.5,
+      volume: 1_000_000,
+      partial_volume: true,
+      at,
+      source: "stream" as const,
+    });
+    // A quote from the session already processed is just the close.
+    useLive.setState({ quotes: { SPY: quote("2026-10-02T19:59:00Z") } });
+    mockDashboard();
+    renderWithClient(<MarketPanel />);
+    const spy = (await screen.findByText("SPY")).closest("tr") as HTMLElement;
+    expect(spy).toHaveTextContent("833.29");
+    expect(screen.getByRole("columnheader", { name: "Close" })).toBeInTheDocument();
+
+    // The next morning's trading (10:15:30 ET) is live.
+    act(() => useLive.setState({ quotes: { SPY: quote("2026-10-05T14:15:30Z") } }));
+    expect(spy).toHaveTextContent("840.12");
+    expect(spy).toHaveTextContent("Live 10:15:30 ET:");
+    expect(within(spy).getByTitle(/close Oct 2 833\.29/)).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Price" })).toBeInTheDocument();
+    expect(screen.getByText(/regime and distribution days are judged at the close/)).toBeVisible();
   });
 
   it("says what to do when nothing is computed yet", async () => {

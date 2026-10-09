@@ -13,6 +13,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.alerts.engine import publish
 from app.alerts.jobs import eod_alerts
 from app.core.calendar import MARKET_TZ, last_completed_session
 from app.core.db import get_sessionmaker
@@ -35,6 +36,7 @@ from app.fundamentals.ingest import (
     quarters_back,
     refresh_companies,
 )
+from app.intraday.live import eod_through
 from app.models import IndicatorDaily, Ticker
 from app.providers import registry
 from app.providers.base import (
@@ -81,6 +83,15 @@ async def _session_alerts(
         log.exception("alerts.eod_failed", session=day)
         await session.rollback()
         return {"failed": f"{type(exc).__name__}: {exc}"}
+
+
+async def announce_new_data(session: AsyncSession) -> None:
+    """Tell open pages that new analytics are stored: they refetch what they show (and drop the
+    session's live quotes once its close is processed). Best effort: the job still succeeded."""
+    try:
+        await publish(get_redis(), {"type": "data", "through": await eod_through(session)})
+    except Exception:
+        log.exception("live.announce_failed")
 
 
 def _fundamentals_or_none() -> FundamentalsProvider | None:
@@ -189,6 +200,7 @@ async def eod_update_job(
             await run_analytics(session, settings, through=target, stats=analytics)
             run.stats["analytics"] = analytics
             run.stats["alerts"] = await _session_alerts(session, settings, target)
+            await announce_new_data(session)
         await prices.aclose()
         return run.stats
 
@@ -216,6 +228,7 @@ async def analytics_job(
                 force_full=force_full,
                 stats=run.stats,
             )
+            await announce_new_data(session)
         return run.stats
 
 
@@ -361,6 +374,7 @@ async def setups_job(trigger: Trigger, *, through: date | None = None) -> dict[s
                 day = await setups_through(session)
                 if day is not None:
                     run.stats["alerts"] = await _session_alerts(session, settings, day)
+                await announce_new_data(session)
         return run.stats
 
 

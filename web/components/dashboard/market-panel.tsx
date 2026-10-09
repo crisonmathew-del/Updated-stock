@@ -3,9 +3,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { Change } from "@/components/ui/badges";
 import { Section } from "@/components/ui/section";
-import { api, type BreadthDay, type Regime } from "@/lib/api";
+import { api, type BreadthDay, type IndexRegime, type Regime } from "@/lib/api";
 import { formatNumber, formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { quoteLabel, quoteSession, useLive, useNewerQuote } from "@/stores/live";
 import { DASHBOARD, DASHBOARD_STALE_MS } from "./queries";
 
 export const REGIME_LOOK: Record<string, { icon: string; tone: string }> = {
@@ -151,10 +152,56 @@ function Breadth({ days }: { days: BreadthDay[] }) {
   );
 }
 
+/** One index: its live price while the market is open (streamed), else the close. */
+function IndexRow({ index: i, closeDate }: { index: IndexRegime; closeDate: string | null }) {
+  const live = useNewerQuote(i.symbol, closeDate);
+  const indexLook = REGIME_LOOK[i.state];
+  return (
+    <tr>
+      <td className="py-1.5 pr-3">
+        <span className="font-medium">{i.symbol}</span>{" "}
+        <span className={cn("text-xs", indexLook?.tone ?? "text-muted")}>
+          <span aria-hidden>{indexLook?.icon}</span> {i.label}
+        </span>
+      </td>
+      <td
+        className="py-1.5 pr-3 text-right whitespace-nowrap"
+        title={
+          live
+            ? `${quoteLabel(live)} · close ${shortDate(closeDate)} ${formatPrice(i.close)}`
+            : undefined
+        }
+      >
+        {live ? (
+          <>
+            <span aria-hidden className="text-rise">
+              ●
+            </span>
+            <span className="sr-only">{quoteLabel(live)}:</span> {formatPrice(live.last)}{" "}
+            <Change value={live.change_pct} className="text-xs" />
+          </>
+        ) : (
+          <>
+            {formatPrice(i.close)} <Change value={i.change_pct} className="text-xs" />
+          </>
+        )}
+      </td>
+      <td
+        className="py-1.5 pr-3 text-right"
+        title={i.distribution_dates.length ? i.distribution_dates.join(", ") : undefined}
+      >
+        {i.distribution_days}
+      </td>
+      <td className="py-1.5 text-right whitespace-nowrap">{shortDate(i.last_ftd_date)}</td>
+    </tr>
+  );
+}
+
 /**
  * The market regime with its reasons (spec §8.2): the state and since when, each index's
  * distribution days and follow-through, and breadth (% above the 50/200-day, net new highs,
- * advancers/decliners).
+ * advancers/decliners). While the market is open the index prices are live; the regime itself
+ * is judged at the close.
  */
 export function MarketPanel({ className }: { className?: string }) {
   const regime = useQuery({
@@ -168,6 +215,12 @@ export function MarketPanel({ className }: { className?: string }) {
     staleTime: DASHBOARD_STALE_MS,
   });
   const r = regime.data;
+  const anyLive = useLive((s) =>
+    (r?.indexes ?? []).some((i) => {
+      const day = quoteSession(s.quotes[i.symbol]);
+      return !!day && (!r?.date || day > r.date);
+    }),
+  );
   const look = r?.state ? (REGIME_LOOK[r.state] ?? { icon: "•", tone: "text-muted" }) : null;
   const since = r ? stateSince(r) : null;
 
@@ -213,41 +266,27 @@ export function MarketPanel({ className }: { className?: string }) {
             <thead className="text-xs text-muted">
               <tr>
                 <th className="py-1.5 pr-3 font-normal">Index</th>
-                <th className="py-1.5 pr-3 text-right font-normal">Close</th>
+                <th className="py-1.5 pr-3 text-right font-normal">
+                  {anyLive ? "Price" : "Close"}
+                </th>
                 <th className="py-1.5 pr-3 text-right font-normal">Dist. days</th>
                 <th className="py-1.5 text-right font-normal">Last FTD</th>
               </tr>
             </thead>
             <tbody className="tabular divide-y divide-border">
-              {r.indexes.map((i) => {
-                const indexLook = REGIME_LOOK[i.state];
-                return (
-                  <tr key={i.symbol}>
-                    <td className="py-1.5 pr-3">
-                      <span className="font-medium">{i.symbol}</span>{" "}
-                      <span className={cn("text-xs", indexLook?.tone ?? "text-muted")}>
-                        <span aria-hidden>{indexLook?.icon}</span> {i.label}
-                      </span>
-                    </td>
-                    <td className="py-1.5 pr-3 text-right whitespace-nowrap">
-                      {formatPrice(i.close)} <Change value={i.change_pct} className="text-xs" />
-                    </td>
-                    <td
-                      className="py-1.5 pr-3 text-right"
-                      title={
-                        i.distribution_dates.length ? i.distribution_dates.join(", ") : undefined
-                      }
-                    >
-                      {i.distribution_days}
-                    </td>
-                    <td className="py-1.5 text-right whitespace-nowrap">
-                      {shortDate(i.last_ftd_date)}
-                    </td>
-                  </tr>
-                );
-              })}
+              {r.indexes.map((i) => (
+                <IndexRow key={i.symbol} index={i} closeDate={r.date} />
+              ))}
             </tbody>
           </table>
+          {anyLive && (
+            <p className="-mt-2 text-xs text-muted">
+              <span aria-hidden className="text-rise">
+                ●
+              </span>{" "}
+              Live prices; the regime and distribution days are judged at the close.
+            </p>
+          )}
         </>
       )}
       <div className="border-t border-border pt-3">

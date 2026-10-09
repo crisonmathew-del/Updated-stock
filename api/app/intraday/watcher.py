@@ -8,7 +8,8 @@ as a `breakout_provisional` signal; the close confirms or rejects it (app.alerts
 Background loops: quotes are pushed to open pages at most every 250 ms (only the stocks that
 traded), minute bars are written every 5 seconds, and the watch plan is reloaded every minute
 or when the API asks (`watch:refresh`: a rule or holding changed). The pre-market scan and the
-intraday sweep run on the feed's clock, so a replay behaves like a live day.
+intraday sweep run on the feed's clock, so a replay behaves like a live day; each also gives
+every scanned stock that isn't streamed its price at that moment (`"source": "check"`).
 
 At the end of a replay with `replay_close`, the day's daily bars come from the recording (when
 not stored yet) and the EOD analytics and alerts run for that session.
@@ -42,7 +43,7 @@ from app.intraday.session import Phase, in_window, minutes_elapsed, phase, sessi
 from app.intraday.store import current_curve, load_bars, save_bars
 from app.intraday.volume import STANDARD_CURVE, VolumeCurve
 from app.models import DailyBar, Signal, Ticker
-from app.providers.base import MinuteBar, PriceHistory, StreamProvider, Trade
+from app.providers.base import MinuteBar, PriceHistory, Snapshot, StreamProvider, Trade
 from app.providers.replay import ReplayStream, daily_bars, ticks_from_bar
 from app.scanner.eod_scan import run_analytics
 from app.scanner.intraday_scan import IntradayEvent, evaluate
@@ -238,6 +239,10 @@ class Watcher:
     async def _scan(self, scan: str, now: datetime) -> None:
         try:
             snaps = await self.feed.snapshots(list(self.plan.universe))
+            # Every scanned stock that isn't streamed gets this check's price.
+            await self._store_quotes(
+                [q for s in snaps.values() if (q := self.checked_quote(s, now)) is not None]
+            )
             if scan == "premarket":
                 hits = premarket_hits(
                     self.plan.universe, snaps, self.settings, now, self.volume_share
@@ -371,11 +376,37 @@ class Watcher:
             "volume": round(state.volume / self.volume_share),
             "partial_volume": self.feed.partial_volume,
             "at": state.last_ts.isoformat() if state.last_ts else None,
+            "source": "stream",
+        }
+
+    def checked_quote(self, snap: Snapshot, now: datetime) -> dict[str, Any] | None:
+        """A price from the pre-market check or the sweep, for a scanned stock that isn't
+        streamed: its last trade this session (none yet: no quote)."""
+        if snap.symbol in self.plan.contexts or snap.last is None or snap.ts is None:
+            return None
+        if session_date(snap.ts) != session_date(now):
+            return None
+        ctx = self.plan.universe.get(snap.symbol)
+        prev = (ctx.prev_close if ctx is not None else None) or snap.prev_close
+        return {
+            "symbol": snap.symbol,
+            "last": snap.last,
+            "prev_close": prev,
+            "change_pct": None if not prev else round((snap.last / prev - 1) * 100, 2),
+            "open": snap.open,
+            "high": snap.high,
+            "low": snap.low,
+            "volume": round(snap.volume / self.volume_share),
+            "partial_volume": self.feed.partial_volume,
+            "at": snap.ts.isoformat(),
+            "source": "check",
         }
 
     async def publish_quotes(self) -> int:
         symbols, self.dirty = sorted(self.dirty), set()
-        quotes = [q for s in symbols if (q := self.quote(s)) is not None]
+        return await self._store_quotes([q for s in symbols if (q := self.quote(s)) is not None])
+
+    async def _store_quotes(self, quotes: list[dict[str, Any]]) -> int:
         if not quotes:
             return 0
         async with self.redis.pipeline(transaction=False) as pipe:

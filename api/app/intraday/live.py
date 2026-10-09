@@ -19,6 +19,8 @@ QUOTES_KEY = "live:quotes"
 EVENTS_KEY = "live:setup_events"  # newest first, capped
 MAX_EVENTS = 200
 REFRESH_CHANNEL = "watch:refresh"
+# The market at a glance (top bar, dashboard): always streamed, after holdings.
+INDEX_SYMBOLS = ("SPY", "QQQ", "IWM")
 
 
 def scan_key(scan: str, day: date | str) -> str:

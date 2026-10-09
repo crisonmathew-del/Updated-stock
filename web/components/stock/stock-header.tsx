@@ -12,9 +12,9 @@ import {
   type StockSummary,
   type Watchlist,
 } from "@/lib/api";
-import { formatCompact, formatMarketTime, formatPrice, formatRankChange } from "@/lib/format";
+import { formatCompact, formatPrice, formatRankChange } from "@/lib/format";
 import { useAddToWatchlist } from "@/lib/use-watchlist";
-import { useLiveQuote } from "@/stores/live";
+import { quoteLabel, useNewerQuote } from "@/stores/live";
 import { neighbours, useListStore } from "@/stores/list";
 import { stockQueries } from "./queries";
 
@@ -86,12 +86,8 @@ export function StockHeader({
 }) {
   const symbols = useListStore((s) => s.symbols);
   const source = useListStore((s) => s.source);
-  const quote = useLiveQuote(summary.symbol);
   // Live only when it's newer than the stored close (a session after summary.date).
-  const quoteDay = quote?.at
-    ? new Date(quote.at).toLocaleDateString("en-CA", { timeZone: "America/New_York" })
-    : null;
-  const live = quoteDay && (!summary.date || quoteDay > summary.date) ? quote : undefined;
+  const live = useNewerQuote(summary.symbol, summary.date);
   const [previous, next] = neighbours(symbols, summary.symbol);
   const g = summary.group;
   const facts = [
@@ -143,7 +139,7 @@ export function StockHeader({
               <span aria-hidden className="text-rise">
                 ●
               </span>{" "}
-              Live {formatMarketTime(live.at)} · close {summary.date} {formatPrice(summary.close)}
+              {quoteLabel(live)} · close {summary.date} {formatPrice(summary.close)}
             </span>
           </div>
         ) : (
