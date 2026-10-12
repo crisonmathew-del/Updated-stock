@@ -15,7 +15,8 @@ import {
   type SetupList,
   type SetupRow,
 } from "@/lib/api";
-import { formatMarketTime, formatNumber, formatPrice } from "@/lib/format";
+import { formatEasternSchedule, formatMarketTime, formatNumber, formatPrice } from "@/lib/format";
+import { useIsClient } from "@/lib/use-is-client";
 import { cn } from "@/lib/utils";
 import { useLive } from "@/stores/live";
 
@@ -210,12 +211,15 @@ function ScanTable({
 }) {
   const items = scan?.items ?? [];
   const symbols = items.map((i) => i.symbol);
+  const client = useIsClient();
+  // The pre-market check starts at 08:00 US/Eastern: shown in the viewer's zone.
+  const opens = client ? formatEasternSchedule("08:00") : "08:00 ET";
   return (
     <Section title={title} note={scan ? `as of ${formatMarketTime(scan.at)}` : "not run yet today"}>
       {items.length === 0 ? (
         <p className="text-sm text-muted">
           {kind === "premarket"
-            ? "Gaps of 4% or more on real pre-market volume show up here from 08:00 ET."
+            ? `Gaps of 4% or more on real pre-market volume show up here from ${opens}.`
             : "Stocks moving 3% or more on twice their usual volume show up here during the session."}
         </p>
       ) : (

@@ -7,7 +7,14 @@ import { ALERTS, STATUS } from "@/components/alerts/queries";
 import { Section } from "@/components/ui/section";
 import { Button } from "@/components/ui/button";
 import { api, type Alert, type AlertsStatus } from "@/lib/api";
-import { formatAgo } from "@/lib/format";
+import {
+  easternToLocalHHMM,
+  formatAgo,
+  formatEasternSchedule,
+  localToEasternHHMM,
+  localZoneName,
+} from "@/lib/format";
+import { useIsClient } from "@/lib/use-is-client";
 import { useToasts } from "@/stores/toast";
 
 const FIELD = "h-8 rounded-md border border-border bg-background px-2 text-sm";
@@ -159,6 +166,12 @@ function ChannelSettings({ initial }: { initial: Values }) {
   });
   const set = (change: Partial<Values>) => setValues({ ...values, ...change });
   const quiet = Boolean(values.quiet_hours_start);
+  // The times are kept in US/Eastern (the scheduler's zone) and shown in the viewer's zone.
+  const local = useIsClient();
+  const zone = local ? localZoneName() : "ET";
+  const shown = (eastern: unknown) =>
+    local && eastern ? easternToLocalHHMM(String(eastern)) : String(eastern ?? "");
+  const kept = (hhmm: string) => (local && hhmm ? localToEasternHHMM(hhmm) : hhmm);
 
   return (
     <>
@@ -199,7 +212,7 @@ function ChannelSettings({ initial }: { initial: Values }) {
                 onChange={(e) =>
                   set(
                     e.target.checked
-                      ? { quiet_hours_start: "22:00", quiet_hours_end: "07:00" }
+                      ? { quiet_hours_start: kept("22:00"), quiet_hours_end: kept("07:00") }
                       : { quiet_hours_start: "", quiet_hours_end: "" },
                   )
                 }
@@ -212,8 +225,8 @@ function ChannelSettings({ initial }: { initial: Values }) {
                   <span className="sr-only">Quiet from</span>
                   <input
                     type="time"
-                    value={String(values.quiet_hours_start)}
-                    onChange={(e) => set({ quiet_hours_start: e.target.value })}
+                    value={shown(values.quiet_hours_start)}
+                    onChange={(e) => set({ quiet_hours_start: kept(e.target.value) })}
                     className={FIELD}
                   />
                 </label>
@@ -222,12 +235,12 @@ function ChannelSettings({ initial }: { initial: Values }) {
                   <span className="sr-only">Quiet until</span>
                   <input
                     type="time"
-                    value={String(values.quiet_hours_end)}
-                    onChange={(e) => set({ quiet_hours_end: e.target.value })}
+                    value={shown(values.quiet_hours_end)}
+                    onChange={(e) => set({ quiet_hours_end: kept(e.target.value) })}
                     className={FIELD}
                   />
                 </label>
-                <span className="text-xs text-muted">US/Eastern; held emails go in the digest</span>
+                <span className="text-xs text-muted">{zone}; held emails go in the digest</span>
               </>
             )}
           </div>
@@ -247,12 +260,12 @@ function ChannelSettings({ initial }: { initial: Values }) {
               <span className="sr-only">Daily digest time</span>
               <input
                 type="time"
-                value={String(values.daily_digest_time)}
-                onChange={(e) => set({ daily_digest_time: e.target.value })}
+                value={shown(values.daily_digest_time)}
+                onChange={(e) => set({ daily_digest_time: kept(e.target.value) })}
                 className={FIELD}
               />
             </label>
-            <span className="text-xs text-muted">ET</span>
+            <span className="text-xs text-muted">{zone}</span>
           </div>
           <label className="flex items-center gap-2">
             <input
@@ -260,7 +273,7 @@ function ChannelSettings({ initial }: { initial: Values }) {
               checked={Boolean(values.weekly_digest_enabled)}
               onChange={(e) => set({ weekly_digest_enabled: e.target.checked })}
             />
-            Weekly review on Sunday at 18:00 ET
+            Weekly review on {local ? formatEasternSchedule("18:00", 0) : "Sunday 18:00 ET"}
           </label>
         </fieldset>
         <fieldset className="flex flex-col gap-2">

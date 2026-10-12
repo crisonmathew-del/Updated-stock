@@ -2,7 +2,8 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { api, type UniverseSummary } from "@/lib/api";
-import { formatDateTime, formatNumber } from "@/lib/format";
+import { formatDateTime, formatEasternSchedule, formatNumber } from "@/lib/format";
+import { useIsClient } from "@/lib/use-is-client";
 import { Panel, Stat } from "./panel";
 
 export function UniversePanel() {
@@ -11,6 +12,7 @@ export function UniversePanel() {
     queryFn: () => api.get<UniverseSummary>("/api/admin/universe"),
     refetchInterval: 30_000,
   });
+  const local = useIsClient();
 
   const build = data?.last_build;
   return (
@@ -18,7 +20,7 @@ export function UniversePanel() {
       title="Universe"
       description={
         build
-          ? `Last rebuilt ${formatDateTime(build.started_at)} (${build.status}). Rebuilds every Sunday 18:00 ET.`
+          ? `Last rebuilt ${formatDateTime(build.started_at)} (${build.status}). Rebuilds every ${local ? formatEasternSchedule("18:00", 0) : "Sunday 18:00 ET"}.`
           : "Not built yet. Rebuild the universe to load the ticker list."
       }
     >

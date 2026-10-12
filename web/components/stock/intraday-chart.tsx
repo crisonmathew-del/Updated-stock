@@ -12,20 +12,14 @@ import {
 } from "lightweight-charts";
 import { useEffect, useRef } from "react";
 import type { IntradayBars, LiveQuote } from "@/lib/api";
+import { formatClock } from "@/lib/format";
 import { token } from "@/lib/theme";
 import { useTheme } from "@/lib/use-theme";
 import { withAlpha } from "./base-overlay";
 
-const ET = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/New_York",
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false,
-});
-
-/** Chart times are UTC seconds; axis and crosshair read US/Eastern clock time. */
-export function etClock(time: number): string {
-  return ET.format(new Date(time * 1000));
+/** Chart times are UTC seconds; the axis and crosshair read the viewer's clock ("14:30"). */
+export function localClock(time: number, zone = false): string {
+  return formatClock(time * 1000, { seconds: false, zone });
 }
 
 /** Where a live print lands: the start of its 1- or 5-minute bar, in UTC seconds. */
@@ -77,7 +71,7 @@ export default function IntradayChart({
     };
     const chart = createChart(el, {
       autoSize: true,
-      localization: { locale: "en-US", timeFormatter: (t: Time) => `${etClock(t as number)} ET` },
+      localization: { locale: "en-US", timeFormatter: (t: Time) => localClock(t as number, true) },
       layout: {
         background: { color: "transparent" },
         textColor: c.text,
@@ -92,7 +86,7 @@ export default function IntradayChart({
         timeVisible: true,
         secondsVisible: false,
         rightOffset: 4,
-        tickMarkFormatter: (t: Time) => etClock(t as number),
+        tickMarkFormatter: (t: Time) => localClock(t as number),
       },
       crosshair: { mode: 0 },
     });

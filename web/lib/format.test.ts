@@ -1,5 +1,17 @@
-import { describe, expect, it } from "vitest";
-import { formatDuration, formatPercent, humanize, safeNext } from "./format";
+import { describe, expect, it, vi } from "vitest";
+import {
+  easternTime,
+  easternToLocalHHMM,
+  formatClock,
+  formatDuration,
+  formatEasternSchedule,
+  formatMarketTime,
+  formatPercent,
+  humanize,
+  localToEasternHHMM,
+  localZoneName,
+  safeNext,
+} from "./format";
 
 describe("format helpers", () => {
   it("only allows same-site redirects after sign-in", () => {
@@ -46,5 +58,45 @@ describe("setup formatters", () => {
     expect(formatReadiness(2.04)).toBe("2.0% below");
     expect(formatReadiness(-4.5)).toBe("4.5% above");
     expect(formatReadiness(null)).toBe("—");
+  });
+});
+
+describe("times in the viewer's zone (the tests run as a viewer in London)", () => {
+  it("shows a market event on the viewer's clock with the zone's name", () => {
+    // 10:15:30 in New York in October is 15:15:30 British Summer Time.
+    expect(formatMarketTime("2026-10-05T14:15:30Z")).toBe("15:15:30 BST");
+    expect(formatClock("2026-10-05T14:15:30Z", { seconds: false })).toBe("15:15 BST");
+    expect(formatClock("2026-10-05T14:15:30Z", { seconds: false, zone: false })).toBe("15:15");
+    // After the UK clocks go back: Greenwich Mean Time.
+    expect(formatMarketTime("2026-11-16T14:15:30Z")).toBe("14:15:30 GMT");
+    expect(formatMarketTime(null)).toBe("—");
+  });
+
+  it("finds the instant of a US/Eastern schedule time, either side of daylight saving", () => {
+    const monday = new Date("2026-10-12T12:00:00Z");
+    expect(easternTime("08:00", undefined, monday).toISOString()).toBe("2026-10-12T12:00:00.000Z");
+    // The next Sunday 18:00 in New York, still on summer time (EDT, UTC−4).
+    expect(easternTime("18:00", 0, monday).toISOString()).toBe("2026-10-18T22:00:00.000Z");
+    // In winter New York is UTC−5.
+    const winter = new Date("2026-12-07T12:00:00Z");
+    expect(easternTime("17:30", undefined, winter).toISOString()).toBe("2026-12-07T22:30:00.000Z");
+  });
+
+  it("converts the alert settings' US/Eastern times to and from the viewer's clock", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-10-12T12:00:00Z")); // both on summer time: 5 hours apart
+      expect(easternToLocalHHMM("17:30")).toBe("22:30");
+      expect(localToEasternHHMM("22:30")).toBe("17:30");
+      expect(localToEasternHHMM("07:00")).toBe("02:00");
+      expect(localZoneName()).toBe("BST");
+      expect(formatEasternSchedule("18:00", 0)).toBe("Sunday 23:00 BST");
+      // The week the UK is back on GMT but New York still on summer time: 4 hours apart.
+      vi.setSystemTime(new Date("2026-10-27T12:00:00Z"));
+      expect(easternToLocalHHMM("17:30")).toBe("21:30");
+      expect(localToEasternHHMM("21:30")).toBe("17:30");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

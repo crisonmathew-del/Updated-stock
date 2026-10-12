@@ -365,6 +365,12 @@ Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost)
     render with data and nothing shifts (CLS 0). Define each page's queries once
     (`components/<area>/queries.ts`, plain modules) and use those keys in the components. Don't
     inline big payloads (the chart series): they slow the first paint on slow connections.
+  - **Times** show in the viewer's time zone, 24-hour with the zone's name ("15:15:30 BST":
+    `formatClock`/`formatMarketTime` in lib/format.ts); text that depends on it renders after
+    hydration (`useIsClient`), since the server can't know the zone. Market *sessions* (which
+    day a quote belongs to) stay US/Eastern, and so do the schedule settings (digests, quiet
+    hours): the alerts form converts them to and from the viewer's clock
+    (`easternToLocalHHMM`/`localToEasternHHMM`). Vitest runs with `TZ=Europe/London`.
   - **Charts:** Lightweight Charts v5 on the stock page (`stock/price-chart.tsx`, base overlay as
     a series primitive); dashboard bars are plain SVG/divs in a table. State that must survive
     reloads (chart range, MAs) goes in `localStorage`, read after mount.

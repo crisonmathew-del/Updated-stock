@@ -263,10 +263,10 @@ describe("MarketPanel", () => {
     expect(spy).toHaveTextContent("833.29");
     expect(screen.getByRole("columnheader", { name: "Close" })).toBeInTheDocument();
 
-    // The next morning's trading (10:15:30 ET) is live.
+    // The next morning's trading (10:15:30 in New York, 15:15:30 in London) is live.
     act(() => useLive.setState({ quotes: { SPY: quote("2026-10-05T14:15:30Z") } }));
     expect(spy).toHaveTextContent("840.12");
-    expect(spy).toHaveTextContent("Live 10:15:30 ET:");
+    expect(spy).toHaveTextContent("Live 15:15:30 BST:");
     expect(within(spy).getByTitle(/close Oct 2 833\.29/)).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Price" })).toBeInTheDocument();
     expect(screen.getByText(/regime and distribution days are judged at the close/)).toBeVisible();

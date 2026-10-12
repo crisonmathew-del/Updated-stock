@@ -186,6 +186,10 @@ describe("rule builder", () => {
 });
 
 describe("AlertChannels", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   const SETTINGS = {
     items: [
       { key: "alerts_email_enabled", value: true },
@@ -216,6 +220,9 @@ describe("AlertChannels", () => {
   };
 
   it("shows delivery status, saves settings and sends tests", async () => {
+    // A viewer in London on a day both cities are on summer time (5 hours apart).
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-12T12:00:00Z"));
     const fetchMock = mockApi({
       "GET /api/settings": { body: SETTINGS },
       "GET /api/alerts/status": { body: STATUS },
@@ -231,14 +238,18 @@ describe("AlertChannels", () => {
     expect(await screen.findByText(/Not set up: set RESEND_API_KEY/)).toBeInTheDocument();
     expect(screen.getByText(/Idle \(no live feed configured\)/)).toBeInTheDocument();
     const form = screen.getByRole("form", { name: "Alert settings" });
+    // Times show on the viewer's clock; the settings keep US/Eastern (the scheduler's zone).
+    expect(within(form).getByLabelText("Daily digest time")).toHaveValue("22:30");
+    expect(within(form).getByText("Weekly review on Sunday 23:00 BST")).toBeInTheDocument();
     fireEvent.click(within(form).getByLabelText("Quiet hours"));
+    expect(within(form).getByLabelText("Quiet until")).toHaveValue("07:00");
     fireEvent.change(within(form).getByLabelText("Quiet from"), { target: { value: "21:30" } });
     fireEvent.click(within(form).getByRole("button", { name: "Save settings" }));
     await waitFor(() =>
       expect(bodyOf(fetchMock, "PATCH", "/api/settings")).toMatchObject({
         changes: {
-          quiet_hours_start: "21:30",
-          quiet_hours_end: "07:00",
+          quiet_hours_start: "16:30", // 21:30 in London
+          quiet_hours_end: "02:00", // 07:00 in London
           daily_digest_time: "17:30",
         },
       }),

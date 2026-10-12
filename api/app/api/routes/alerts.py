@@ -358,7 +358,7 @@ async def test_alert(
         kind="test",
         priority="high",
         title=f"Test alert ({'in-app' if payload.channel == 'in_app' else 'email'})",
-        body=f"Alerts reach you {where}. Sent {now.astimezone(MARKET_TZ):%H:%M:%S} ET.",
+        body=f"Alerts reach you {where}.",  # the alert's own time shows in the viewer's zone
         session_date=now.astimezone(MARKET_TZ).date(),
         dedupe_key=f"test:{now.timestamp()}",
         user_id=user.id,

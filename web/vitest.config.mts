@@ -9,5 +9,7 @@ export default defineConfig({
     setupFiles: ["./vitest.setup.ts"],
     include: ["**/*.test.{ts,tsx}"],
     exclude: ["node_modules", ".next", "e2e"],
+    // Times show in the viewer's zone: the tests are a viewer in the UK.
+    env: { TZ: "Europe/London" },
   },
 });

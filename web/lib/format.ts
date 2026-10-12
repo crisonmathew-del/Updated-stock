@@ -134,15 +134,99 @@ export function formatAgo(iso: string | null, now: number = Date.now()): string 
   return formatDateTime(iso);
 }
 
-/** A US/Eastern clock time for market events: "10:15:30 ET". */
-export function formatMarketTime(iso: string | null): string {
-  if (!iso) return "—";
-  const time = new Date(iso).toLocaleTimeString("en-US", {
+const MARKET_ZONE = "America/New_York";
+
+/**
+ * A clock time in the viewer's time zone, 24-hour, with the zone's name: "15:15:30 BST"
+ * (`seconds: false`: "15:15 BST"; `zone: false` leaves the name off). Browser-only: the
+ * server renders in its own zone, so call it for data that arrives after hydration, or behind
+ * `useIsClient`.
+ */
+export function formatClock(
+  at: Date | string | number,
+  { seconds = true, zone = true }: { seconds?: boolean; zone?: boolean } = {},
+): string {
+  const parts = new Intl.DateTimeFormat("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-    timeZone: "America/New_York",
+    ...(seconds ? { second: "2-digit" as const } : {}),
+    hourCycle: "h23",
+    timeZoneName: "short",
+  }).formatToParts(at instanceof Date ? at : new Date(at));
+  const clock = parts
+    .filter((p) => p.type === "hour" || p.type === "minute" || p.type === "second")
+    .map((p) => p.value)
+    .join(":");
+  const name = parts.find((p) => p.type === "timeZoneName")?.value;
+  return zone && name ? `${clock} ${name}` : clock;
+}
+
+/** When a market event happened, in the viewer's time zone: "15:15:30 BST". */
+export function formatMarketTime(iso: string | null): string {
+  if (!iso) return "—";
+  return formatClock(iso);
+}
+
+/** Minutes `timeZone` is ahead of UTC at `at` (US/Eastern in summer: −240). */
+function zoneOffsetMinutes(timeZone: string, at: Date): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).formatToParts(at);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+  const wall = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"));
+  return Math.round((wall - at.getTime()) / 60_000);
+}
+
+/**
+ * The instant a US/Eastern wall-clock time ("08:00") falls on: on `weekday` (0 = Sunday) of
+ * the current US week if given, else today (US date). The app's schedules are set in US/Eastern;
+ * this shows them in the viewer's zone.
+ */
+export function easternTime(hhmm: string, weekday?: number, now: Date = new Date()): Date {
+  const [h, m] = hhmm.split(":").map(Number);
+  const [y, mo, d] = now
+    .toLocaleDateString("en-CA", { timeZone: MARKET_ZONE })
+    .split("-")
+    .map(Number);
+  const today = new Date(Date.UTC(y, mo - 1, d));
+  const shift = weekday === undefined ? 0 : (weekday - today.getUTCDay() + 7) % 7;
+  const guess = Date.UTC(y, mo - 1, d + shift, h, m);
+  return new Date(guess - zoneOffsetMinutes(MARKET_ZONE, new Date(guess)) * 60_000);
+}
+
+/** The viewer's time zone name now: "BST", "GMT". */
+export function localZoneName(): string {
+  return formatClock(new Date()).split(" ")[1] ?? "";
+}
+
+/** A US/Eastern "HH:MM" setting as the viewer's "HH:MM" today ("17:30" → "22:30" in London). */
+export function easternToLocalHHMM(hhmm: string): string {
+  return formatClock(easternTime(hhmm), { seconds: false, zone: false });
+}
+
+/** The viewer's "HH:MM" today as a US/Eastern "HH:MM", the zone the settings are kept in. */
+export function localToEasternHHMM(hhmm: string, now: Date = new Date()): string {
+  const [h, m] = hhmm.split(":").map(Number);
+  const local = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m);
+  return local.toLocaleTimeString("en-GB", {
+    timeZone: MARKET_ZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
   });
-  return `${time} ET`;
+}
+
+/** A US/Eastern schedule time in the viewer's zone: "22:30 BST"; with `weekday`, the local
+ * day too ("Sunday 23:00 BST"), which can differ from the US day far from New York. */
+export function formatEasternSchedule(hhmm: string, weekday?: number): string {
+  const at = easternTime(hhmm, weekday);
+  const clock = formatClock(at, { seconds: false });
+  if (weekday === undefined) return clock;
+  return `${at.toLocaleDateString("en-GB", { weekday: "long" })} ${clock}`;
 }

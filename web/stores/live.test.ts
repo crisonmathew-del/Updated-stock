@@ -29,8 +29,8 @@ describe("live quotes", () => {
   });
 
   it("says whether a price is streamed or from the 15-minute check", () => {
-    expect(quoteLabel(quote("2026-10-05T14:15:30Z", "stream"))).toBe("Live 10:15:30 ET");
-    expect(quoteLabel(quote("2026-10-05T14:45:00Z", "check"))).toBe("Checked 10:45:00 ET");
+    expect(quoteLabel(quote("2026-10-05T14:15:30Z", "stream"))).toBe("Live 15:15:30 BST");
+    expect(quoteLabel(quote("2026-10-05T14:45:00Z", "check"))).toBe("Checked 15:45:00 BST");
   });
 
   it("uses a quote only when it's newer than the stored close", () => {

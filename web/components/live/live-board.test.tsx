@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { bucketOf, etClock } from "@/components/stock/intraday-chart";
+import { bucketOf, localClock } from "@/components/stock/intraday-chart";
 import type { SetupRow } from "@/lib/api";
 import { useLive } from "@/stores/live";
 import { mockApi, renderWithClient } from "@/test-utils";
@@ -137,16 +137,17 @@ describe("live board", () => {
     expect(first).toHaveTextContent("SPOT");
     expect(first).toHaveTextContent("92.65");
     expect(first).toHaveTextContent("Breaking out (provisional)");
-    expect(first).toHaveTextContent("10:15:30 ET");
+    expect(first).toHaveTextContent("15:15:30 BST"); // 10:15:30 in New York
     expect(screen.getByText(/Live from replay/)).toBeInTheDocument();
     const movers = screen.getByRole("region", { name: "Pre-market movers" });
     expect(movers).toHaveTextContent("NVDA");
     expect(movers).toHaveTextContent("◆ earnings");
   });
 
-  it("formats intraday times in US/Eastern and buckets live prints", () => {
-    const t = Date.UTC(2026, 9, 2, 14, 15, 30) / 1000;
-    expect(etClock(t)).toBe("10:15");
+  it("shows intraday times on the viewer's clock and buckets live prints", () => {
+    const t = Date.UTC(2026, 9, 2, 14, 15, 30) / 1000; // 10:15:30 in New York
+    expect(localClock(t)).toBe("15:15");
+    expect(localClock(t, true)).toBe("15:15 BST");
     expect(bucketOf("2026-10-02T14:17:42Z", 5)).toBe(Date.UTC(2026, 9, 2, 14, 15) / 1000);
     expect(bucketOf("2026-10-02T14:17:42Z", 1)).toBe(Date.UTC(2026, 9, 2, 14, 17) / 1000);
   });

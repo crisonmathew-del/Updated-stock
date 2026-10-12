@@ -68,7 +68,8 @@ export function useNewerQuote(
   return day && (!closeDate || day > closeDate) ? quote : undefined;
 }
 
-/** "Live 10:45:12 ET" for a streamed price, "Checked 10:45:00 ET" for a sweep's. */
+/** "Live 15:45:12 BST" for a streamed price, "Checked 15:45:00 BST" for a sweep's (the
+ * viewer's time zone). */
 export function quoteLabel(quote: LiveQuote): string {
   return `${quote.source === "check" ? "Checked" : "Live"} ${formatMarketTime(quote.at)}`;
 }
