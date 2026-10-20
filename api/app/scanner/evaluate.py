@@ -660,6 +660,7 @@ class _Evaluator:
         """Buy, get ready, not yet or don't buy, with the reasons and a plain-English summary."""
         assert rec.score is not None
         tech, stock = self.stock.tech, self.stock
+        since_breakout = self._since_breakout(rec, self.t)
         verdict = decide(
             VerdictInputs(
                 state=str(rec.state),
@@ -668,7 +669,7 @@ class _Evaluator:
                 close=rec.close,
                 pivot=rec.pivot,
                 readiness_pct=rec.readiness,
-                sessions_since_breakout=self._since_breakout(rec, self.t),
+                sessions_since_breakout=since_breakout,
                 raw_score=rec.score.raw,
                 penalties=rec.score.penalties,
                 market_state=self.market.state,
@@ -697,6 +698,7 @@ class _Evaluator:
                 pivot=rec.pivot,
                 readiness_pct=rec.readiness,
                 volume_ratio=tech.volume_ratio,
+                sessions_since_breakout=since_breakout,
             ),
             verdict,
         )

@@ -20,6 +20,7 @@ class PlainFacts:
     pivot: float | None
     readiness_pct: float | None  # % below the pivot (negative: above)
     volume_ratio: float | None  # today's volume vs the 50-day average
+    sessions_since_breakout: int | None = None  # 0 on the breakout day
 
 
 def _strength(f: PlainFacts) -> str:
@@ -56,8 +57,14 @@ def _chart(f: PlainFacts) -> str:
         far = "" if r is None else f" {-r:.1f}%"
         return f"It has already run{far} past its buy point of {pivot:.2f}."
     if state == State.BREAKOUT:
+        since = f.sessions_since_breakout
+        if since is None or since > 0:
+            # Today's volume isn't the breakout day's: say when it broke out instead.
+            known = since is not None and since < 250  # not one older than the loaded bars
+            when = f" {since} session{'s' if since != 1 else ''} ago" if known else ""
+            return f"It broke out of a {pattern} above its buy point of {pivot:.2f}{when}."
         heavy = f" on {f.volume_ratio:.1f}× its usual volume" if f.volume_ratio is not None else ""
-        return f"It broke out of a {pattern} above its buy point of {pivot:.2f}{heavy}."
+        return f"It broke out of a {pattern} above its buy point of {pivot:.2f} today{heavy}."
     if r is not None and r < 0:
         return (
             f"It's just above its buy point of {pivot:.2f} in a {pattern}, but without the heavy "
