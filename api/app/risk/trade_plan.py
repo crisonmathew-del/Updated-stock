@@ -3,9 +3,10 @@
 - Entry: the pivot + `entry_offset_amount` ($0.10), or + `entry_offset_pct` (0.1%) when the
   pivot is at or above `entry_offset_pct_from_price` ($100). Rounded up to the cent.
 - Stop: the higher (tighter) of the logical stop (just below the base's last swing low: the
-  final contraction, handle, flag or gap-day low, less `stop_buffer_pct`) and the
-  maximum-loss stop (`max_stop_loss_pct` below the entry). Rounded down to the cent. If the
-  logical stop is the wider one, the plan is flagged "risk too wide".
+  final contraction, handle, flag or gap-day low, less `stop_buffer_pct`; rounded down to the
+  cent) and the maximum-loss stop (`max_stop_loss_pct` below the entry, rounded *up* to the
+  cent so the loss never exceeds the maximum). If the logical stop is the wider one, the plan
+  is flagged "risk too wide".
 - Size: (account × risk_per_trade_pct) ÷ (entry - stop) shares, capped so the position is at
   most `max_position_pct` of the account.
 - Targets: 2R and 3R; partial profits at +profit_take_min..max_pct; stop to breakeven at 2R
@@ -76,7 +77,7 @@ def build_trade_plan(
     s = settings
     entry = entry_price(pivot, s)
     logical = down_to_cent(logical_low * (1 - s.stop_buffer_pct / 100))
-    max_loss = down_to_cent(entry * (1 - s.max_stop_loss_pct / 100))
+    max_loss = up_to_cent(entry * (1 - s.max_stop_loss_pct / 100))
     if logical >= entry:
         logical = max_loss  # a low above the entry can't anchor a stop
     use_logical = logical >= max_loss

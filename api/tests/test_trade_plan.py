@@ -27,7 +27,7 @@ def test_vcp_plan_by_hand() -> None:
     )
     assert plan.entry == 92.56
     assert plan.logical_stop == 88.71  # 88.80 × 0.999 = 88.7112 → 88.71
-    assert plan.max_loss_stop == 85.15  # 92.56 × 0.92 = 85.1552 → 85.15
+    assert plan.max_loss_stop == 85.16  # 92.56 × 0.92 = 85.1552 → up to 85.16 (≤ 8%)
     assert (plan.stop, plan.stop_basis, plan.risk_too_wide) == (88.71, "logical", False)
     assert plan.risk_per_share == 3.85
     assert plan.risk_pct == 4.16  # 3.85 / 92.56
@@ -48,9 +48,11 @@ def test_vcp_plan_by_hand() -> None:
 
 def test_a_wide_logical_stop_is_flagged_and_the_max_loss_stop_used() -> None:
     plan = build_trade_plan(pivot=100.0, logical_low=85.0, settings=DEFAULTS)
-    # Entry 100.10; logical 85 × 0.999 = 84.915 → 84.91 is 15.2% away; max loss 92.09.
-    assert (plan.stop, plan.stop_basis, plan.risk_too_wide) == (92.09, "max_loss", True)
-    assert plan.risk_per_share == 8.01
+    # Entry 100.10; logical 85 × 0.999 = 84.915 → 84.91 is 15.2% away; max loss
+    # 100.10 × 0.92 = 92.092 → up to 92.10, so the loss stays within 8% (7.99%).
+    assert (plan.stop, plan.stop_basis, plan.risk_too_wide) == (92.10, "max_loss", True)
+    assert plan.risk_per_share == 8.00
+    assert plan.risk_pct <= DEFAULTS.max_stop_loss_pct
     assert plan.notes[0].startswith("Risk too wide: the logical stop 84.91 is 15.2% below")
 
 
