@@ -24,3 +24,12 @@ export function alertsPath(filters: AlertFilters, before?: number | null, limit 
   params.set("limit", String(limit));
   return `/api/alerts?${params.toString()}`;
 }
+
+/** Where an alert leads: its stock, a page it names (the buy list), or the alerts centre. */
+export function alertHref(alert: { symbol: string | null; payload: Record<string, unknown> }) {
+  if (alert.symbol) return `/stocks/${alert.symbol}`;
+  const href = alert.payload.href;
+  return typeof href === "string" && href.startsWith("/") && !href.startsWith("//")
+    ? href
+    : "/alerts";
+}

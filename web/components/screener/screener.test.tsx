@@ -156,6 +156,17 @@ describe("Screener", () => {
     expect(screen.getByRole("heading", { name: /All stocks/ })).toHaveTextContent("edited");
   });
 
+  it("explains the columns on screen in plain English", async () => {
+    search = "preset=all";
+    mockScreener();
+    renderWithClient(<Screener />);
+    await screen.findByRole("row", { name: /SPOT/ });
+    fireEvent.click(screen.getByRole("button", { name: "What do the columns mean?" }));
+    const guide = await screen.findByRole("dialog", { name: "What the columns mean" });
+    expect(guide).toHaveTextContent("RS Rating");
+    expect(guide).toHaveTextContent("90 means it beat 90% of them");
+  });
+
   it("builds a filter from any field", async () => {
     search = "preset=all";
     mockScreener();

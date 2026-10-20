@@ -30,6 +30,11 @@ export const ROW: SetupRow = {
   red_flags: ["Earnings risk"],
   closed_on: null,
   closed_reason: null,
+  action: null,
+  action_label: null,
+  action_reason: null,
+  watch_score: null,
+  on_watch: false,
 };
 
 export const LIST: SetupList = {
@@ -74,7 +79,7 @@ export const DETAIL: SetupDetail = {
     stop: 88.71,
     stop_basis: "logical",
     logical_stop: 88.71,
-    max_loss_stop: 85.15,
+    max_loss_stop: 85.16,
     risk_too_wide: false,
     risk_per_share: 3.85,
     risk_pct: 4.16,
@@ -106,4 +111,7 @@ export const DETAIL: SetupDetail = {
   ],
   signals: [],
   pattern: null,
+  verdict: null,
+  watch: null,
+  watch_since: null,
 };

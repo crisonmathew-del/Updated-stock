@@ -19,6 +19,7 @@ import { Section } from "@/components/ui/section";
 import { AiSummaryPanel } from "./ai-summary";
 import { StockHeader } from "./stock-header";
 import { stockQueries } from "./queries";
+import { VerdictCard, WatchCard } from "./verdict-card";
 
 export function summaryQuery(symbol: string) {
   return {
@@ -71,16 +72,18 @@ export function StockPage({ symbol }: { symbol: string }) {
         <div className="flex flex-col gap-4">
           {detail ? (
             <>
+              <VerdictCard setup={detail} />
+              {detail.watch && <WatchCard watch={detail.watch} />}
               <ScoreCard setup={detail} />
               <PlanCard key={detail.id} setup={detail} />
               <AiSummaryPanel symbol={symbol} />
             </>
           ) : (
-            <Section title="Setup">
+            <Section title="What to do" help="verdict">
               <p className="text-sm text-muted">
                 {setup.isPending
                   ? "Loading…"
-                  : "No setup: the stock isn't a trend leader and has no current base, so it isn't scored or planned."}
+                  : "Nothing to do: the stock isn't in a strong uptrend and has no base forming, so the app has no buy point for it. Look at the Buy list for stocks that do."}
               </p>
             </Section>
           )}

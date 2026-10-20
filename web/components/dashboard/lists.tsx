@@ -62,6 +62,7 @@ export function TopSetups({ className }: { className?: string }) {
   return (
     <Section
       title="Top setups"
+      help="setup_score"
       note={<Link href="/admin/setups">All setups →</Link>}
       className={className}
     >
@@ -105,7 +106,12 @@ export function NearPivot({ className }: { className?: string }) {
   const items = q.data?.items ?? [];
   const list = { source: "About to break out", symbols: items.map((s) => s.symbol) };
   return (
-    <Section title="About to break out" note="Closest to the pivot" className={className}>
+    <Section
+      title="About to break out"
+      help="pivot"
+      note="Closest to the pivot"
+      className={className}
+    >
       <Status
         pending={q.isPending}
         error={q.error}
@@ -166,6 +172,7 @@ export function Breakouts({ className }: { className?: string }) {
   return (
     <Section
       title="Breakouts"
+      help="breakout"
       note={latest ? `${today} on ${shortDate(latest)}` : undefined}
       className={className}
     >

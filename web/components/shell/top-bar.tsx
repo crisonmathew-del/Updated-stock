@@ -23,6 +23,7 @@ import { quoteLabel, useNewerQuote } from "@/stores/live";
 // the regime from 1024 px and the index quotes, compact, from 1536 px.
 const LINKS = [
   { href: "/", label: "Dashboard" },
+  { href: "/buy-list", label: "Buy list" },
   { href: "/screener", label: "Screener" },
   { href: "/watchlists", label: "Watchlists" },
   { href: "/live", label: "Live" },
@@ -33,6 +34,7 @@ const REVIEW = [
   { href: "/backtests", label: "Backtests" },
 ];
 const ADMIN = [
+  { href: "/guide", label: "Start here (guide)" },
   { href: "/settings", label: "Settings" },
   { href: "/admin/status", label: "Status" },
   { href: "/admin/data", label: "Data" },
@@ -176,10 +178,12 @@ function AccountMenu() {
   );
 }
 
+// Short labels: seven tabs share a 360 px screen.
 const TABS = [
-  { href: "/", label: "Dashboard", icon: "⌂" },
+  { href: "/", label: "Home", icon: "⌂" },
+  { href: "/buy-list", label: "Buy list", icon: "✓" },
   { href: "/screener", label: "Screener", icon: "▤" },
-  { href: "/watchlists", label: "Watchlists", icon: "★" },
+  { href: "/watchlists", label: "Lists", icon: "★" },
   { href: "/live", label: "Live", icon: "◉" },
   { href: "/holdings", label: "Holdings", icon: "◧" },
 ];

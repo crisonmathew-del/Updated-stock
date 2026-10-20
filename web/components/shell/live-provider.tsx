@@ -2,17 +2,18 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { ALERTS, HOLDINGS, LIVE, UNREAD } from "@/components/alerts/queries";
+import { ALERTS, alertHref, HOLDINGS, LIVE, UNREAD } from "@/components/alerts/queries";
 import { api, type Alert, type LiveEvent, type LiveSnapshot } from "@/lib/api";
 import { connectLive } from "@/lib/live";
 import { useLive } from "@/stores/live";
 import { useToasts } from "@/stores/toast";
 
-/** Pops a toast for an alert as it arrives: ▲ marks high priority; it links to the stock. */
+/** Pops a toast for an alert as it arrives: ▲ marks high priority; it links to the stock (or
+ * the page the alert is about, like the buy list). */
 export function toastAlert(alert: Alert) {
   const text = `${alert.priority === "high" ? "▲ " : ""}${alert.title}`;
   useToasts.getState().push(text, "alert", {
-    href: alert.symbol ? `/stocks/${alert.symbol}` : "/alerts",
+    href: alertHref(alert),
     ms: alert.priority === "high" ? 10_000 : 6000,
   });
 }

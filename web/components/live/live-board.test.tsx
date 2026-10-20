@@ -36,6 +36,11 @@ function setup(id: number, symbol: string, close: number, pivot: number): SetupR
     red_flags: [],
     closed_on: null,
     closed_reason: null,
+    action: null,
+    action_label: null,
+    action_reason: null,
+    watch_score: null,
+    on_watch: false,
   };
 }
 

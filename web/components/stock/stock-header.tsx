@@ -17,6 +17,7 @@ import { useAddToWatchlist } from "@/lib/use-watchlist";
 import { quoteLabel, useNewerQuote } from "@/stores/live";
 import { neighbours, useListStore } from "@/stores/list";
 import { stockQueries } from "./queries";
+import { ActionLabel } from "./verdict-card";
 
 function WatchButton({ symbol }: { symbol: string }) {
   const client = useQueryClient();
@@ -161,6 +162,11 @@ export function StockHeader({
           </span>
         ) : (
           <span className="text-sm text-muted">No setup: not a trend leader and no base</span>
+        )}
+        {setup?.action && (
+          <a href="#section-what-to-do" className="text-sm font-medium hover:underline">
+            <ActionLabel action={setup.action} label={setup.action_label} />
+          </a>
         )}
       </div>
     </header>

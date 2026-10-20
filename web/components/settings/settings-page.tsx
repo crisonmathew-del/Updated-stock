@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataHealthPanel } from "@/components/admin/data-health-panel";
+import { SETTINGS_QUERY } from "@/components/guide/queries";
 import { Section, StatusMark } from "@/components/ui/section";
 import { Button } from "@/components/ui/button";
 import { api, type ProvidersStatus, type SettingItem } from "@/lib/api";
@@ -11,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { useToasts } from "@/stores/toast";
 
 const FIELD = "h-8 rounded-md border border-border bg-background px-2 text-sm";
-const SETTINGS = { key: ["settings"], path: "/api/settings" } as const;
+const SETTINGS = SETTINGS_QUERY;
 const KEYS = { key: ["settings", "keys"], path: "/api/settings/keys" } as const;
 
 /** Sections in the order a trader thinks about them (spec §8.10). */
@@ -20,6 +21,11 @@ export const CATEGORIES: { key: string; label: string; note: string }[] = [
     key: "risk",
     label: "Account and risk",
     note: "Account size, risk per trade, the plan's entry and stop rules",
+  },
+  {
+    key: "decisions",
+    label: "Buy decisions",
+    note: "When the app says buy: market, quality, strength, earnings, the order",
   },
   {
     key: "universe",
@@ -36,6 +42,11 @@ export const CATEGORIES: { key: string; label: string; note: string }[] = [
     key: "entries",
     label: "Entries and breakouts",
     note: "Breakout volume, buy zone, gaps, pocket pivots",
+  },
+  {
+    key: "watch",
+    label: "Breakout watch",
+    note: "The readiness score's weights, who makes the watch, early entries",
   },
   { key: "scoring", label: "Setup score", note: "Weights, grades and red-flag penalties" },
   { key: "fundamentals", label: "Fundamentals", note: "The Fundamentals Grade" },

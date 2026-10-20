@@ -44,8 +44,8 @@ test("search a ticker, see its full analysis with the pattern drawn, add it to a
   await expect(page.locator("canvas").first()).toBeVisible();
   await expect(page.getByText(/pivot 92\.46/).first()).toBeVisible();
   const plan = page.getByRole("region", { name: "Trade plan" });
-  await expect(plan.getByLabel(/Entry/)).toHaveValue("92.56");
-  await expect(plan.getByLabel(/Stop/)).toHaveValue("88.71");
+  await expect(plan.getByRole("textbox", { name: "Entry", exact: true })).toHaveValue("92.56");
+  await expect(plan.getByRole("textbox", { name: "Stop", exact: true })).toHaveValue("88.71");
   await expect(page.getByRole("region", { name: "Trend Template" })).toBeVisible();
 
   // `w` adds the stock to the watchlist (created on first use).

@@ -23,6 +23,7 @@ export function TrendTemplatePanel({ summary }: { summary: StockSummary }) {
   return (
     <Section
       title="Trend Template"
+      help="trend_template"
       note={`${summary.trend_template_passed}/8 · ${summary.stage_label ?? "stage unknown"}`}
     >
       <ul className="flex flex-col gap-1.5 text-sm">
@@ -126,6 +127,7 @@ export function FundamentalsPanel({ symbol }: { symbol: string }) {
   return (
     <Section
       title="Fundamentals"
+      help="fundamentals"
       note={grade ? <GradeBadge grade={grade.grade} score={grade.score} /> : undefined}
     >
       {f.isPending && <p className="text-sm text-muted">Loading…</p>}
@@ -173,6 +175,7 @@ export function PatternPanel({ setup }: { setup: SetupDetail | null | undefined 
   return (
     <Section
       title="Pattern"
+      help="base"
       note={p ? `${p.type_label} · quality ${p.quality.toFixed(0)}/100` : undefined}
     >
       {!p && <p className="text-sm text-muted">No base detected.</p>}
@@ -233,6 +236,7 @@ export function PeersPanel({ symbol, summary }: { symbol: string; summary: Stock
   return (
     <Section
       title="Group & peers"
+      help="group_rank"
       note={g ? `${g.name} · rank ${g.rank ?? "–"} of ${g.ranked_groups ?? "–"}` : undefined}
     >
       {!g && <p className="text-sm text-muted">No industry group (no SEC industry code).</p>}

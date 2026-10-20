@@ -479,6 +479,104 @@ export type SetupRow = {
   red_flags: string[];
   closed_on: string | null;
   closed_reason: string | null;
+  /** What the app's rules say to do today (Phase 8). */
+  action: Action | null;
+  action_label: string | null;
+  action_reason: string | null;
+  /** The breakout-watch readiness, 0-100 (bases near their pivot only). */
+  watch_score: number | null;
+  on_watch: boolean;
+};
+
+export type Action = "buy" | "get_ready" | "wait" | "avoid";
+
+export type VerdictCheck = {
+  key: string;
+  label: string;
+  passed: boolean;
+  detail: string;
+  short: string;
+};
+
+export type Order = {
+  type: "buy_stop" | "buy_now" | "on_volume";
+  price: number;
+  limit: number;
+  stop: number;
+  shares: number;
+  text: string;
+};
+
+export type SetupVerdict = {
+  action: Action;
+  headline: string;
+  reason: string;
+  checks: VerdictCheck[];
+  order: Order | null;
+  size_pct: number;
+  notes: string[];
+  passed: number;
+  total: number;
+  plain?: string;
+};
+
+export type WatchPart = {
+  key: string;
+  label: string;
+  points: number;
+  max_points: number;
+  detail: string;
+};
+
+export type EarlyEntry = {
+  entry: number;
+  stop: number;
+  shares: number;
+  risk_pct: number;
+  high: number;
+  low: number;
+  sessions: number;
+  spread_pct: number;
+  text: string;
+};
+
+export type Watch = {
+  score: number;
+  parts: WatchPart[];
+  early_entry: EarlyEntry | null;
+  on_watch: boolean;
+};
+
+export type BuyItem = SetupRow & {
+  order: Order | null;
+  failed: string[];
+  plain: string | null;
+  watch_parts: WatchPart[];
+  early_entry: EarlyEntry | null;
+  watch_since: string | null;
+};
+
+export type BuyList = {
+  as_of: string | null;
+  market: {
+    state: string | null;
+    label: string | null;
+    words: string;
+    allows_buys: boolean;
+    note: string;
+  };
+  orders: BuyItem[];
+  watch: BuyItem[];
+  track: {
+    picks: number;
+    hits: number;
+    misses: number;
+    pending: number;
+    within_sessions: number;
+    hit_rate_pct: number | null;
+    median_sessions_to_breakout: number | null;
+    since: string | null;
+  };
 };
 
 export type SetupTransition = {
@@ -530,6 +628,9 @@ export type SetupDetail = SetupRow & {
   transitions: SetupTransition[];
   signals: SignalEntry[];
   pattern: Pattern | null;
+  verdict: SetupVerdict | null;
+  watch: Watch | null;
+  watch_since: string | null;
 };
 
 export type SetupList = {

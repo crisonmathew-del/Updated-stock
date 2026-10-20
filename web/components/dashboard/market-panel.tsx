@@ -227,6 +227,7 @@ export function MarketPanel({ className }: { className?: string }) {
   return (
     <Section
       title="Market"
+      help="market_regime"
       anchor="market"
       note={r?.date ? `As of ${shortDate(r.date)}` : undefined}
       className={className}

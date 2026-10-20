@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 import { useListStore } from "@/stores/list";
 import { useToasts } from "@/stores/toast";
 import { shortDate } from "@/components/dashboard/market-panel";
-import { ColumnChooser } from "./column-chooser";
+import { ColumnChooser, ColumnGuide } from "./column-chooser";
 import { FilterBar } from "./filter-bar";
 import { Preview } from "./preview";
 import { ResultsTable } from "./results-table";
@@ -448,6 +448,7 @@ export function Screener() {
               onSaved={(s) => go({ kind: "saved", id: s.id })}
               onDeleted={() => go({ kind: "preset", id: ALL_STOCKS.id })}
             />
+            <ColumnGuide columns={screen.columns} />
             <ColumnChooser columns={screen.columns} onChange={(columns) => edit({ columns })} />
             <Button
               size="sm"

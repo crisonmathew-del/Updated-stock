@@ -13,6 +13,7 @@ export function ScoreCard({ setup }: { setup: SetupDetail }) {
   return (
     <Section
       title="Setup score"
+      help="setup_score"
       note={`${setup.raw_score.toFixed(1)} × ${setup.regime_multiplier} regime${setup.penalties ? ` − ${setup.penalties}` : ""} = ${setup.score.toFixed(1)}`}
     >
       <ul className="flex flex-col gap-1.5 text-sm">
@@ -98,6 +99,7 @@ export function PlanCard({ setup }: { setup: SetupDetail }) {
   return (
     <Section
       title="Trade plan"
+      help="stop"
       note={
         edited
           ? "edited (not saved)"

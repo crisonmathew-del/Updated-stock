@@ -42,6 +42,7 @@ export function LeadingGroups({ className }: { className?: string }) {
   return (
     <Section
       title="Leading groups"
+      help="group_rank"
       note={q.data?.date ? `Ranked ${shortDate(q.data.date)} · trend over 4 weeks` : undefined}
       className={className}
     >

@@ -4,7 +4,7 @@ import * as Popover from "@radix-ui/react-popover";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
-import { ALERTS, RECENT, UNREAD } from "@/components/alerts/queries";
+import { ALERTS, alertHref, RECENT, UNREAD } from "@/components/alerts/queries";
 import { api, type AlertsPage } from "@/lib/api";
 import { formatAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -90,7 +90,7 @@ export function AlertBell() {
             {recent.data?.items.map((a) => (
               <li key={a.id} className="border-b border-border last:border-0">
                 <Link
-                  href={a.symbol ? `/stocks/${a.symbol}` : "/alerts"}
+                  href={alertHref(a)}
                   onClick={() => {
                     if (!a.read) markRead.mutate([a.id]);
                     setOpen(false);

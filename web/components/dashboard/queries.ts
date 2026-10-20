@@ -1,3 +1,5 @@
+import { BUY_LIST } from "@/components/buy-list/queries";
+
 /**
  * The dashboard's queries, shared by its panels (client) and the page (server prefetch), so
  * the keys the server fills are exactly the ones the panels read.
@@ -19,6 +21,7 @@ export const DASHBOARD = {
   },
   signals: { key: ["signals", "dashboard", "feed"], path: "/api/signals?limit=12" },
   groups: { key: ["groups", 10], path: "/api/groups?limit=10" },
+  buyList: BUY_LIST,
 } as const;
 
 /** Five minutes: the data changes once a day, after the evening scan. */

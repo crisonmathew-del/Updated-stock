@@ -3,7 +3,13 @@
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
-import { ALERTS, alertsPath, UNREAD, type AlertFilters } from "@/components/alerts/queries";
+import {
+  ALERTS,
+  alertHref,
+  alertsPath,
+  UNREAD,
+  type AlertFilters,
+} from "@/components/alerts/queries";
 import { Button } from "@/components/ui/button";
 import { api, type Alert, type AlertsPage } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
@@ -69,20 +75,29 @@ export function AlertRow({ alert, onRead }: { alert: Alert; onRead: (id: number)
           <span className="rounded border border-border px-1.5 text-xs text-muted">
             {alert.kind_label}
           </span>
-          {alert.symbol && (
+          {alert.symbol ? (
             <Link
               href={`/stocks/${alert.symbol}`}
               className="text-sm font-semibold text-tide-ink hover:underline"
             >
               {alert.symbol}
             </Link>
+          ) : (
+            alertHref(alert) !== "/alerts" && (
+              <Link
+                href={alertHref(alert)}
+                className="text-sm font-semibold text-tide-ink hover:underline"
+              >
+                Open →
+              </Link>
+            )
           )}
           <span className="tabular ml-auto text-xs text-muted">
             {formatDateTime(alert.created_at)}
           </span>
         </div>
         <p className={cn("text-sm", !alert.read && "font-medium")}>{alert.title}</p>
-        <p className="text-sm text-muted">{alert.body}</p>
+        <p className="text-sm whitespace-pre-line text-muted">{alert.body}</p>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <Delivery alert={alert} />
           {!alert.read && (

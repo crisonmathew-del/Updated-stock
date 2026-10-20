@@ -1,6 +1,7 @@
 import { act, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { focusRow } from "@/components/shell/shortcuts";
+import { BUY_LIST_DATA } from "@/components/buy-list/fixtures";
 import { LIST } from "@/components/setups/fixtures";
 import type { BreadthDay, Groups, Regime, SignalEntry, SignalList } from "@/lib/api";
 import { useListStore } from "@/stores/list";
@@ -188,6 +189,7 @@ function mockDashboard() {
     "GET /api/signals?type=breakout&limit=10": { body: signals([BREAKOUT, FAILED]) },
     "GET /api/signals?limit=12": { body: signals([BREAKOUT, REGIME_CHANGE]) },
     "GET /api/groups?limit=10": { body: GROUPS },
+    "GET /api/buy-list": { body: BUY_LIST_DATA },
   });
 }
 
