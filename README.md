@@ -49,6 +49,26 @@ curl -fsSL https://raw.githubusercontent.com/crisonmathew-del/Updated-stock/clau
 It installs Docker, asks a few questions, and serves the app over HTTPS behind Caddy with
 nightly backups; running it again updates. Step by step in [`docs/deploy.md`](docs/deploy.md).
 
+### What to do: the Buy list
+
+Every evening after the close the app applies 7 rules to each setup (market, setup quality,
+trend, relative strength, fundamentals, a stop within 8%, no results due soon) and says, in
+words, what to do:
+
+- **✓ Buy signal**: it broke out and passes every rule. **◎ Get ready**: it sits just below its
+  pivot and passes every rule, so place the buy-stop order it shows (shares, price, limit,
+  stop) for the next session. **… Not yet** and **✕ Don't buy** say why, with the numbers.
+- **Buy list** (top bar): the market's word on new buys, the orders for the next session and
+  the **breakout watch**: bases scored 0–100 on the signs that often come before a breakout
+  (close to the pivot, tightening, volume drying up, RS line rising, demand, closes near the
+  highs), some with an earlier, riskier entry. It's a ranking, not a prediction, and the page
+  shows its own track record: how many picks really broke out within 10 sessions.
+- The stock page opens with the same verdict ("What to do"), every rule with its numbers and
+  the stock in plain English. A "Buy list" alert arrives when there's something to do.
+- **Plain English:** "?" buttons explain every term, the screener explains its columns, and
+  **Start here** (Admin menu, `/guide`) walks through the daily routine.
+- Every rule and weight is a setting (Settings → **Buy decisions**, **Breakout watch**).
+
 ### Live data and alerts
 
 - **Alerts work without any keys.** In development every email goes to Mailpit, a local mail
@@ -104,7 +124,13 @@ nightly backups; running it again updates. Step by step in [`docs/deploy.md`](do
 | 5 | Core UI | ✅ done |
 | 6 | Real-time & alerts | ✅ done (live run pending Alpaca keys) |
 | 7 | Backtest lab, signal performance, AI summary, deployment | ✅ done (real report needs real data; deploy needs a server) |
-| 8 | Polish & extras | waiting for the owner's priorities |
+| 8 | Polish & extras | in progress: verdicts, Buy list, breakout watch, plain-English help ✅ |
+
+![What to do](docs/screenshots/phase8-what-to-do.png)
+
+_Phase 8 on the e2e test market: the stock page says what to do and why (here SPOT broke out
+but has no SEC statements, so 6 of 7 rules pass: don't buy), every rule with its numbers and
+the stock in plain English. Also: [the Buy list on a phone](docs/screenshots/phase8-buy-list-phone.png)._
 
 ![Backtest report](docs/screenshots/phase7-backtest-report.png)
 

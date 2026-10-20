@@ -42,10 +42,19 @@ Trend Template + VCP / pocket pivots / episodic pivots). **The full build spec i
   signals); 9 Playwright journeys; the production stack served over HTTPS locally (Caddy, `DOMAIN=localhost`);
   nightly backups with a restore test in CI. The real report needs real data; the deployment
   needs the owner's server, domain and Let's Encrypt email.
-- **Next: Phase 8 (polish & extras, "as I prioritise"):** waiting for the owner to pick which
-  extras and approve a plan; no Phase 8 code before that. The spec's list: weekly digest email
-  (already built in Phase 6), PWA install & mobile polish, UK/LSE support (needs a provider
-  covering it), options flow or short interest, multi-user.
+- **Deployed** on the owner's server (a 2 vCPU / 4 GB VPS) with Alpaca paper keys (live data
+  on); Resend email and the Anthropic key not set yet. Updates: re-run the `install.sh`
+  one-liner on the server.
+- **Phase 8 (polish & extras, "as I prioritise"):** the owner's first picks are **built**
+  (2026-10-20): a clear verdict per stock (Buy signal / Get ready / Not yet / Don't buy, from
+  7 named rules), the Buy list (orders for the next session, buy-stop the evening before), the
+  breakout watch ("suggest stocks that are going to break out": a readiness ranking with an
+  honest hit-rate record and an optional earlier entry; the owner accepts the risk), alerts
+  that say what to do, plain-English help everywhere ("?" glossary tips, column guide, Start
+  here page), and the 8%-stop rounding fix. Defaults chosen while the owner's answers were
+  pending: buys only in a confirmed uptrend, no new buys within 10 sessions of results; all
+  settings. Other spec extras (PWA, UK/LSE, options flow/short interest, multi-user) wait for
+  the owner.
 
 ## Owner decisions (answers to spec §0.3)
 
@@ -61,6 +70,7 @@ Trend Template + VCP / pocket pivots / episodic pivots). **The full build spec i
 | Phase 4 defaults | Setup Score: trend 20, RS 20, fundamentals 20, pattern 20, group 10, accumulation 10; a part without data (e.g. no Fundamentals Grade) is left out and the rest scaled up; × regime 1.0 / 0.8 / 0.5; red-flag penalties extended, late stage, climax −10, wide-and-loose, distribution −5, earnings risk 0; A+ ≥ 90, A ≥ 80, B ≥ 70, C ≥ 60. Breakouts confirmed **at the close** (≥ 140% volume, close in the top third) until real-time data (Phase 6). Outcomes measured from the signal session's close, plus R from the plan. **Plain admin pages** until the Phase 5 design. |
 | Phase 6 | **Option A**: build the Alpaca live adapter now (free keys later switch it on); IEX volume stays provisional until the close. Alerts in-app + email (Resend/SMTP; Mailpit in dev); digests 17:30 ET daily and Sunday 18:00 ET weekly; cooldown 390 min (once a session); setup alerts on stocks you don't hold or watch need grade ≥ A (a setting). Confirmed with the results: stream cap 30 (holdings → near pivot → broken out → rule targets → basing → watchlists); holdings warnings: stop, close below the 50-day (high) / 21-day (normal), breakeven at 2R or +10%, profit zone 20–25%, earnings within 5 sessions. |
 | Phase 7 | Owner: "go ahead" on the recommendations. Hosting: one Docker VPS behind Caddy (automatic HTTPS); the owner supplies server, domain and Let's Encrypt email, and deploys with `make deploy` / `docs/deploy.md`. Backups: nightly `pg_dump` 02:30 ET, 14 daily + 8 weekly, optional S3-compatible off-site copy. Backtest defaults: $100k, 1% risk, 25% max position, max 10 positions, slippage 0.1%, $0 commission, buy-stop at the trigger the next session (fill at the open inside the buy zone, skip above it), exits: stop, close below the 50-day (21-day optional), time stop < +5% after 15 sessions, sell ⅓ at +20%, breakeven at 2R/+10%; 70/30 in/out-of-sample; sensitivity breakout volume 100–200% × VCP final contraction 6–14%. Survivorship bias (no delisted names in free data) is labelled in every report. AI summary built now, off until `ANTHROPIC_API_KEY` (default model `claude-opus-5-5` via `ANTHROPIC_MODEL`; only numbers from the data; cached 24 h per stock and session). Settings page included. Confirmed with the approval: unconfirmed breakouts (volume or close position short at the close) are **sold at the close by default** in backtests (`backtest_sell_unconfirmed`), so the heatmap's volume axis means something; the lab can switch it off. |
+| Phase 8 | Picks: clear verdicts + orders, the breakout watch (accepts that no one can predict breakouts), "anyone can understand it". Defaults (unanswered, the owner said "add it"): new buys only in a confirmed uptrend (under-pressure at 50% size is a setting), setup grade ≥ B before the regime multiplier, Fundamentals ≥ C (unknown fails), RS ≥ 80, stop ≤ 8%, no results within 10 sessions, a breakout stays a buy 3 sessions inside the buy zone; watch: readiness ≥ 65 within 8% of the pivot, weights distance 25 / tightness 20 / dry-up 15 / RS line 15 / demand 15 / support 10, a pick is a hit if it breaks out within 10 sessions. |
 | Phase 3 defaults | Grade points/cutoffs as in `fundamentals/grade.py` (EPS growth 25, acceleration 10, sales 15, 3-year EPS 20, ROE 10, margins 10, accumulation 10, insider cluster +5; A ≥ 80, B ≥ 65, C ≥ 50, D ≥ 35); insider Form 4 now, **13F deferred** to a paid provider; next earnings date **estimated** from last year; review charts **server-rendered** (matplotlib). |
 
 ## Non-negotiables (spec §0, §2)
@@ -104,7 +114,9 @@ api/                 Python 3.12 · FastAPI · uv (non-packaged app; run command
                      (many stocks → `patterns` table), chart (review PNG)
   app/scoring/       trend_template.py (8 checks + checklist text), setup_score.py (Setup
                      Score), red_flags.py, lifecycle.py (stage machine), triggers.py
-                     (pullback, undercut & rally)
+                     (pullback, undercut & rally), verdict.py (Phase 8: buy / get ready /
+                     not yet / don't buy from 7 rules + the order), breakout_watch.py
+                     (readiness score + early entry), plain.py (the setup in plain English)
   app/risk/          trade_plan.py (entry, stop, size, targets, management)
   app/intraday/      session (phases, minutes), day (DayState per print → minute bars), volume
                      (time-of-day curve, projection), store (minute bars, learned curve), plan
@@ -129,12 +141,14 @@ api/                 Python 3.12 · FastAPI · uv (non-packaged app; run command
                      daily.py: per-session stages in order (detection.py: grades + patterns;
                      setups.py: load/store around evaluate.py, the pure per-stock setup rules;
                      outcomes.py); universe_filter.py: point-in-time liquidity filter;
-                     performance.py: signal performance statistics (pure)
+                     performance.py: signal performance statistics (pure); watch_record.py:
+                     the breakout watch's track record (pure)
   app/api/routes/    health, auth, settings, admin, market (+ index quotes), stocks (summary,
                      peers, note, watchlist membership), stock_chart (chart series + overlay),
                      search (ranked trigram search), screener (cached columnar snapshot + saved
                      screens), watchlists, patterns (review), setups (setups, signals), alerts
-                     (history, rules, tests, status), holdings, live (WebSocket /ws, /live,
+                     (history, rules, tests, status), buy_list (Phase 8: market, orders,
+                     breakout watch, track record), holdings, live (WebSocket /ws, /live,
                      intraday bars), backtests (runs, report, trade charts), performance, ai
                      (summary), settings (+ /settings/keys: which keys are set, never values)
   app/worker.py      arq worker: `arq app.worker.WorkerSettings`
@@ -145,22 +159,24 @@ api/                 Python 3.12 · FastAPI · uv (non-packaged app; run command
                      real-shaped directory and SEC files; e2e_seed.py seeds the web e2e database
 web/                 Next.js 16 App Router · React 19 · TS strict · Tailwind 4 · pnpm
   proxy.ts           sends signed-out visitors to /login (cookie presence only)
-  app/(app)/         signed-in pages with the top bar: / (dashboard), /stocks/[symbol],
+  app/(app)/         signed-in pages with the top bar: / (dashboard), /buy-list, /stocks/[symbol],
                      /screener, /watchlists, /live, /holdings, /alerts, /performance,
-                     /backtests, /backtests/[id], /settings;
+                     /backtests, /backtests/[id], /settings, /guide (Start here);
                      /admin/{status,data,inspect,patterns,setups,signals}
   app/login/         sign-in page (no top bar)
   app/globals.css    design tokens (approved Phase 5 palette) for dark (default) and .light
   components/        UI components (+ colocated *.test.tsx): shell/ (top bar, ⌘K palette,
                      shortcuts, toasts, live-provider), ui/ (badges, button, section,
-                     stock-link), stock/ (chart, intraday chart, base overlay, panels, score +
-                     plan), dashboard/, screener/, watchlists/, alerts/ (bell, alerts centre),
+                     stock-link, info-tip: the "?" glossary popover), stock/ (chart, intraday
+                     chart, base overlay, panels, score + plan, verdict-card: What to do +
+                     breakout watch), buy-list/, guide/, dashboard/, screener/, watchlists/, alerts/ (bell, alerts centre),
                      live/ (live board), holdings/, backtests/ (lab: form, runs, report,
                      equity + trade charts), performance/, settings/; admin pages: admin/,
                      inspect/, patterns/, setups/
   lib/api.ts         typed API client: CSRF header on writes, 401 → /login, response types
   lib/format.ts      number/date/duration formatters, safeNext() redirect guard
   lib/screener.ts    screener field catalogue, presets, filters, sorting keys, CSV (pure)
+  lib/glossary.ts    every term in plain English (InfoTip, Start here, the column guide)
   lib/sizing.ts      client trade-plan sizing (mirrors risk/trade_plan.py fixtures)
   lib/live.ts        the /api/ws client (reconnect, ping); lib/positions.ts live P&L in R
   lib/theme.ts       theme cookie + tokens for canvas code; stages.ts, keys.ts, use-*.ts
@@ -310,6 +326,19 @@ Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost)
   the latest session only, once per signal (an alert row links it). New alert kinds get a
   label in `KIND_LABELS`. The WebSocket batches 250 ms windows and sends alerts only to their
   user.
+- **Verdicts and the breakout watch (Phase 8):** `scoring/verdict.decide` (pure) runs after the
+  score and plan in `evaluate.py` for every setup each session: 7 named checks, each with its
+  numbers and a few-word `short` for lists; the action and the order (buy_stop / buy_now /
+  on_volume, shares sized like the plan, reduced under pressure). `breakout_watch.watch_score`
+  scores active bases (Stage 2 by the Trend Template, within `watch_max_distance_pct`) from
+  `Bars` cut at the session; the first session a base qualifies logs a `breakout_watch` signal
+  (and sets `watch_since`), which `watch_record.track_record` matches against later
+  `breakout` signals. All stored on `setups` (action, verdict, watch_score, watch,
+  watch_since), restored on re-runs (LIFECYCLE_COLUMNS) and emulated by the backtest tape.
+  DECISIONS settings are tape-neutral (they don't change signals); WATCH ones change the tape
+  (they log signals). Alerts carry the verdict line; `buy_list_draft` raises one "Buy list"
+  alert per session (payload `href: /buy-list`, which the bell and toasts follow). Copy is
+  plain: a beginner must understand every sentence; new terms go in `lib/glossary.ts`.
 - **Backtests (Phase 7):** two stages. Stage 1 (`backtest/tape.py`) walks each stock forward
   session by session, emulating the EOD pipeline's database state (pattern ids, retirement,
   setups reloaded from stored columns) with the live code (`detect_variants`, `evaluate`), so a
@@ -318,7 +347,7 @@ Running natively (faster loop, needs `make dev` for Postgres/Redis on localhost)
   sensitivity variants (VCP final contraction × breakout volume); identical cells are evaluated
   once. Stage 2 (`backtest/engine.py`) is a pure daily simulation over the tape (buy-stop next
   session, exits, sizing, costs). Tapes are cached (Parquet + `backtest_tapes`) by a settings
-  hash that ignores the BACKTEST/ALERTS/INTRADAY/DATA categories; changing a pattern or scoring
+  hash that ignores the BACKTEST/ALERTS/INTRADAY/DATA/DECISIONS categories; changing a pattern or scoring
   setting builds a new tape. Every report is labelled hypothetical and states survivorship bias.
   One run at a time per user; runs go through the worker (`backtest` job, 8 h limit).
 - **AI summary:** `ai/summary.py` only; the key is read server-side and never logged. The data
