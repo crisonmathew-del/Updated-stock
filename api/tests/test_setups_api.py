@@ -95,3 +95,60 @@ async def test_signal_log_with_outcomes(db: AsyncSession, signed_in: httpx.Async
 async def test_setups_need_a_session(client: httpx.AsyncClient, db: AsyncSession) -> None:
     assert (await client.get("/api/setups")).status_code == 401
     assert (await client.get("/api/signals")).status_code == 401
+
+
+@pytest.mark.integration
+async def test_the_buy_list_says_what_to_do(db: AsyncSession, signed_in: httpx.AsyncClient) -> None:
+    await seed(db, VCP)
+    await run_analytics(db, SETTINGS, through=DAYS[332])  # SPOT 1.05% below its pivot
+    detail = (await signed_in.get("/api/stocks/spot/setup")).json()
+    assert (detail["action"], detail["action_label"]) == ("avoid", "Don't buy")
+    # The synthetic market has no SEC statements, so the fundamentals rule fails.
+    assert detail["action_reason"] == "It fails 1 of the app's 7 rules: its finances are unknown."
+    verdict = detail["verdict"]
+    assert (verdict["passed"], verdict["total"], verdict["order"]) == (6, 7, None)
+    assert verdict["plain"] == (
+        "It has done better than 99% of all stocks over the past year. There are no SEC "
+        "financial statements to grade the business. It's resting in a volatility contraction "
+        "(VCP), 1.1% below its buy point of 92.46. The app says: Don't buy. It fails 1 of the "
+        "app's 7 rules: its finances are unknown."
+    )
+    assert [c["short"] for c in verdict["checks"] if c["passed"]] == [""] * 6
+    # Tight, quiet and just under the pivot: on the breakout watch.
+    assert (detail["on_watch"], detail["watch_score"]) == (True, 73.0)
+    assert [p["key"] for p in detail["watch"]["parts"]] == [
+        "distance",
+        "tightness",
+        "dry_up",
+        "relative_strength",
+        "demand",
+        "support",
+    ]
+    assert detail["watch_since"] == DAYS[332].isoformat()
+
+    body = (await signed_in.get("/api/buy-list")).json()
+    assert body["as_of"] == DAYS[332].isoformat()
+    assert body["market"]["allows_buys"] is True
+    assert body["orders"] == []
+    [spot] = body["watch"]
+    assert (spot["symbol"], spot["watch_score"]) == ("SPOT", 73.0)
+    assert spot["failed"] == ["its finances are unknown"]
+    assert len(spot["watch_parts"]) == 6
+    # The pick was logged today: pending until it breaks out or 10 sessions pass.
+    assert body["track"] | {"since": None} == {
+        "picks": 1,
+        "hits": 0,
+        "misses": 0,
+        "pending": 1,
+        "within_sessions": 10,
+        "hit_rate_pct": None,
+        "median_sessions_to_breakout": None,
+        "since": None,
+    }
+
+    # The next sessions break out: the pick counts as a hit, and SPOT leaves the watch.
+    await extend(db, BREAKOUT, 333)
+    await run_analytics(db, SETTINGS, through=DAYS[334])
+    body = (await signed_in.get("/api/buy-list")).json()
+    assert body["watch"] == []
+    assert (body["track"]["hits"], body["track"]["median_sessions_to_breakout"]) == (1, 1.0)

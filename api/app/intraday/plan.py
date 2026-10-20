@@ -71,6 +71,16 @@ class WatchPlan:
         return list(self.contexts)
 
 
+def _rules(setup: Setup) -> tuple[bool | None, tuple[str, ...]]:
+    """Whether the buy rules passed at the last close, and the ones that failed (in words)."""
+    verdict = setup.verdict or {}
+    checks = verdict.get("checks") or []
+    if not checks:
+        return None, ()
+    failed = tuple(c["short"] for c in checks if not c["passed"] and c.get("short"))
+    return not failed, failed
+
+
 def _plan_numbers(setup: Setup) -> tuple[float | None, float | None, float | None, int | None]:
     plan = setup.trade_plan or {}
     zone = plan.get("buy_zone") or [None, None]
@@ -276,6 +286,7 @@ async def load_plan(session: AsyncSession, settings: AppSettings, today: date) -
                 shares,
                 active.score,
                 active.grade,
+                *_rules(active),
             )
         watches = []
         for rule in rule_targets.get(tid, []):

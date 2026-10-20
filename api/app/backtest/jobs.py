@@ -42,7 +42,14 @@ log = get_logger(__name__)
 LOCK = "backtest"
 # Settings that don't change what the scan finds (the tape): the lab's own options, alerts,
 # the intraday watcher and data loading.
-TAPE_NEUTRAL = {Category.BACKTEST, Category.ALERTS, Category.INTRADAY, Category.DATA}
+# The decision rules only label setups (they never change what the tape records).
+TAPE_NEUTRAL = {
+    Category.BACKTEST,
+    Category.ALERTS,
+    Category.INTRADAY,
+    Category.DATA,
+    Category.DECISIONS,
+}
 PROGRESS_SECONDS = 2.0
 FILES = ("candidates", "breakouts", "signals", "stock_days")
 

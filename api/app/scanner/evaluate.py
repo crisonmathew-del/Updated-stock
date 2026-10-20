@@ -32,6 +32,7 @@ import numpy as np
 from app.patterns.bars import Bars
 from app.patterns.types import EVENTS, LABELS, PatternMatch, PatternType, Status
 from app.risk.trade_plan import build_trade_plan
+from app.scoring.breakout_watch import watch_score
 from app.scoring.lifecycle import (
     POST_BREAKOUT,
     TERMINAL,
@@ -41,9 +42,11 @@ from app.scoring.lifecycle import (
     Transition,
     next_state,
 )
+from app.scoring.plain import PlainFacts, plain_summary
 from app.scoring.red_flags import find_red_flags
 from app.scoring.setup_score import ScoreInputs, SetupScore, readiness_pct, score_setup
 from app.scoring.triggers import Trigger, pullback_to_average, undercut_and_rally
+from app.scoring.verdict import VerdictInputs, decide
 from app.settings.schema import AppSettings
 
 SIGNAL_LABELS = {  # every signal type (spec §7.2), as the UI names it
@@ -61,6 +64,7 @@ SIGNAL_LABELS = {  # every signal type (spec §7.2), as the UI names it
     "pullback": "Pullback buy point",
     "undercut_rally": "Undercut & rally",
     "regime_change": "Market regime change",
+    "breakout_watch": "Breakout watch",
 }
 PRE_BREAKOUT = frozenset({State.BASING, State.NEAR_PIVOT})
 CURRENT = frozenset({Status.FORMING, Status.BROKEN_OUT})
@@ -240,6 +244,9 @@ class SetupRecord:
     closed_reason: str | None = None
     score: SetupScore | None = None
     readiness: float | None = None
+    verdict: dict[str, Any] | None = None  # what to do today (app.scoring.verdict), in words
+    watch: dict[str, Any] | None = None  # the breakout-watch readiness (app.scoring.breakout_watch)
+    watch_since: date | None = None  # first session on the breakout watch (logged once)
 
 
 @dataclass(frozen=True)
@@ -598,6 +605,102 @@ class _Evaluator:
                     f"{rec.pivot:.2f}{below}).",
                 )
             )
+        self._watch(rec, write)
+        self._decide(rec)
+
+    def _watch(self, rec: SetupRecord, write: SetupWrite) -> None:
+        """The breakout-watch readiness of a forming base near its pivot; the first session it
+        qualifies logs a `breakout_watch` signal (once per setup)."""
+        rec.watch = None
+        s, tech = self.s, self.stock.tech
+        if (
+            not rec.active
+            or rec.kind != "base"
+            or rec.state not in PRE_BREAKOUT
+            or rec.pivot is None
+            or rec.readiness is None
+            or rec.readiness > s.watch_max_distance_pct
+            or not tech.tt_pass
+        ):
+            return
+        result = watch_score(
+            self.bars,
+            s,
+            pivot=rec.pivot,
+            rs_new_high_ahead=tech.rs_new_high_ahead,
+            rs_line_high_52w=tech.rs_line_high_52w,
+            rs_slope_63=tech.rs_slope_63,
+            up_down_volume=tech.up_down_volume,
+            pocket_pivots_recent=self.stock.pocket_pivots_recent,
+        )
+        on_watch = result.score >= s.watch_min_score
+        rec.watch = {**result.as_dict(), "on_watch": on_watch}
+        if on_watch and rec.watch_since is None:
+            rec.watch_since = self.as_of
+            strong = [
+                p.label.lower()
+                for p in result.parts
+                if p.max_points and p.points >= 0.8 * p.max_points
+            ]
+            why = f" Signs: {', '.join(strong)}." if strong else ""
+            where = (
+                f"{rec.readiness:.1f}% below the pivot {rec.pivot:.2f}"
+                if rec.readiness >= 0
+                else f"{-rec.readiness:.1f}% above the pivot {rec.pivot:.2f} (not confirmed)"
+            )
+            write.signals.append(
+                SignalDraft(
+                    "breakout_watch",
+                    f"On the breakout watch: readiness {result.score:.0f}/100, {where}.{why}",
+                    {"watch_score": result.score},
+                )
+            )
+
+    def _decide(self, rec: SetupRecord) -> None:
+        """Buy, get ready, not yet or don't buy, with the reasons and a plain-English summary."""
+        assert rec.score is not None
+        tech, stock = self.stock.tech, self.stock
+        verdict = decide(
+            VerdictInputs(
+                state=str(rec.state),
+                kind=rec.kind,
+                active=rec.active,
+                close=rec.close,
+                pivot=rec.pivot,
+                readiness_pct=rec.readiness,
+                sessions_since_breakout=self._since_breakout(rec, self.t),
+                raw_score=rec.score.raw,
+                penalties=rec.score.penalties,
+                market_state=self.market.state,
+                market_label=self.market.label,
+                tt_passed=tech.tt_passed,
+                rs_rating=tech.rs_rating,
+                fundamentals_grade=stock.fundamentals_grade,
+                sessions_to_earnings=stock.sessions_to_earnings,
+                next_earnings=None
+                if stock.next_earnings is None
+                else stock.next_earnings.isoformat(),
+                trade_plan=rec.trade_plan,
+            ),
+            self.s,
+        )
+        plain = plain_summary(
+            PlainFacts(
+                state=str(rec.state),
+                kind=rec.kind,
+                rs_rating=tech.rs_rating,
+                group_name=stock.group_name,
+                group_rank=stock.group_rank,
+                groups_ranked=stock.groups_ranked,
+                fundamentals_grade=stock.fundamentals_grade,
+                pattern_label=None if rec.pattern is None else rec.pattern.label,
+                pivot=rec.pivot,
+                readiness_pct=rec.readiness,
+                volume_ratio=tech.volume_ratio,
+            ),
+            verdict,
+        )
+        rec.verdict = {**verdict.as_dict(), "plain": plain}
 
     def _lifecycle_signals(self, write: SetupWrite) -> None:
         rec, tr = write.record, write.today

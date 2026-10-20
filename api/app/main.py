@@ -15,6 +15,7 @@ from app.api.routes import (
     alerts,
     auth,
     backtests,
+    buy_list,
     health,
     holdings,
     live,
@@ -97,6 +98,7 @@ def create_app() -> FastAPI:
     api.include_router(holdings.router)
     api.include_router(live.router)
     api.include_router(backtests.router)
+    api.include_router(buy_list.router)
     api.include_router(performance.router)
     api.include_router(ai.router)
     app.include_router(api)

@@ -14,18 +14,20 @@ from app.alerts.delivery import due_period, send_alert_emails, send_due_digests
 from app.alerts.engine import AlertDraft, EmailRoute, raise_alerts
 from app.alerts.eod import (
     HoldingDay,
+    buy_list_draft,
     confirm_provisional,
     holding_drafts,
     sell_warnings,
     session_alerts,
     signal_drafts,
+    verdict_line,
 )
 from app.core.calendar import MARKET_TZ, previous_session
 from app.core.redis import get_redis
 from app.data.bars import upsert_bars
 from app.data.universe import plan_universe, sync_tickers
 from app.intraday.store import ticker_ids
-from app.models import Alert, Holding, IndicatorDaily, Signal, User
+from app.models import Alert, Holding, IndicatorDaily, Setup, Signal, User
 from app.providers.base import Bar, PriceHistory
 from app.settings.schema import AppSettings
 from tests.fakes import FakeEmailSender
@@ -298,3 +300,103 @@ async def test_the_daily_digest_collects_pending_alerts_once(db: AsyncSession, u
         await send_due_digests(db, redis, sender, SETTINGS, at, public_url="x", email_to=None) == {}
     )
     assert len(sender.sent) == 1
+
+
+def test_the_verdict_in_one_line() -> None:
+    buy = {
+        "action": "buy",
+        "headline": "Buy signal",
+        "reason": "It broke out today and passes every rule.",
+        "order": {"text": "Buy 666 shares at up to 20.89, with a stop-loss order at 18.80."},
+    }
+    assert verdict_line(buy) == (
+        "✓ Buy signal: Buy 666 shares at up to 20.89, with a stop-loss order at 18.80."
+    )
+    avoid = {
+        "action": "avoid",
+        "headline": "Don't buy",
+        "reason": "It fails 2 of 7 rules.",
+        "order": None,
+    }
+    assert verdict_line(avoid) == "✕ Don't buy: It fails 2 of 7 rules."
+    assert verdict_line(None) is None
+
+
+def _setup(ticker_id: int, **values: object) -> Setup:
+    base: dict[str, object] = {
+        "ticker_id": ticker_id,
+        "kind": "base",
+        "pattern_type": "vcp",
+        "state": "near_pivot",
+        "state_since": DAY,
+        "first_seen": DAY,
+        "as_of": DAY,
+        "close": 91.5,
+        "pivot": 92.46,
+        "score": 80.0,
+        "raw_score": 80.0,
+        "regime_multiplier": 1.0,
+        "penalties": 0.0,
+        "components": [],
+        "red_flags": [],
+    }
+    base.update(values)
+    return Setup(**base)
+
+
+@pytest.mark.integration
+async def test_the_buy_list_alert_and_signals_say_what_to_do(db: AsyncSession, user: User) -> None:
+    ids = await _stocks(db)
+    order = (
+        "Place a buy-stop order for 259 shares at 92.56 (limit 97.08), then a stop-loss at 88.71."
+    )
+    ready = _setup(
+        ids["SPOT"],
+        action="get_ready",
+        verdict={
+            "action": "get_ready",
+            "headline": "Get ready",
+            "reason": "Passes.",
+            "order": {"text": order},
+        },
+        watch_score=81.0,
+        watch_since=DAY,
+    )
+    watched = _setup(
+        ids["AAPL"],
+        action="avoid",
+        verdict={
+            "action": "avoid",
+            "headline": "Don't buy",
+            "reason": "It fails 1 of the app's 7 rules: the market is falling (correction).",
+            "order": None,
+        },
+        watch_score=70.0,
+        watch_since=DAY,
+        pivot=150.0,
+    )
+    db.add_all([ready, watched])
+    await db.commit()
+    draft = await buy_list_draft(db, DAY)
+    assert draft is not None
+    assert (draft.kind, draft.priority, draft.symbol) == ("buy_list", "high", None)
+    assert draft.title == "Buy list: 1 order to place and 2 new on the breakout watch"
+    assert draft.body.split("\n") == [
+        f"SPOT: ◎ Get ready: {order}",
+        "",
+        "New on the breakout watch (likely to break out soon; not a buy by itself):",
+        "SPOT: readiness 81/100, pivot 92.46. ◎ Get ready: Passes.",
+        "AAPL: readiness 70/100, pivot 150.00. ✕ Don't buy: It fails 1 of the app's 7 rules: "
+        "the market is falling (correction).",
+    ]
+    assert draft.payload == {"href": "/buy-list", "orders": ["SPOT"], "watch": ["SPOT", "AAPL"]}
+    assert await buy_list_draft(db, previous_session(DAY)) is None  # nothing that day
+
+    # A signal from a judged setup ends with what to do.
+    db.add(
+        _signal(ids["SPOT"], "near_pivot", summary="Near pivot: within 1.1%.", setup_id=ready.id)
+    )
+    await db.commit()
+    [near] = await signal_drafts(db, DAY)
+    assert near.body == f"Near pivot: within 1.1%.\n◎ Get ready: {order}"
+    assert near.payload["action"] == "get_ready"

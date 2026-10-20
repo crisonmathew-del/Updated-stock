@@ -185,10 +185,15 @@ def test_a_weak_cross_is_reported_once_as_rejected() -> None:
     result = run(stock(b, Detected(11, base())), active)
     [write] = result.writes
     assert write.record.state == State.NEAR_PIVOT
-    assert [d.summary for d in write.signals] == [
+    assert [d.summary for d in write.signals if d.type != "breakout_watch"] == [
         "Breakout rejected: Closed above the pivot 100.00, but volume was 100% of average "
         "(needs 140%)."
     ]
+    # Sitting right at the pivot it also joins the breakout watch (logged once per setup).
+    [watch] = [d for d in write.signals if d.type == "breakout_watch"]
+    assert watch.summary.startswith("On the breakout watch: readiness ")
+    assert "1.0% above the pivot 100.00 (not confirmed)" in watch.summary
+    assert write.record.watch_since == TODAY
     # Still above the pivot the next day: not a fresh cross, so no second signal.
     again = run(stock(bars([95.0] * 37 + [98.0, 101.0, 101.2]), Detected(11, base())), active)
     assert types(again) == set()

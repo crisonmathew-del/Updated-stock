@@ -49,6 +49,9 @@ class SetupWatch:
     shares: int | None
     score: float | None
     grade: str | None
+    # The app's buy rules at the last close (app.scoring.verdict): None when not judged.
+    rules_pass: bool | None = None
+    rules_failed: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -113,6 +116,15 @@ def volume_view(
     if projected is None or not ctx.avg_volume:
         return VolumeView(projected, None)
     return VolumeView(projected, projected / ctx.avg_volume * 100)
+
+
+def _rules(setup: SetupWatch) -> str:
+    """What the buy rules said at the last close, for a breakout alert."""
+    if setup.rules_pass:
+        return " The app's buy rules all passed at the last close: this is a buy signal."
+    if setup.rules_failed:
+        return f" The app's rules say don't buy: {'; '.join(setup.rules_failed)}."
+    return ""
 
 
 def _p(value: float | None) -> str:
@@ -215,7 +227,7 @@ def evaluate(
                 f"{_p(price)} is above the {_p(setup.pivot)} pivot on projected volume of "
                 f"{view.ratio_pct:.0f}% of average{' (strong)' if strong else ''}.{feed}"
                 f"{plan_text} Provisional until the close: it needs a close in the top third "
-                "of the day's range on enough volume.",
+                f"of the day's range on enough volume.{_rules(setup)}",
                 strong=strong,
                 **plan,
             )

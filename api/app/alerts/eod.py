@@ -5,7 +5,12 @@
    `breakout_rejected` signal records why (closed back below the pivot, light volume, weak
    close). Either way an alert says so.
 2. **Signals → alerts.** Every signal of the session that has not alerted yet becomes an alert
-   (the grade filter and dedupe are the engine's). Re-running a session alerts nothing twice.
+   (the grade filter and dedupe are the engine's), ending with what the rules say to do (the
+   setup's verdict: buy, get ready, not yet, don't buy and why). Re-running a session alerts
+   nothing twice.
+   **The buy list** (Phase 8): one alert per session listing the orders for the next session
+   and the stocks new on the breakout watch, when there are any (not grade-filtered: it is the
+   app's own summary).
 3. **Saved screens promoted to alerts**: stocks that newly match (app.alerts.screens).
 4. **Holdings (sell rules, spec §6.6).** For each open position at the close: at or below the
    stop, a close below the 50-day SMA (high) or the 21-day EMA (on the day it crosses), earnings
@@ -29,7 +34,16 @@ from app.alerts.screens import screen_drafts
 from app.core.calendar import previous_session, sessions_between
 from app.core.logging import get_logger
 from app.fundamentals.earnings import estimate_next_release
-from app.models import Alert, DailyBar, EarningsEvent, Holding, IndicatorDaily, Signal, Ticker
+from app.models import (
+    Alert,
+    DailyBar,
+    EarningsEvent,
+    Holding,
+    IndicatorDaily,
+    Setup,
+    Signal,
+    Ticker,
+)
 from app.scanner.evaluate import SIGNAL_LABELS
 from app.settings.schema import AppSettings
 
@@ -50,7 +64,20 @@ TITLES = {
     "pullback": "{s} pullback buy point",
     "undercut_rally": "{s} undercut & rally",
     "regime_change": "Market regime change",
+    "breakout_watch": "{s} is on the breakout watch",
 }
+VERDICT_MARKS = {"buy": "✓", "get_ready": "◎", "wait": "…", "avoid": "✕"}
+
+
+def verdict_line(verdict: dict[str, Any] | None) -> str | None:
+    """What the rules say to do, in one line: "✓ Buy signal: buy 666 shares…"."""
+    if not verdict:
+        return None
+    action = str(verdict.get("action"))
+    mark = VERDICT_MARKS.get(action, "")
+    order = verdict.get("order") or {}
+    said = order.get("text") if action in ("buy", "get_ready") and order else verdict.get("reason")
+    return f"{mark} {verdict.get('headline')}: {said}".strip()
 
 
 def _plan_payload(signal: Signal) -> dict[str, Any]:
@@ -168,28 +195,95 @@ async def signal_drafts(session: AsyncSession, day: date) -> list[AlertDraft]:
             )
         )
     )
+    setup_ids = {s.setup_id for s, _ in signals if s.setup_id is not None}
+    verdicts: dict[int, dict[str, Any] | None] = {}
+    if setup_ids:
+        verdicts = {
+            int(i): v
+            for i, v in (
+                await session.execute(
+                    select(Setup.id, Setup.verdict).where(Setup.id.in_(setup_ids))
+                )
+            ).all()
+        }
     drafts = []
     for signal, symbol in signals:
         template = TITLES.get(signal.type, "{s}: " + SIGNAL_LABELS.get(signal.type, signal.type))
         title = template.format(s=symbol or "", g=signal.grade or "")
         if signal.type in ("breakout", "breakout_rejected") and signal.ticker_id in provisional:
             title += " at the close"
+        verdict = None if signal.setup_id is None else verdicts.get(signal.setup_id)
+        said = verdict_line(verdict)
+        payload = _plan_payload(signal)
+        if verdict:
+            payload["action"] = verdict.get("action")
         drafts.append(
             AlertDraft(
                 kind=signal.type,
                 priority="high" if signal.type in HIGH else "normal",
                 title=title,
-                body=signal.summary,
+                body=signal.summary if said is None else f"{signal.summary}\n{said}",
                 session_date=day,
                 dedupe_key=f"signal:{signal.id}",
                 symbol=symbol,
                 ticker_id=signal.ticker_id,
                 grade=signal.grade,
-                payload=_plan_payload(signal),
+                payload=payload,
                 signal_id=signal.id,
             )
         )
     return drafts
+
+
+async def buy_list_draft(session: AsyncSession, day: date) -> AlertDraft | None:
+    """One alert for the session: the orders for the next session and the stocks new on the
+    breakout watch today, or None when there are neither."""
+    rows = (
+        await session.execute(
+            select(Setup, Ticker.symbol)
+            .join(Ticker, Ticker.id == Setup.ticker_id)
+            .where(Setup.active, Setup.as_of == day)
+            .order_by(Setup.watch_score.desc().nulls_last(), Setup.score.desc())
+        )
+    ).all()
+    orders = [(s, sym) for s, sym in rows if s.action in ("buy", "get_ready")]
+    fresh = [(s, sym) for s, sym in rows if s.watch_since == day]
+    if not orders and not fresh:
+        return None
+    lines = []
+    for s, sym in orders:
+        line = verdict_line(s.verdict) or ""
+        lines.append(f"{sym}: {line}")
+    if fresh:
+        if orders:
+            lines.append("")
+        lines.append("New on the breakout watch (likely to break out soon; not a buy by itself):")
+        for s, sym in fresh:
+            verdict = s.verdict or {}
+            pivot = "" if s.pivot is None else f", pivot {s.pivot:.2f}"
+            mark = VERDICT_MARKS.get(str(verdict.get("action")), "")
+            lines.append(
+                f"{sym}: readiness {s.watch_score or 0:.0f}/100{pivot}. {mark} "
+                f"{verdict.get('headline', '')}: {verdict.get('reason', '')}".rstrip()
+            )
+    parts = []
+    if orders:
+        parts.append(f"{len(orders)} order{'s' if len(orders) != 1 else ''} to place")
+    if fresh:
+        parts.append(f"{len(fresh)} new on the breakout watch")
+    return AlertDraft(
+        kind="buy_list",
+        priority="high" if orders else "normal",
+        title=f"Buy list: {' and '.join(parts)}",
+        body="\n".join(lines),
+        session_date=day,
+        dedupe_key=f"buy_list:{day.isoformat()}",
+        payload={
+            "href": "/buy-list",
+            "orders": [sym for _, sym in orders],
+            "watch": [sym for _, sym in fresh],
+        },
+    )
 
 
 def _next_earnings(reported: list[date], day: date) -> tuple[date, int] | None:
@@ -416,10 +510,12 @@ async def session_alerts(
     """Close confirmation, then alerts for the session's signals and holdings. Returns stats
     and the ids of alerts to email now."""
     confirmation = await confirm_provisional(session, day)
+    summary = await buy_list_draft(session, day)
     drafts = [
         *await signal_drafts(session, day),
         *await holding_drafts(session, day, settings),
         *await screen_drafts(session, redis, day),
+        *([] if summary is None else [summary]),
     ]
     alerts = await raise_alerts(session, redis, drafts, settings, now, route)
     queued = [a.id for a in alerts if a.delivery.get("email") == "queued"]

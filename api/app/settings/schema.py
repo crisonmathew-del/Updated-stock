@@ -27,6 +27,8 @@ class Category(StrEnum):
     ALERTS = "alerts"
     BACKTEST = "backtest"
     DATA = "data"
+    DECISIONS = "decisions"  # Phase 8: when the app says buy, get ready or don't buy
+    WATCH = "watch"  # Phase 8: the breakout watch (likely to break out soon)
 
 
 def _field(default: Any, category: Category, description: str, **bounds: Any) -> Any:
@@ -98,6 +100,20 @@ class SetupWeights(BaseModel):
     pattern: float = Field(20, ge=0, le=100)
     group: float = Field(10, ge=0, le=100)
     accumulation: float = Field(10, ge=0, le=100)
+
+
+class WatchWeights(BaseModel):
+    """Points per breakout-watch part (Phase 8). They need not sum to 100: the score is
+    rescaled over the parts that have data."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    distance: float = Field(25, ge=0, le=100)
+    tightness: float = Field(20, ge=0, le=100)
+    dry_up: float = Field(15, ge=0, le=100)
+    relative_strength: float = Field(15, ge=0, le=100)
+    demand: float = Field(15, ge=0, le=100)
+    support: float = Field(10, ge=0, le=100)
 
 
 class SetupGradeCutoffs(BaseModel):
@@ -569,6 +585,142 @@ class AppSettings(BaseModel):
         10, Category.RISK, "Or raise it to breakeven once up this % (whichever first)", gt=0
     )
 
+    # --- Buy decisions (Phase 8): what the app tells you to do --------------------------------
+    decision_regimes: Literal["confirmed_uptrend", "confirmed_or_under_pressure"] = _field(
+        "confirmed_uptrend",
+        Category.DECISIONS,
+        "When new buys are allowed: only in a confirmed uptrend, or also when the uptrend is "
+        "under pressure (at a reduced size)",
+    )
+    decision_under_pressure_size_pct: float = _field(
+        50,
+        Category.DECISIONS,
+        "Position size when buying in an uptrend under pressure (% of the normal size)",
+        gt=0,
+        le=100,
+    )
+    decision_min_setup_grade: Literal["A+", "A", "B", "C"] = _field(
+        "B",
+        Category.DECISIONS,
+        "Buy only setups at least this good, judged before the market adjustment (the market "
+        "has its own rule)",
+    )
+    decision_min_fundamentals_grade: Literal["A", "B", "C", "D", "E"] = _field(
+        "C", Category.DECISIONS, "Buy only companies with at least this Fundamentals Grade"
+    )
+    decision_min_rs_rating: int = _field(
+        80, Category.DECISIONS, "Buy only stocks with at least this RS Rating (1-99)", ge=1, le=99
+    )
+    decision_earnings_block_sessions: int = _field(
+        10,
+        Category.DECISIONS,
+        "No new buys when results are due within this many sessions (0 = ignore earnings)",
+        ge=0,
+        le=60,
+    )
+    decision_buy_window_sessions: int = _field(
+        3,
+        Category.DECISIONS,
+        "A confirmed breakout stays a buy for this many sessions after the breakout day, "
+        "while it closes inside the buy zone",
+        ge=0,
+        le=20,
+    )
+
+    # --- Breakout watch (Phase 8): bases likely to break out soon ------------------------------
+    watch_min_score: float = _field(
+        65,
+        Category.WATCH,
+        "Breakout watch: list bases whose readiness score is at least this (0-100)",
+        ge=0,
+        le=100,
+    )
+    watch_weights: WatchWeights = _field(
+        WatchWeights(), Category.WATCH, "Breakout watch: points per part of the readiness score"
+    )
+    watch_max_distance_pct: float = _field(
+        8,
+        Category.WATCH,
+        "Breakout watch: consider bases whose close is at most this % below the pivot",
+        gt=0,
+        le=30,
+    )
+    watch_tight_ratio_full: float = _field(
+        0.6,
+        Category.WATCH,
+        "Tightness: full points when the last 10 days' average range is at most this × the "
+        "50-day average",
+        gt=0,
+    )
+    watch_tight_ratio_zero: float = _field(
+        1.0, Category.WATCH, "Tightness: no points when the ratio is this or more", gt=0
+    )
+    watch_dry_up_ratio_full: float = _field(
+        0.6,
+        Category.WATCH,
+        "Volume dry-up: full points when the last 10 days' average volume is at most this × "
+        "the 50-day average",
+        gt=0,
+    )
+    watch_dry_up_ratio_zero: float = _field(
+        1.1, Category.WATCH, "Volume dry-up: no points when the ratio is this or more", gt=0
+    )
+    watch_demand_ratio_full: float = _field(
+        1.5,
+        Category.WATCH,
+        "Demand: full points when up-day volume is at least this × down-day volume (50 days)",
+        gt=0,
+    )
+    watch_demand_ratio_zero: float = _field(
+        1.0, Category.WATCH, "Demand: no points when the up/down volume ratio is this or less", gt=0
+    )
+    watch_support_sessions: int = _field(
+        5,
+        Category.WATCH,
+        "Support: how many recent sessions' closing positions in the day's range count",
+        ge=1,
+        le=20,
+    )
+    watch_support_full: float = _field(
+        0.6,
+        Category.WATCH,
+        "Support: full points when those closes average at least this far up the day's range (0-1)",
+        ge=0,
+        le=1,
+    )
+    watch_support_zero: float = _field(
+        0.4, Category.WATCH, "Support: no points at this average or lower (0-1)", ge=0, le=1
+    )
+    watch_hit_sessions: int = _field(
+        10,
+        Category.WATCH,
+        "Count a breakout-watch pick as a hit when it breaks out within this many sessions",
+        ge=1,
+        le=60,
+    )
+    watch_early_entry_sessions: int = _field(
+        5,
+        Category.WATCH,
+        "Early entry: the tight area is the last this many sessions (its high is the early buy "
+        "point, its low the stop)",
+        ge=2,
+        le=20,
+    )
+    watch_early_entry_min_below_pct: float = _field(
+        1.0,
+        Category.WATCH,
+        "Early entry: offered only when the tight area's high is at least this % below the pivot",
+        ge=0,
+        le=20,
+    )
+    watch_early_entry_max_range_pct: float = _field(
+        6,
+        Category.WATCH,
+        "Early entry: offered only when that tight area is at most this % from high to low",
+        gt=0,
+        le=20,
+    )
+
     # --- Intraday watcher and scans (spec §6.8, §7.1) -----------------------------------------
     stream_max_symbols: int = _field(
         30,
@@ -768,6 +920,14 @@ class AppSettings(BaseModel):
         ):
             if getattr(self, low) > getattr(self, high):
                 raise ValueError(f"{low} must not exceed {high}")
+        for full, zero in (
+            ("watch_tight_ratio_full", "watch_tight_ratio_zero"),
+            ("watch_dry_up_ratio_full", "watch_dry_up_ratio_zero"),
+            ("watch_demand_ratio_zero", "watch_demand_ratio_full"),
+            ("watch_support_zero", "watch_support_full"),
+        ):
+            if getattr(self, full) >= getattr(self, zero):
+                raise ValueError(f"{full} must be below {zero}")
         if bool(self.quiet_hours_start) != bool(self.quiet_hours_end):
             raise ValueError("Set both quiet_hours_start and quiet_hours_end, or neither")
         if self.breakout_volume_min_pct_of_avg > self.breakout_volume_strong_pct_of_avg:

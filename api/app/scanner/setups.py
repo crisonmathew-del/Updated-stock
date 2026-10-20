@@ -84,6 +84,11 @@ LIFECYCLE_COLUMNS = (
     "best_grade",
     "closed_on",
     "closed_reason",
+    "action",
+    "verdict",
+    "watch_score",
+    "watch",
+    "watch_since",
 )
 
 
@@ -214,6 +219,7 @@ def _record(setup: Setup, pattern: Pattern | None) -> SetupRecord:
         trade_plan=setup.trade_plan,
         breakout_date=setup.breakout_date,
         best_grade=setup.best_grade,
+        watch_since=setup.watch_since,
     )
 
 
@@ -360,6 +366,11 @@ def _setup_row(rec: SetupRecord) -> dict[str, Any]:
         "best_grade": rec.best_grade,
         "closed_on": rec.closed_on,
         "closed_reason": rec.closed_reason,
+        "action": None if rec.verdict is None else rec.verdict["action"],
+        "verdict": rec.verdict,
+        "watch_score": None if rec.watch is None else rec.watch["score"],
+        "watch": rec.watch,
+        "watch_since": rec.watch_since,
     }
 
 

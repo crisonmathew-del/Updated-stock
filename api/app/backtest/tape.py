@@ -219,6 +219,7 @@ class StoredSetup:
     readiness: float | None = None
     pattern_type: str | None = None
     quality: float | None = None
+    watch_since: date | None = None
 
     @classmethod
     def of(cls, rec: SetupRecord) -> "StoredSetup":
@@ -243,6 +244,7 @@ class StoredSetup:
             rec.readiness,
             None if pattern is None else pattern.type,
             None if pattern is None else pattern.quality,
+            rec.watch_since,
         )
 
     def record(self, ticker_id: int, patterns: PatternStore) -> SetupRecord:
@@ -262,6 +264,7 @@ class StoredSetup:
             trade_plan=self.trade_plan,
             breakout_date=self.breakout_date,
             best_grade=self.best_grade,
+            watch_since=self.watch_since,
         )
 
 

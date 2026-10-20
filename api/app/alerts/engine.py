@@ -60,6 +60,7 @@ SETUP_KINDS = frozenset(
         "undercut_rally",
         "premarket_gap",
         "sweep",
+        "breakout_watch",
     }
 )
 
@@ -79,6 +80,7 @@ KIND_LABELS = {
     "screen_match": "Screen match",
     "premarket_gap": "Pre-market gap",
     "sweep": "Volume surge",
+    "buy_list": "Buy list",
     "test": "Test",
 }
 

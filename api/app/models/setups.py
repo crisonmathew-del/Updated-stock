@@ -38,6 +38,7 @@ class Setup(Base):
     __table_args__ = (
         Index("uq_setups_active_ticker", "ticker_id", unique=True, postgresql_where=text("active")),
         Index("ix_setups_state", "state", "active"),
+        Index("ix_setups_action", "action", "active"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
@@ -66,6 +67,13 @@ class Setup(Base):
     best_grade: Mapped[str | None] = mapped_column(String(2))
     closed_on: Mapped[dt.date | None] = mapped_column(Date)
     closed_reason: Mapped[str | None] = mapped_column(Text)
+    # Phase 8: what to do today (buy | get_ready | wait | avoid) with every check, the order and
+    # a plain-English summary (app.scoring.verdict), and the breakout-watch readiness.
+    action: Mapped[str | None] = mapped_column(String(16))
+    verdict: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    watch_score: Mapped[float | None] = mapped_column(Float)
+    watch: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    watch_since: Mapped[dt.date | None] = mapped_column(Date)
     # The row as it was before the session `as_of` was evaluated, so re-running that session
     # starts from the same place (see app.scanner.setups).
     previous: Mapped[dict[str, Any] | None] = mapped_column(JSONB)

@@ -71,6 +71,12 @@ class SetupRow(BaseModel):
     red_flags: list[str]
     closed_on: date | None
     closed_reason: str | None
+    # Phase 8: what to do (buy | get_ready | wait | avoid) and the breakout-watch readiness.
+    action: str | None
+    action_label: str | None
+    action_reason: str | None
+    watch_score: float | None
+    on_watch: bool
 
 
 class TransitionOut(BaseModel):
@@ -122,6 +128,9 @@ class SetupDetail(SetupRow):
     transitions: list[TransitionOut]
     signals: list[SignalOut]
     pattern: PatternOut | None
+    verdict: dict[str, Any] | None  # checks, order, plain-English summary (app.scoring.verdict)
+    watch: dict[str, Any] | None  # readiness parts and early entry (app.scoring.breakout_watch)
+    watch_since: date | None
 
 
 class SetupList(BaseModel):
@@ -184,6 +193,11 @@ def _row(setup: Setup, ticker: Ticker) -> SetupRow:
         red_flags=[f["label"] for f in setup.red_flags or []],
         closed_on=setup.closed_on,
         closed_reason=setup.closed_reason,
+        action=setup.action,
+        action_label=(setup.verdict or {}).get("headline"),
+        action_reason=(setup.verdict or {}).get("reason"),
+        watch_score=setup.watch_score,
+        on_watch=bool((setup.watch or {}).get("on_watch")),
     )
 
 
@@ -287,6 +301,9 @@ async def _detail(db: DbSession, setup: Setup, ticker: Ticker) -> SetupDetail:
         ],
         signals=[_signal(*row) for row in signals],
         pattern=pattern,
+        verdict=setup.verdict,
+        watch=setup.watch,
+        watch_since=setup.watch_since,
     )
 
 

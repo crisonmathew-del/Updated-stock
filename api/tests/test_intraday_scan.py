@@ -96,6 +96,35 @@ def test_breakout_on_projected_volume_fires_once() -> None:
     assert run(ctx(), day(93.0, et(10, 16)), fired) == []
 
 
+def test_a_live_breakout_says_whether_the_buy_rules_passed() -> None:
+    passing = ctx(setup=SetupWatch(**{**SETUP.__dict__, "rules_pass": True}))
+    [e] = run(passing, day(92.80, et(10, 15)))
+    assert e.body.endswith(
+        "The app's buy rules all passed at the last close: this is a buy signal."
+    )
+    failing = ctx(
+        setup=SetupWatch(
+            **{
+                **SETUP.__dict__,
+                "rules_pass": False,
+                "rules_failed": (
+                    "the market is falling (correction)",
+                    "results are due in 6 sessions",
+                ),
+            }
+        )
+    )
+    [e] = run(failing, day(92.80, et(10, 15)))
+    assert e.body.endswith(
+        "The app's rules say don't buy: the market is falling (correction); results are due in "
+        "6 sessions."
+    )
+    # Not judged (an older setup row): nothing added.
+    [e] = run(ctx(), day(92.80, et(10, 15)))
+    assert "buy rules" not in e.body
+    assert "say don't buy" not in e.body
+
+
 def test_no_breakout_on_light_volume_or_too_early() -> None:
     # 180,000 by 10:15 projects to 1,000,000: 100% of average, under 140%.
     assert run(ctx(), day(92.80, et(10, 15), volume=180_000)) == []
